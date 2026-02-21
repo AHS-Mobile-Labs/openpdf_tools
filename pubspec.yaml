@@ -1,0 +1,66 @@
+name: openpdf_tools
+description: "OpenPDF Tools - PDF viewer, creator, compressor and sharing app"
+publish_to: 'none'
+
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.10.7
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  cupertino_icons: ^1.0.8
+
+  # PDF creation & printing
+  pdf: ^3.10.7
+  printing: ^5.12.0
+
+  # PDF viewer (supports password-protected PDFs)
+  syncfusion_flutter_pdfviewer: ^32.2.4
+
+  # Pick images & files
+  image_picker: ^1.0.7
+  file_picker: ^10.3.10
+
+  # Share PDFs
+  share_plus: ^12.0.1
+
+  # File system access
+  path_provider: ^2.1.2
+
+  # Image compression (for PDF compression)
+  flutter_image_compress: ^2.2.0
+  
+  receive_sharing_intent: ^1.8.1
+
+  image: ^4.0.17
+  pdfrx_engine: ^0.3.9
+  path: ^1.8.3
+  permission_handler: ^12.0.1
+
+  # Local storage for history and favorites
+  shared_preferences: ^2.2.0
+  
+  # Date formatting
+  intl: ^0.19.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+
+  flutter_lints: ^6.0.0
+  flutter_launcher_icons: ^0.13.1
+
+flutter:
+  uses-material-design: true
+  assets:
+    - asset/app_img/OpenPDF Tools.png
+
+flutter_launcher_icons:
+  image_path: "asset/app_img/OpenPDF Tools.png"
+  android: {}
+  ios: {}
+  macos: {}
+  windows: {}
