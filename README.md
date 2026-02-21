@@ -513,3 +513,5 @@ Found a bug? Have a suggestion? Open an issue or start a discussion!
 **Happy PDF Processing! 📄✨**
 
 *For the latest updates and releases, visit the [GitHub repository](https://github.com/ameerhamzasaifi/openpdf_tools).*
+
+© 2026 AHS Mobile Labs
