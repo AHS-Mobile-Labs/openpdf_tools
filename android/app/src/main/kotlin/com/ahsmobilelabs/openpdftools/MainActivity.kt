@@ -1,4 +1,4 @@
-package com.example.openpdf_tools
+package com.ahsmobilelabs.openpdftools
 
 import io.flutter.embedding.android.FlutterActivity
 

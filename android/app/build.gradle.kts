@@ -7,7 +7,7 @@ plugins {
 }
 
 android {
-    namespace = "com.example.openpdf_tools"
+    namespace = "com.ahsmobilelabs.openpdftools"
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
@@ -21,7 +21,7 @@ android {
     }
 
     defaultConfig {
-        applicationId = "com.example.openpdf_tools"
+        applicationId = "com.ahsmobilelabs.openpdftools"
         minSdk = flutter.minSdkVersion
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode

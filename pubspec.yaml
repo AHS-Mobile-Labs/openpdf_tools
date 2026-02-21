@@ -13,8 +13,7 @@ dependencies:
 
   cupertino_icons: ^1.0.8
 
-  # PDF creation & printing
-  pdf: ^3.10.7
+  # PDF printing (note: pdf package removed due to Linux font issues)
   printing: ^5.12.0
 
   # PDF viewer (supports password-protected PDFs)
@@ -45,6 +44,19 @@ dependencies:
   
   # Date formatting
   intl: ^0.19.0
+
+  # Color picker for advanced features
+  flutter_colorpicker: ^1.0.3
+
+  # Platform-specific optimizations
+  responsive_framework: ^1.1.1
+  window_manager: ^0.3.9
+  desktop_window: ^0.4.0
+  
+  # Web & Desktop improvements
+  url_launcher: ^6.2.6
+  connectivity_plus: ^5.0.2
+  app_links: ^3.4.5
 
 dev_dependencies:
   flutter_test:
