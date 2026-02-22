@@ -10,6 +10,7 @@ A professional, feature-rich Flutter application for comprehensive PDF managemen
 
 ## � Table of Contents
 
+- [Download](#-Download)
 - [Features](#-features)
 - [Platform Support](#-platform-support)
 - [Getting Started](#-getting-started)
@@ -21,6 +22,20 @@ A professional, feature-rich Flutter application for comprehensive PDF managemen
 - [Contributing](#-contributing)
 - [License](#-license)
 
+---
+## ⬇️ Download OpenPDF Tools
+
+OpenPDF Tools will soon be available on the following platforms:
+
+- **Google Play Store (Android)** – 🚧 Initial stage, coming soon  
+- **SourceForge (Linux & Windows)** – 🚧 Coming soon  
+- **Web Version** – 🚧 Coming soon  
+- **Apple App Store (iOS)** – 🚧 Coming soon  
+- **macOS Direct Download** – 🚧 Coming soon  
+- **Indus App Store** – 🚧 Coming soon  
+- **Samsung Galaxy Store** – 🚧 Coming soon  
+
+Stay tuned for official release announcements.
 ---
 
 ## ✨ Features
