@@ -76,3 +76,6 @@ flutter_launcher_icons:
   ios: {}
   macos: {}
   windows: {}
+  linux: {}
+  web:
+    generate: true
