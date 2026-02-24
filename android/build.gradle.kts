@@ -5,6 +5,22 @@ allprojects {
     }
 }
 
+subprojects {
+    afterEvaluate {
+        // Force all tasks to Java 17
+        tasks.withType<JavaCompile>().configureEach {
+            sourceCompatibility = "17"
+            targetCompatibility = "17"
+        }
+        
+        tasks.withType<org.jetbrains.kotlin.gradle.tasks.KotlinCompile>().configureEach {
+            compilerOptions {
+                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17)
+            }
+        }
+    }
+}
+
 val newBuildDir: Directory =
     rootProject.layout.buildDirectory
         .dir("../../build")
@@ -12,22 +28,13 @@ val newBuildDir: Directory =
 rootProject.layout.buildDirectory.value(newBuildDir)
 
 subprojects {
-    val newSubprojectBuildDir: Directory = newBuildDir.dir(project.name)
+    val newSubprojectBuildDir: Directory =
+        newBuildDir.dir(project.name)
     project.layout.buildDirectory.value(newSubprojectBuildDir)
 }
 
 subprojects {
     project.evaluationDependsOn(":app")
-}
-
-subprojects {
-    plugins.withId("kotlin-android") {
-        configure<org.jetbrains.kotlin.gradle.dsl.KotlinAndroidProjectExtension> {
-            compilerOptions {
-                jvmTarget.set(org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_21)
-            }
-        }
-    }
 }
 
 tasks.register<Delete>("clean") {

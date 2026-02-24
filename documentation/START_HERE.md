@@ -28,7 +28,7 @@ lib/
 
 ---
 
-### 📚 **6 Comprehensive Documentation Files**
+### 📚 **7 Comprehensive Documentation Files**
 
 ```
 Root/
@@ -38,10 +38,11 @@ Root/
 ├── PREMIUM_UI_IMPLEMENTATION_CHECKLIST.md (400+)  ✓ Migration path
 ├── IMPORT_REFERENCE.md (300+ lines)               📍 Quick lookup
 ├── PREMIUM_UI_SUMMARY.md (400+ lines)             📊 Overview
-└── DELIVERABLES.md (400+ lines)                   📦 This document
+├── DELIVERABLES.md (400+ lines)                   📦 Deliverables
+└── BUILD_ISSUES_KOTLIN_JVM_FIX.md (300+ lines)    🔧 APK Build Fix
 ```
 
-**Total**: 3,500+ lines of documentation
+**Total**: 4,000+ lines of documentation
 
 ---
 
@@ -401,7 +402,27 @@ Today                Next Few Days           Next Week
 | [PREMIUM_UI_DESIGN_GUIDE.md](PREMIUM_UI_DESIGN_GUIDE.md) | Design details | 30 min |
 | [PREMIUM_UI_ARCHITECTURE.md](PREMIUM_UI_ARCHITECTURE.md) | Technical guide | 30 min |
 | [IMPORT_REFERENCE.md](IMPORT_REFERENCE.md) | Code snippets | 5 min |
+| [BUILD_ISSUES_KOTLIN_JVM_FIX.md](BUILD_ISSUES_KOTLIN_JVM_FIX.md) | 🔧 APK Build Issues | 5 min |
 | [modern_home_screen.dart](lib/screens/modern_home_screen.dart) | See code | 10 min |
+
+---
+
+## 🆘 Troubleshooting
+
+### APK/AAB Build Fails with "Inconsistent JVM Target" Error?
+
+If you see an error like:
+```
+Execution failed for task ':plugin_name:compileReleaseKotlin'.
+> Inconsistent JVM Target Compatibility Between Java and Kotlin Tasks
+```
+
+👉 **Solution**: Read [BUILD_ISSUES_KOTLIN_JVM_FIX.md](BUILD_ISSUES_KOTLIN_JVM_FIX.md)
+
+**Quick Fix** (1 minute):
+1. Open `android/gradle.properties`
+2. Add: `kotlin.jvm.target.validation.mode=warning`
+3. Run: `flutter clean && flutter build apk --release`
 
 ---
 
