@@ -10,7 +10,7 @@ A professional, feature-rich Flutter application for comprehensive PDF managemen
 
 ## � Table of Contents
 
-- [Download](#-download-openpdf-tools)
+- [Download](#-Download-OpenPDF-Tools)
 - [Features](#-features)
 - [Platform Support](#-platform-support)
 - [Getting Started](#-getting-started)
@@ -554,7 +554,5 @@ Found a bug? Have a suggestion? Open an issue or start a discussion!
 **Made with ❤️ for the open-source community**
 
 **Happy PDF Processing! 📄✨**
-
-*For the latest updates and releases, visit the [GitHub repository](https://github.com/ameerhamzasaifi/openpdf_tools).*
 
 © 2026 AHS Mobile Labs
