@@ -46,6 +46,8 @@ Stay tuned for official release announcements.
 - **Image to PDF** - Convert images (JPG, PNG, WEBP, HEIC, TIFF, GIF, BMP) into PDF documents
 - **PDF Conversion** - Export PDFs to 13+ popular formats
 - **PDF Editor** - Add text, annotations, and make modifications
+- **Merge PDF** - Combine PDFs in the order you want with the easiest PDF merger available
+- **Split PDF** - Separate one page or a whole set for easy conversion into independent PDF files
 - **Smart History** - Auto-manage 50 recent files with quick access favorites
 
 ### 🚀 Advanced Capabilities

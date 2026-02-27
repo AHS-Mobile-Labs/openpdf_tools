@@ -17,6 +17,8 @@ import 'screens/history_screen.dart';
 import 'screens/edit_pdf_screen.dart';
 import 'screens/pdf_from_images_screen.dart';
 import 'screens/dashboard_home_screen.dart';
+import 'screens/sign_pdf_screen.dart';
+import 'screens/repair_pdf_screen.dart';
 
 // Import widgets
 import 'widgets/theme_switcher.dart';
@@ -42,27 +44,28 @@ const Color _primaryColor = AppConfig.primaryColor;
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Platform-specific initialization
-  if (PlatformHelper.isDesktop) {
-    // Initialize desktop-specific features
-    try {
-      await pdfrxInitialize();
-    } catch (e) {
-      debugPrint('PDFRx initialization failed: $e');
-    }
-  }
+  debugPrint('[main] Flutter binding initialized, starting app initialization');
 
   // Request permissions for mobile
   if (PlatformHelper.isMobile) {
-    await PlatformFileHandler.requestFilePermissions();
+    try {
+      await PlatformFileHandler.requestFilePermissions();
+      debugPrint('[main] File permissions requested');
+    } catch (e) {
+      debugPrint('[main] Error requesting permissions: $e');
+    }
   }
 
   // Initialize theme service
   final themeService = theme_service.ThemeService();
-  await themeService.initialize();
+  try {
+    await themeService.initialize();
+    debugPrint('[main] Theme service initialized');
+  } catch (e) {
+    debugPrint('[main] Error initializing theme service: $e');
+  }
 
-  // Initialize PDF opener service for handling system PDF opening
-  _initializePDFOpener();
+  debugPrint('[main] Starting app with safe initialization');
 
   runApp(
     ChangeNotifierProvider<theme_service.ThemeService>.value(
@@ -70,16 +73,6 @@ Future<void> main() async {
       child: const OpenPDFToolsApp(),
     ),
   );
-}
-
-/// Initialize the PDF opener service to handle system file opening
-void _initializePDFOpener() {
-  try {
-    // This will be set to the actual handler in the app state
-    debugPrint('PDF opener service initialized');
-  } catch (e) {
-    debugPrint('Failed to initialize PDF opener: $e');
-  }
 }
 
 class OpenPDFToolsApp extends StatefulWidget {
@@ -101,14 +94,71 @@ class _OpenPDFToolsAppState extends State<OpenPDFToolsApp> {
   @override
   void initState() {
     super.initState();
+    debugPrint('[_OpenPDFToolsAppState] initState called');
 
-    // Initialize PDF opener service
-    _pdfOpenerService = PDFOpenerService();
-    _pdfOpenerService.initialize(onPdfFileReceived: _handlePdfFileFromSystem);
+    // Defer platform-sensitive initialization with multiple delays to ensure
+    // the Dart isolate is fully stable before calling native code
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      debugPrint('[_OpenPDFToolsAppState] addPostFrameCallback triggered');
+      // Add another layer of deferral to be absolutely safe
+      Future.delayed(const Duration(milliseconds: 100), () {
+        _initializePlatformServices();
+      });
+    });
 
-    // Share intents only exist on Android
+    // Share intents only exist on Android - also defer this
     if (!kIsWeb && PlatformHelper.isAndroid) {
-      _initAndroidShareHandling();
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        Future.delayed(const Duration(milliseconds: 150), () {
+          _initAndroidShareHandling();
+        });
+      });
+    }
+  }
+
+  /// Initialize platform-sensitive services after widget is mounted
+  Future<void> _initializePlatformServices() async {
+    try {
+      debugPrint('[_OpenPDFToolsAppState] Initializing platform services');
+
+      // Skip desktop initialization to prevent native callback crashes
+      if (PlatformHelper.isDesktop) {
+        try {
+          debugPrint(
+            '[_OpenPDFToolsAppState] Skipping desktop initialization to avoid native callback crashes',
+          );
+          // PDFRx initialization causes native callback issues on Linux
+          // await pdfrxInitialize();
+        } catch (e) {
+          debugPrint(
+            '[_OpenPDFToolsAppState] Error in desktop initialization: $e',
+          );
+        }
+      }
+
+      // Initialize PDF opener service - only on mobile
+      if (!kIsWeb && (PlatformHelper.isIOS || PlatformHelper.isAndroid)) {
+        try {
+          debugPrint(
+            '[_OpenPDFToolsAppState] Initializing PDF opener service (mobile)',
+          );
+          _pdfOpenerService = PDFOpenerService();
+          await _pdfOpenerService.initialize(
+            onPdfFileReceived: _handlePdfFileFromSystem,
+          );
+          debugPrint(
+            '[_OpenPDFToolsAppState] PDF opener service initialized (mobile)',
+          );
+        } catch (e) {
+          debugPrint(
+            '[_OpenPDFToolsAppState] Failed to initialize PDF opener (mobile): $e',
+          );
+        }
+      }
+    } catch (e) {
+      debugPrint(
+        '[_OpenPDFToolsAppState] Error in platform initialization: $e',
+      );
     }
   }
 
@@ -159,11 +209,16 @@ class _OpenPDFToolsAppState extends State<OpenPDFToolsApp> {
 
   @override
   void dispose() {
-    if (!kIsWeb && PlatformHelper.isAndroid) {
-      _intentSub?.cancel();
-      ReceiveSharingIntent.instance.reset();
+    try {
+      if (!kIsWeb && PlatformHelper.isAndroid) {
+        _intentSub?.cancel();
+        ReceiveSharingIntent.instance.reset();
+      }
+      // Only dispose of PDF opener service if it was initialized
+      _pdfOpenerService.dispose();
+    } catch (e) {
+      debugPrint('[_OpenPDFToolsAppState] Error during dispose: $e');
     }
-    _pdfOpenerService.dispose();
     super.dispose();
   }
 
@@ -288,6 +343,16 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         icon: Icons.image,
         label: 'PDF from Images',
         screen: const PdfFromImagesScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.edit_note,
+        label: 'Sign PDF',
+        screen: const SignPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.healing,
+        label: 'Repair PDF',
+        screen: const RepairPdfScreen(),
       ),
     ];
   }
@@ -472,6 +537,20 @@ class _HomeScreenState extends State<HomeScreen> {
         subtitle: 'Create PDFs',
         color: const Color(0xFFE65100),
         screen: const PdfFromImagesScreen(),
+      ),
+      ToolCardData(
+        icon: Icons.edit_note,
+        title: 'Sign PDF',
+        subtitle: 'Digital Signatures',
+        color: const Color(0xFF0288D1),
+        screen: const SignPdfScreen(),
+      ),
+      ToolCardData(
+        icon: Icons.healing,
+        title: 'Repair PDF',
+        subtitle: 'Fix Corruption',
+        color: const Color(0xFFD32F2F),
+        screen: const RepairPdfScreen(),
       ),
     ];
 

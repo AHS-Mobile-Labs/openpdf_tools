@@ -38,17 +38,28 @@ class ThemeService extends ChangeNotifier {
 
   /// Initialize the theme service and load saved preferences
   Future<void> initialize() async {
-    _prefs = await SharedPreferences.getInstance();
-    final savedTheme = _prefs.getString(_themeModeKey);
+    try {
+      debugPrint('[ThemeService] Initializing theme service');
+      _prefs = await SharedPreferences.getInstance();
+      final savedTheme = _prefs.getString(_themeModeKey);
 
-    if (savedTheme != null) {
-      _themeMode = ThemeMode.fromString(savedTheme);
-    } else {
-      _themeMode = ThemeMode.system;
+      if (savedTheme != null) {
+        _themeMode = ThemeMode.fromString(savedTheme);
+      } else {
+        _themeMode = ThemeMode.system;
+      }
+
+      _isInitialized = true;
+      debugPrint(
+        '[ThemeService] Theme service initialized with mode: $_themeMode',
+      );
+      notifyListeners();
+    } catch (e) {
+      debugPrint('[ThemeService] Error during initialization: $e');
+      _isInitialized = true; // Mark as initialized to avoid infinite retries
+      _themeMode = ThemeMode.system; // Default to system theme
+      rethrow;
     }
-
-    _isInitialized = true;
-    notifyListeners();
   }
 
   /// Set theme mode and persist to SharedPreferences

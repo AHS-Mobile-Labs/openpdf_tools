@@ -10,6 +10,8 @@ import 'convert_from_pdf_screen.dart';
 import 'history_screen.dart';
 import 'edit_pdf_screen.dart';
 import 'pdf_from_images_screen.dart';
+import 'merge_pdf_screen.dart';
+import 'split_pdf_screen.dart';
 
 /// Modern, clean dashboard home screen with improved UX
 class DashboardHomeScreen extends StatefulWidget {
@@ -392,6 +394,20 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   Widget _buildFeatures(BuildContext context, bool isDark, bool isDesktop) {
     final features = [
+      FeatureItem(
+        title: 'Merge PDF',
+        description: 'Combine PDFs in order',
+        icon: Icons.merge,
+        color: const Color(0xFF1565C0),
+        screen: const MergePdfScreen(),
+      ),
+      FeatureItem(
+        title: 'Split PDF',
+        description: 'Separate pages into PDFs',
+        icon: Icons.cut,
+        color: const Color(0xFF7E57C2),
+        screen: const SplitPdfScreen(),
+      ),
       FeatureItem(
         title: 'Convert to PDF',
         description: 'From images, docs, and more',

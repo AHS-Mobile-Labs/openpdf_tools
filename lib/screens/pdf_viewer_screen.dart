@@ -1,5 +1,7 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
@@ -23,6 +25,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   double _zoom = 1.0;
   bool _isFavorite = false;
   bool _showControls = true;
+  Uint8List? _pdfBytes;
+  bool _isLoadingBytes = false;
   final PdfViewerController _pdfViewerController = PdfViewerController();
 
   @override
@@ -32,6 +36,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     // If app is opened via "Open with → OpenPDF Tools"
     if (widget.externalFile != null) {
       _pdfFile = widget.externalFile;
+      _loadPdfBytes();
       _addToHistoryAndCheckFavorite();
     }
   }
@@ -52,6 +57,36 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     super.dispose();
   }
 
+  Future<void> _loadPdfBytes() async {
+    if (_pdfFile == null) {
+      setState(() {
+        _pdfBytes = null;
+      });
+      return;
+    }
+
+    if (kIsWeb) {
+      setState(() {
+        _isLoadingBytes = true;
+      });
+      try {
+        final bytes = await _getFileBytes();
+        if (mounted) {
+          setState(() {
+            _pdfBytes = bytes;
+            _isLoadingBytes = false;
+          });
+        }
+      } catch (e) {
+        if (mounted) {
+          setState(() {
+            _isLoadingBytes = false;
+          });
+        }
+      }
+    }
+  }
+
   Future<void> _pickPdf() async {
     try {
       final result = await FilePicker.platform.pickFiles(
@@ -62,9 +97,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       if (result != null && result.files.single.path != null) {
         setState(() {
           _pdfFile = File(result.files.single.path!);
-          _password = null;
           _zoom = 1.0;
         });
+        _loadPdfBytes();
         _addToHistoryAndCheckFavorite();
       }
     } catch (e) {
@@ -103,7 +138,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         if (selected != null) {
           setState(() {
             _pdfFile = File(selected);
-            _password = null;
             _zoom = 1.0;
           });
           // ignore: use_build_context_synchronously
@@ -143,9 +177,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           if (await file.exists()) {
             setState(() {
               _pdfFile = file;
-              _password = null;
               _zoom = 1.0;
             });
+            _loadPdfBytes();
             _addToHistoryAndCheckFavorite();
             // ignore: use_build_context_synchronously
             ScaffoldMessenger.of(
@@ -272,6 +306,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         setState(() {
           _pdfFile = renamedFile;
         });
+        _loadPdfBytes();
 
         if (!mounted) return;
         // ignore: use_build_context_synchronously
@@ -368,6 +403,30 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     );
   }
 
+  String _getFileSizeSync() {
+    try {
+      if (_pdfFile != null) {
+        final bytes = _pdfFile!.lengthSync();
+        return (bytes / (1024 * 1024)).toStringAsFixed(2);
+      }
+    } catch (e) {
+      // File size not available (e.g., on web platform)
+      return '0';
+    }
+    return '0';
+  }
+
+  Future<Uint8List?> _getFileBytes() async {
+    try {
+      if (_pdfFile != null) {
+        return await _pdfFile!.readAsBytes();
+      }
+    } catch (e) {
+      return null;
+    }
+    return null;
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -393,10 +452,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             if (_pdfFile != null)
               Text(
                 '$fileSize MB',
-                style: TextStyle(
+                style: const TextStyle(
                   fontSize: 12,
                   fontWeight: FontWeight.w400,
-                  color: isDark ? Colors.white70 : Colors.black54,
+                  color: Colors.white70,
                 ),
               ),
           ],
@@ -439,7 +498,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   Icon(
                     Icons.picture_as_pdf,
                     size: 80,
-                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                    color: Colors.grey.shade300,
                   ),
                   const SizedBox(height: 24),
                   Text(
@@ -447,9 +506,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     style: TextStyle(
                       fontSize: 18,
                       fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade700,
+                      color: Colors.grey.shade700,
                     ),
                   ),
                   const SizedBox(height: 8),
@@ -481,16 +538,40 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               },
               child: Stack(
                 children: [
-                  SfPdfViewer.file(
-                    _pdfFile!,
-                    controller: _pdfViewerController,
-                    password: _password,
-                    initialZoomLevel: _zoom,
-                    enableTextSelection: true,
-                    onDocumentLoadFailed: (_) {
-                      _askPassword();
-                    },
-                  ),
+                  if (kIsWeb)
+                    _isLoadingBytes
+                        ? const Center(child: CircularProgressIndicator())
+                        : (_pdfBytes != null
+                              ? (_password != null
+                                    ? SfPdfViewer.memory(
+                                        _pdfBytes!,
+                                        controller: _pdfViewerController,
+                                        password: _password!,
+                                        initialZoomLevel: _zoom,
+                                        enableTextSelection: true,
+                                      )
+                                    : SfPdfViewer.memory(
+                                        _pdfBytes!,
+                                        controller: _pdfViewerController,
+                                        initialZoomLevel: _zoom,
+                                        enableTextSelection: true,
+                                      ))
+                              : const Center(child: Text('Unable to load PDF')))
+                  else
+                    _password != null
+                        ? SfPdfViewer.file(
+                            _pdfFile!,
+                            controller: _pdfViewerController,
+                            password: _password!,
+                            initialZoomLevel: _zoom,
+                            enableTextSelection: true,
+                          )
+                        : SfPdfViewer.file(
+                            _pdfFile!,
+                            controller: _pdfViewerController,
+                            initialZoomLevel: _zoom,
+                            enableTextSelection: true,
+                          ),
                   // Bottom zoom/control bar
                   if (_showControls)
                     Positioned(

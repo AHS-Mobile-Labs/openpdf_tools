@@ -22,36 +22,63 @@ class PDFOpenerService {
 
   /// Initialize the PDF opener service
   /// Call this in your main.dart or app initialization
+  /// Safe to call after widget is mounted
   Future<void> initialize({
     required Function(String pdfPath) onPdfFileReceived,
   }) async {
-    _onPdfFileReceived = onPdfFileReceived;
+    try {
+      _onPdfFileReceived = onPdfFileReceived;
+      debugLog('[PDFOpenerService] Initializing service');
 
-    // Initialize app links for deep linking
-    _appLinks = AppLinks();
+      // Initialize app links for deep linking (safe to call anytime)
+      try {
+        _appLinks = AppLinks();
+        debugLog('[PDFOpenerService] AppLinks initialized');
 
-    // Listen for app links (URLs like openpdf://path/to/file.pdf)
-    _appLinks.uriLinkStream.listen(
-      (uri) {
-        _handleDeepLink(uri);
-      },
-      onError: (err) {
-        debugLog('Error listening to app links: $err');
-      },
-    );
-
-    // Set up platform channel for receiving files from intent
-    platform.setMethodCallHandler((call) async {
-      if (call.method == 'openPdf') {
-        final filePath = call.arguments as String?;
-        if (filePath != null && filePath.isNotEmpty) {
-          _onPdfFileReceived?.call(filePath);
-        }
-      } else if (call.method == 'getPdfPath') {
-        // Called when app receives a file via intent
-        return await _getReceivedPdfPath();
+        // Listen for app links (URLs like openpdf://path/to/file.pdf)
+        _appLinks.uriLinkStream.listen(
+          (uri) {
+            _handleDeepLink(uri);
+          },
+          onError: (err) {
+            debugLog('[PDFOpenerService] Error listening to app links: $err');
+          },
+        );
+        debugLog('[PDFOpenerService] App links stream listener attached');
+      } catch (e) {
+        debugLog('[PDFOpenerService] Error with AppLinks: $e');
+        // Continue - app links not critical
       }
-    });
+
+      // Set up platform channel for receiving files from intent
+      // Wrapped in safety checks to prevent isolate errors
+      try {
+        platform.setMethodCallHandler((call) async {
+          debugLog('[PDFOpenerService] Platform method called: ${call.method}');
+
+          if (call.method == 'openPdf') {
+            final filePath = call.arguments as String?;
+            if (filePath != null && filePath.isNotEmpty) {
+              debugLog('[PDFOpenerService] Opening PDF: $filePath');
+              _onPdfFileReceived?.call(filePath);
+            }
+          } else if (call.method == 'getPdfPath') {
+            // Called when app receives a file via intent
+            return await _getReceivedPdfPath();
+          }
+          return null;
+        });
+        debugLog('[PDFOpenerService] Platform method handler set');
+      } catch (e) {
+        debugLog('[PDFOpenerService] Error setting platform handler: $e');
+        // Continue - platform channel not critical for all operations
+      }
+
+      debugLog('[PDFOpenerService] Initialization complete');
+    } catch (e) {
+      debugLog('[PDFOpenerService] Fatal error during initialization: $e');
+      rethrow;
+    }
   }
 
   /// Handle deep links in the format: openpdf://file/{path}

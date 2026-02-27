@@ -64,6 +64,9 @@ dependencies:
   connectivity_plus: ^7.0.0
   app_links: ^7.0.0
   
+  # Cryptography and signature support
+  crypto: ^3.0.3
+  
   # Icons including GitHub mark
   font_awesome_flutter: ^10.7.0
 
