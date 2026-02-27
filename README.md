@@ -10,7 +10,7 @@ A professional, feature-rich Flutter application for comprehensive PDF managemen
 
 ## � Table of Contents
 
-- [Download](#-Download-OpenPDF-Tools)
+- [Download](##%EF%B8%8F-download-openpdf-tools)
 - [Features](#-features)
 - [Platform Support](#-platform-support)
 - [Getting Started](#-getting-started)
