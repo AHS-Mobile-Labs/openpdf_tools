@@ -152,38 +152,38 @@ class AppConfig {
         unselectedItemColor: Colors.grey[600],
         elevation: 1,
       ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: Colors.white,
+        selectedIconTheme: const IconThemeData(color: Color(0xFFC6302C)),
+        unselectedIconTheme: IconThemeData(color: Colors.grey.shade600),
+        selectedLabelTextStyle: const TextStyle(
+          color: Color(0xFFC6302C),
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: TextStyle(color: Colors.grey.shade600),
+        indicatorColor: const Color(0xFFC6302C).withValues(alpha: 0.1),
+      ),
     );
   }
 
   /// Get dark theme
   static ThemeData _getDarkThemeData() {
-    // Modern dark theme with better colors
-    const darkBgColor = Color(
-      0xFF1A1A2E,
-    ); // Deep blue-gray instead of pure black
-    const darkCardColor = Color(0xFF16213E); // Darker blue-gray
-    const darkSurfaceColor = Color(0xFF0F3460); // Rich dark blue
-    const accentOrange = Color(0xFFE94560); // Vibrant pink-red
-    // const accentBlue = Color(0xFF4A90E2); // Professional blue
-    // const accentGreen = Color(0xFF2ECC71); // Fresh green
-
     return ThemeData(
       useMaterial3: true,
       brightness: Brightness.dark,
       primaryColor: primaryColor,
-      scaffoldBackgroundColor: darkBgColor,
-      colorScheme: ColorScheme.dark(
+      scaffoldBackgroundColor: const Color(0xFF0F0F0F),
+      colorScheme: const ColorScheme.dark(
         primary: primaryColor,
         onPrimary: Colors.white,
-        secondary: accentOrange,
+        secondary: primaryColor,
         onSecondary: Colors.white,
-        tertiary: const Color(0xFFFFB81C),
-        surface: darkCardColor,
+        surface: Color(0xFF1C1C1C),
         onSurface: Colors.white,
-        error: Colors.redAccent,
+        error: Color(0xFFCF6679),
       ),
       appBarTheme: const AppBarTheme(
-        backgroundColor: Color(0xFF16213E),
+        backgroundColor: Color(0xFF1C1C1C),
         foregroundColor: Colors.white,
         elevation: 0,
         centerTitle: false,
@@ -205,7 +205,7 @@ class AppConfig {
       ),
       textButtonTheme: TextButtonThemeData(
         style: TextButton.styleFrom(
-          foregroundColor: accentOrange,
+          foregroundColor: primaryColor,
           textStyle: const TextStyle(
             fontSize: fontSizeBase,
             fontWeight: FontWeight.w500,
@@ -214,26 +214,26 @@ class AppConfig {
       ),
       cardTheme: CardThemeData(
         elevation: 0,
-        color: darkCardColor,
+        color: const Color(0xFF1C1C1C),
         shape: RoundedRectangleBorder(
           borderRadius: BorderRadius.circular(radiusBase),
-          side: const BorderSide(color: Color(0xFF0F3460), width: 0.5),
+          side: const BorderSide(color: Color(0xFF2E2E2E), width: 0.5),
         ),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: darkSurfaceColor,
+        fillColor: const Color(0xFF0F0F0F),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: paddingLarge,
           vertical: paddingBase,
         ),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusBase),
-          borderSide: const BorderSide(color: Color(0xFF0F3460)),
+          borderSide: const BorderSide(color: Color(0xFF2E2E2E)),
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusBase),
-          borderSide: const BorderSide(color: Color(0xFF0F3460)),
+          borderSide: const BorderSide(color: Color(0xFF2E2E2E)),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(radiusBase),
@@ -248,9 +248,20 @@ class AppConfig {
         titleMedium: TextStyle(color: Colors.white),
       ),
       bottomNavigationBarTheme: BottomNavigationBarThemeData(
-        backgroundColor: darkCardColor,
+        backgroundColor: const Color(0xFF1C1C1C),
         selectedItemColor: primaryColor,
         unselectedItemColor: Colors.grey[500],
+      ),
+      navigationRailTheme: NavigationRailThemeData(
+        backgroundColor: const Color(0xFF1C1C1C),
+        selectedIconTheme: const IconThemeData(color: Color(0xFFC6302C)),
+        unselectedIconTheme: IconThemeData(color: Colors.grey.shade500),
+        selectedLabelTextStyle: const TextStyle(
+          color: Color(0xFFC6302C),
+          fontWeight: FontWeight.w600,
+        ),
+        unselectedLabelTextStyle: TextStyle(color: Colors.grey.shade500),
+        indicatorColor: const Color(0xFFC6302C).withValues(alpha: 0.15),
       ),
     );
   }

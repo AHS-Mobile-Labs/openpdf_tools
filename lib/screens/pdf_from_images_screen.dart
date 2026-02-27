@@ -141,9 +141,16 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
       appBar: AppBar(
         title: const Text('PDF from Images'),
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
         actions: [
           IconButton(
             icon: const Icon(Icons.add_photo_alternate),

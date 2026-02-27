@@ -77,24 +77,39 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           title: const Text('File picker failed'),
           content: Text('File picker failed: $e\n\nChoose an option:'),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop('inapp'), child: const Text('Use in-app picker')),
-            TextButton(onPressed: () => Navigator.of(ctx).pop('enter'), child: const Text('Enter path')),
-            TextButton(onPressed: () => Navigator.of(ctx).pop('cancel'), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('inapp'),
+              child: const Text('Use in-app picker'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('enter'),
+              child: const Text('Enter path'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('cancel'),
+              child: const Text('Cancel'),
+            ),
           ],
         ),
       );
 
       if (choice == 'inapp') {
-      // ignore: use_build_context_synchronously
-        final selected = await showInAppFilePicker(context, initialDirectory: Directory.current.path, allowedExtensions: ['pdf']);
+        // ignore: use_build_context_synchronously
+        final selected = await showInAppFilePicker(
+          context,
+          initialDirectory: Directory.current.path,
+          allowedExtensions: ['pdf'],
+        );
         if (selected != null) {
           setState(() {
             _pdfFile = File(selected);
             _password = null;
             _zoom = 1.0;
           });
-      // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected: $selected')));
+          // ignore: use_build_context_synchronously
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Selected: $selected')));
         }
       } else if (choice == 'enter') {
         final controller = TextEditingController();
@@ -109,8 +124,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               keyboardType: TextInputType.text,
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('OK')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('OK'),
+              ),
             ],
           ),
         );
@@ -126,11 +147,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               _zoom = 1.0;
             });
             _addToHistoryAndCheckFavorite();
-      // ignore: use_build_context_synchronously
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected: $path')));
+            // ignore: use_build_context_synchronously
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Selected: $path')));
           } else {
-      // ignore: use_build_context_synchronously
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File not found')));
+            // ignore: use_build_context_synchronously
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('File not found')));
           }
         }
       }
@@ -148,9 +173,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         content: TextField(
           controller: controller,
           obscureText: true,
-          decoration: const InputDecoration(
-            hintText: 'Enter password',
-          ),
+          decoration: const InputDecoration(hintText: 'Enter password'),
         ),
         actions: [
           TextButton(
@@ -175,9 +198,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     } catch (e) {
       if (!mounted) return;
       // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Failed to open folder: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Failed to open folder: $e')));
     }
   }
 
@@ -193,17 +216,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         await _pdfFile!.copy(savePath);
 
         if (!mounted) return;
-      // ignore: use_build_context_synchronously
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('✓ Saved to $savePath')),
-        );
+        // ignore: use_build_context_synchronously
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('✓ Saved to $savePath')));
       }
     } catch (e) {
       if (!mounted) return;
       // ignore: use_build_context_synchronously
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Download failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
     }
   }
 
@@ -213,8 +236,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     final currentName = _pdfFile!.path.split('/').last.replaceAll('.pdf', '');
     final controller = TextEditingController(text: currentName);
 
-
-      // ignore: use_build_context_synchronously
+    // ignore: use_build_context_synchronously
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -224,7 +246,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           decoration: const InputDecoration(hintText: 'Enter new name'),
         ),
         actions: [
-          TextButton(onPressed: () => Navigator.of(ctx).pop(null), child: const Text('Cancel')),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(null),
+            child: const Text('Cancel'),
+          ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(controller.text),
             child: const Text('Rename'),
@@ -249,21 +274,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         });
 
         if (!mounted) return;
-      // ignore: use_build_context_synchronously
+        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: const Text('✓ PDF renamed successfully')),
         );
       } catch (e) {
         if (!mounted) return;
-      // ignore: use_build_context_synchronously
+        // ignore: use_build_context_synchronously
         // ignore: use_build_context_synchronously
 
         // ignore: use_build_context_synchronously
 
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Rename failed: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Rename failed: $e')));
       }
     }
   }
@@ -346,17 +370,35 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final fileName = _pdfFile != null ? p.basename(_pdfFile!.path) : 'View PDF';
-    final fileSize = _pdfFile != null ? (_pdfFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2) : '0';
+    final fileSize = _pdfFile != null
+        ? (_pdfFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)
+        : '0';
 
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
       appBar: AppBar(
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
         title: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(fileName, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600)),
+            Text(
+              fileName,
+              style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w600),
+            ),
             if (_pdfFile != null)
-              Text('$fileSize MB', style: const TextStyle(fontSize: 12, fontWeight: FontWeight.w400, color: Colors.white70)),
+              Text(
+                '$fileSize MB',
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w400,
+                  color: isDark ? Colors.white70 : Colors.black54,
+                ),
+              ),
           ],
         ),
         elevation: 0,
@@ -394,11 +436,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Icon(Icons.picture_as_pdf, size: 80, color: Colors.grey.shade300),
+                  Icon(
+                    Icons.picture_as_pdf,
+                    size: 80,
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
+                  ),
                   const SizedBox(height: 24),
                   Text(
                     'No PDF selected',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600, color: Colors.grey.shade700),
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w600,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade700,
+                    ),
                   ),
                   const SizedBox(height: 8),
                   Text(
@@ -411,7 +463,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     icon: const Icon(Icons.folder_open),
                     label: const Text('Select PDF'),
                     style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(horizontal: 32, vertical: 16),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 32,
+                        vertical: 16,
+                      ),
                     ),
                   ),
                 ],
@@ -453,7 +508,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             ),
                           ],
                         ),
-                        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 16,
+                          vertical: 12,
+                        ),
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.spaceBetween,
                           children: [
@@ -461,28 +519,46 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             Row(
                               children: [
                                 IconButton(
-                                  icon: const Icon(Icons.zoom_out, color: Colors.white),
+                                  icon: const Icon(
+                                    Icons.zoom_out,
+                                    color: Colors.white,
+                                  ),
                                   onPressed: _zoomOut,
                                   iconSize: 20,
-                                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 40,
+                                    minHeight: 40,
+                                  ),
                                   padding: EdgeInsets.zero,
                                 ),
                                 Container(
-                                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                                  padding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 6,
+                                  ),
                                   decoration: BoxDecoration(
                                     color: Colors.white12,
                                     borderRadius: BorderRadius.circular(6),
                                   ),
                                   child: Text(
                                     '${(_zoom * 100).toStringAsFixed(0)}%',
-                                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w600,
+                                    ),
                                   ),
                                 ),
                                 IconButton(
-                                  icon: const Icon(Icons.zoom_in, color: Colors.white),
+                                  icon: const Icon(
+                                    Icons.zoom_in,
+                                    color: Colors.white,
+                                  ),
                                   onPressed: _zoomIn,
                                   iconSize: 20,
-                                  constraints: const BoxConstraints(minWidth: 40, minHeight: 40),
+                                  constraints: const BoxConstraints(
+                                    minWidth: 40,
+                                    minHeight: 40,
+                                  ),
                                   padding: EdgeInsets.zero,
                                 ),
                               ],
@@ -490,8 +566,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             // Reset zoom
                             TextButton.icon(
                               onPressed: _resetZoom,
-                              icon: const Icon(Icons.refresh, size: 18, color: Colors.white),
-                              label: const Text('Reset', style: TextStyle(color: Colors.white, fontSize: 12)),
+                              icon: const Icon(
+                                Icons.refresh,
+                                size: 18,
+                                color: Colors.white,
+                              ),
+                              label: const Text(
+                                'Reset',
+                                style: TextStyle(
+                                  color: Colors.white,
+                                  fontSize: 12,
+                                ),
+                              ),
                             ),
                           ],
                         ),
@@ -503,14 +589,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       top: 12,
                       right: 12,
                       child: Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 12,
+                          vertical: 6,
+                        ),
                         decoration: BoxDecoration(
                           color: Colors.black87,
                           borderRadius: BorderRadius.circular(20),
                         ),
                         child: Text(
                           '${_pdfViewerController.pageNumber} / ${_pdfViewerController.pageCount}',
-                          style: const TextStyle(color: Colors.white, fontSize: 12, fontWeight: FontWeight.w600),
+                          style: const TextStyle(
+                            color: Colors.white,
+                            fontSize: 12,
+                            fontWeight: FontWeight.w600,
+                          ),
                         ),
                       ),
                     ),
@@ -522,14 +615,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       right: 0,
                       child: Center(
                         child: Container(
-                          padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 16,
+                            vertical: 8,
+                          ),
                           decoration: BoxDecoration(
                             color: Colors.black54,
                             borderRadius: BorderRadius.circular(20),
                           ),
                           child: const Text(
                             'Tap to show controls',
-                            style: TextStyle(color: Colors.white70, fontSize: 12),
+                            style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 12,
+                            ),
                           ),
                         ),
                       ),

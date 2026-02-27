@@ -539,7 +539,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         // Content Grid with responsive layout
         SliverPadding(
-          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          padding: EdgeInsets.all(isMobile ? 0 : 4),
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: gridColumns,

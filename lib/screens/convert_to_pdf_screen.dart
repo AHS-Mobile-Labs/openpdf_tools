@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
+import '../config/app_config.dart';
 import 'pdf_viewer_screen.dart';
 
 class ConvertToPdfScreen extends StatefulWidget {
@@ -20,7 +21,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   String? _selectedFormat;
   File? _selectedFile;
 
-  // Supported formats
   static const Map<String, String> supportedFormats = {
     'Word to PDF': 'docx,doc',
     'PowerPoint to PDF': 'pptx,ppt',
@@ -39,11 +39,9 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
   Future<void> pickFile(String format) async {
     try {
-      final extensions = supportedFormats[format]!.split(',');
-      
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
-        allowedExtensions: extensions,
+        allowedExtensions: supportedFormats[format]!.split(','),
       );
 
       if (result != null && result.files.isNotEmpty) {
@@ -54,7 +52,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         await _convertToPdf();
       }
     } catch (e) {
-      // Fallback to in-app picker on Linux
       // ignore: use_build_context_synchronously
       final choice = await showDialog<String>(
         // ignore: use_build_context_synchronously
@@ -80,9 +77,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       );
 
       if (choice == 'inapp') {
-      // ignore: use_build_context_synchronously
         // ignore: use_build_context_synchronously
-
         final selected = await showInAppFilePicker(
           // ignore: use_build_context_synchronously
           context,
@@ -138,11 +133,9 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         await _convertToPdf();
       } else {
         if (mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            // ignore: use_build_context_synchronously
-
-            const SnackBar(content: Text('File not found')),
-          );
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(const SnackBar(content: Text('File not found')));
         }
       }
     }
@@ -157,21 +150,35 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       final fileExtension = _selectedFile!.path.split('.').last.toLowerCase();
       String? outputPath;
 
-      // Image formats
-      if (['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif', 'bmp'].contains(fileExtension)) {
+      if ([
+        'jpg',
+        'jpeg',
+        'png',
+        'webp',
+        'heic',
+        'gif',
+        'bmp',
+      ].contains(fileExtension)) {
         outputPath = await _convertImageToPdf(_selectedFile!);
-      } 
-      // Text files
-      else if (fileExtension == 'txt') {
+      } else if (fileExtension == 'txt') {
         outputPath = await _convertTextToPdf(_selectedFile!);
-      }
-      // Office formats using LibreOffice
-      else if (['docx', 'doc', 'xlsx', 'xls', 'pptx', 'ppt', 'odt', 'ods', 'odp'].contains(fileExtension)) {
+      } else if ([
+        'docx',
+        'doc',
+        'xlsx',
+        'xls',
+        'pptx',
+        'ppt',
+        'odt',
+        'ods',
+        'odp',
+      ].contains(fileExtension)) {
         outputPath = await _convertOfficeFormatToPdf(_selectedFile!);
-      }
-      // Other formats
-      else {
-        throw Exception('Unsupported format: $fileExtension\n\nFor complex formats like $fileExtension, you may need to use an external service or install LibreOffice.');
+      } else {
+        throw Exception(
+          'Unsupported format: $fileExtension\n\nFor complex formats like '
+          '$fileExtension, you may need to use an external service or install LibreOffice.',
+        );
       }
 
       if (outputPath != null && await File(outputPath).exists()) {
@@ -181,18 +188,9 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          // ignore: use_build_context_synchronously
-
-          // ignore: use_build_context_synchronously
-
-
-          // ignore: use_build_context_synchronously
-
-
-
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -200,116 +198,82 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertImageToPdf(File imageFile) async {
-    try {
-      final imageBytes = await imageFile.readAsBytes();
-      final image = img.decodeImage(imageBytes);
+    final imageBytes = await imageFile.readAsBytes();
+    final image = img.decodeImage(imageBytes);
+    if (image == null) throw Exception('Failed to decode image');
 
-      if (image == null) throw Exception('Failed to decode image');
-
-      final pdf = pw.Document();
-      pdf.addPage(
-        pw.Page(
-          pageFormat: PdfPageFormat(
-            image.width.toDouble(),
-            image.height.toDouble(),
-          ),
-          build: (pw.Context context) {
-            return pw.Image(pw.MemoryImage(imageBytes));
-          },
+    final pdf = pw.Document();
+    pdf.addPage(
+      pw.Page(
+        pageFormat: PdfPageFormat(
+          image.width.toDouble(),
+          image.height.toDouble(),
         ),
-      );
+        build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
+      ),
+    );
 
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final file = File(outputPath);
-      await file.writeAsBytes(await pdf.save());
-
-      return outputPath;
-    } catch (e) {
-      rethrow;
-    }
+    final tempDir = await getTemporaryDirectory();
+    final outputPath =
+        '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    await File(outputPath).writeAsBytes(await pdf.save());
+    return outputPath;
   }
 
   Future<String?> _convertTextToPdf(File textFile) async {
-    try {
-      final content = await textFile.readAsString();
-      
-      final pdf = pw.Document();
-      
-      // Split content into multiple pages if needed
-      final lines = content.split('\n');
-      int linesPerPage = 50;
-      
-      for (int i = 0; i < lines.length; i += linesPerPage) {
-        final pageLines = lines.sublist(
-          i,
-          i + linesPerPage > lines.length ? lines.length : i + linesPerPage,
-        ).join('\n');
-        
-        pdf.addPage(
-          pw.Page(
-            build: (pw.Context context) {
-              return pw.Padding(
-                padding: const pw.EdgeInsets.all(20),
-                child: pw.Text(
-                  pageLines,
-                  style: const pw.TextStyle(fontSize: 12),
-                ),
-              );
-            },
+    final content = await textFile.readAsString();
+    final pdf = pw.Document();
+    final lines = content.split('\n');
+    const linesPerPage = 50;
+
+    for (int i = 0; i < lines.length; i += linesPerPage) {
+      final pageLines = lines
+          .sublist(i, (i + linesPerPage).clamp(0, lines.length))
+          .join('\n');
+
+      pdf.addPage(
+        pw.Page(
+          build: (pw.Context context) => pw.Padding(
+            padding: const pw.EdgeInsets.all(20),
+            child: pw.Text(pageLines, style: const pw.TextStyle(fontSize: 12)),
           ),
-        );
-      }
-
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
-      final file = File(outputPath);
-      await file.writeAsBytes(await pdf.save());
-
-      return outputPath;
-    } catch (e) {
-      rethrow;
+        ),
+      );
     }
+
+    final tempDir = await getTemporaryDirectory();
+    final outputPath =
+        '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    await File(outputPath).writeAsBytes(await pdf.save());
+    return outputPath;
   }
 
   Future<String?> _convertOfficeFormatToPdf(File sourceFile) async {
-    try {
-      final tempDir = await getTemporaryDirectory();
+    final tempDir = await getTemporaryDirectory();
 
-      // Try using LibreOffice command line tool
-      final result = await Process.run(
-        'libreoffice',
-        [
-          '--headless',
-          '--convert-to',
-          'pdf',
-          '--outdir',
-          tempDir.path,
-          sourceFile.path,
-        ],
-      );
+    final result = await Process.run('libreoffice', [
+      '--headless',
+      '--convert-to',
+      'pdf',
+      '--outdir',
+      tempDir.path,
+      sourceFile.path,
+    ]);
 
-      if (result.exitCode == 0) {
-        // Find the converted file
-        final filename = sourceFile.path.split('/').last.split('.').first;
-        final convertedFile = File('${tempDir.path}/$filename.pdf');
-        
-        if (await convertedFile.exists()) {
-          return convertedFile.path;
-        }
-      }
-
-      throw Exception(
-        'LibreOffice not found or conversion failed.\n\n'
-        'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
-        'Linux: sudo apt-get install libreoffice\n'
-        'macOS: brew install libreoffice\n'
-        'Windows: Download from https://www.libreoffice.org/\n\n'
-        'Error: ${result.stderr}',
-      );
-    } catch (e) {
-      rethrow;
+    if (result.exitCode == 0) {
+      final filename = sourceFile.path.split('/').last.split('.').first;
+      final convertedFile = File('${tempDir.path}/$filename.pdf');
+      if (await convertedFile.exists()) return convertedFile.path;
     }
+
+    throw Exception(
+      'LibreOffice not found or conversion failed.\n\n'
+      'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
+      'Linux: sudo apt-get install libreoffice\n'
+      'macOS: brew install libreoffice\n'
+      'Windows: Download from https://www.libreoffice.org/\n\n'
+      'Error: ${result.stderr}',
+    );
   }
 
   Future<void> _showSuccessDialog(String filePath) async {
@@ -333,85 +297,237 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(title: const Text('Convert to PDF')),
-      body: _isProcessing
-          ? const Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  CircularProgressIndicator(),
-                  SizedBox(height: 16),
-                  Text('Converting file to PDF...'),
-                ],
-              ),
-            )
-          : GridView.count(
-              crossAxisCount: 2,
-              crossAxisSpacing: 8,
-              mainAxisSpacing: 8,
-              padding: const EdgeInsets.all(12),
-              children: supportedFormats.entries.map((entry) {
-                return _formatCard(entry.key, entry.value);
-              }).toList(),
-            ),
-    );
-  }
+  // ── UI ──────────────────────────────────────────────────────────────────────
 
-  Widget _formatCard(String formatName, String extensions) {
-    return InkWell(
-      onTap: () => pickFile(formatName),
-      child: Container(
-        decoration: BoxDecoration(
-          border: Border.all(color: Colors.grey.shade300),
-          borderRadius: BorderRadius.circular(8),
-          color: Colors.grey.shade50,
-        ),
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            Icon(
-              _getIconForFormat(formatName),
-              size: 40,
-              color: const Color(0xFFC6302C),
-            ),
-            const SizedBox(height: 12),
-            Text(
-              formatName,
-              textAlign: TextAlign.center,
-              style: const TextStyle(
-                fontSize: 13,
-                fontWeight: FontWeight.w600,
-              ),
-            ),
-            const SizedBox(height: 4),
-            Text(
-              extensions.toUpperCase(),
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 10,
-                color: Colors.grey.shade600,
-              ),
-            ),
-          ],
-        ),
-      ),
-    );
+  Color _getCardColor(String format) {
+    if (format.contains('Word')) return const Color(0xFF2B7BB9);
+    if (format.contains('PowerPoint')) return const Color(0xFFD04423);
+    if (format.contains('Excel')) return const Color(0xFF1E7145);
+    if (format.contains('Image')) return const Color(0xFF9B59B6);
+    if (format.contains('SVG')) return const Color(0xFF16A085);
+    if (format.contains('TIFF')) return const Color(0xFF8E44AD);
+    if (format.contains('Text')) return const Color(0xFF7F8C8D);
+    if (format.contains('RTF')) return const Color(0xFF2980B9);
+    if (format.contains('EPUB')) return const Color(0xFFE67E22);
+    if (format.contains('OD')) return const Color(0xFF27AE60);
+    return const Color(0xFFC6302C);
   }
 
   IconData _getIconForFormat(String format) {
-    if (format.contains('Word') || format.contains('DOC')) return Icons.description;
-    if (format.contains('PowerPoint') || format.contains('PPT')) return Icons.slideshow;
-    if (format.contains('Excel') || format.contains('XLS')) return Icons.table_chart;
-    if (format.contains('Image') || format.contains('JPG') || format.contains('PNG') || format.contains('WEBP') || format.contains('HEIC')) return Icons.image;
+    if (format.contains('Word')) return Icons.description;
+    if (format.contains('PowerPoint')) return Icons.slideshow;
+    if (format.contains('Excel')) return Icons.table_chart;
+    if (format.contains('Image')) return Icons.image;
     if (format.contains('SVG')) return Icons.graphic_eq;
     if (format.contains('TIFF')) return Icons.photo;
-    if (format.contains('Text') || format.contains('TXT')) return Icons.text_fields;
+    if (format.contains('Text')) return Icons.text_fields;
     if (format.contains('RTF')) return Icons.article;
     if (format.contains('EPUB')) return Icons.menu_book;
     if (format.contains('OD')) return Icons.file_present;
     return Icons.insert_drive_file;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final width = MediaQuery.of(context).size.width;
+
+    return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: _isProcessing
+            ? const Center(
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    CircularProgressIndicator(),
+                    SizedBox(height: 8),
+                    Text('Converting file to PDF...'),
+                  ],
+                ),
+              )
+            : Column(
+                children: [
+                  Expanded(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.all(16),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          const SizedBox(height: 4),
+                          _buildSectionLabel('Choose a Format', isDark),
+                          const SizedBox(height: 8),
+                          _buildFormatList(isDark, width),
+                          const SizedBox(height: 12),
+                        ],
+                      ),
+                    ),
+                  ),
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+                    child: _buildTip(isDark),
+                  ),
+                ],
+              ),
+      ),
+    );
+  }
+
+  Widget _buildFormatList(bool isDark, double width) {
+    final entries = supportedFormats.entries.toList();
+    final cols = width < 400
+        ? 2
+        : width < 600
+        ? 3
+        : width < 800
+        ? 4
+        : width < 1100
+        ? 5
+        : 6;
+    final aspectRatio = width < 600 ? 0.95 : 1.1;
+    return GridView.builder(
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+        crossAxisCount: cols,
+        childAspectRatio: aspectRatio,
+        crossAxisSpacing: 8,
+        mainAxisSpacing: 8,
+      ),
+      itemCount: entries.length,
+      itemBuilder: (_, index) =>
+          _formatCard(entries[index].key, entries[index].value, isDark),
+    );
+  }
+
+  Widget _buildSectionLabel(String text, bool isDark) {
+    return Row(
+      children: [
+        Container(
+          width: 3,
+          height: 14,
+          decoration: BoxDecoration(
+            color: AppConfig.primaryColor,
+            borderRadius: BorderRadius.circular(2),
+          ),
+        ),
+        const SizedBox(width: 7),
+        Text(
+          text,
+          style: TextStyle(
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+            color: isDark ? Colors.white : Colors.black87,
+            letterSpacing: 0.1,
+          ),
+        ),
+      ],
+    );
+  }
+
+  Widget _buildTip(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: AppConfig.primaryColor.withValues(alpha: 0.07),
+        border: Border.all(
+          color: AppConfig.primaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.lightbulb_outline,
+            size: 16,
+            color: AppConfig.primaryColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Office formats (DOCX, XLSX, PPTX) require LibreOffice installed on your system.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _formatCard(String formatName, String extensions, bool isDark) {
+    final cardColor = _getCardColor(formatName);
+    final displayExts = extensions
+        .split(',')
+        .take(2)
+        .map((e) => e.trim().toUpperCase())
+        .join(', ');
+
+    return Material(
+      color: Colors.transparent,
+      borderRadius: BorderRadius.circular(10),
+      child: InkWell(
+        onTap: () => pickFile(formatName),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+            border: Border.all(
+              color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
+            ),
+          ),
+          padding: const EdgeInsets.all(10),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 44,
+                height: 44,
+                decoration: BoxDecoration(
+                  color: cardColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Icon(
+                  _getIconForFormat(formatName),
+                  size: 22,
+                  color: cardColor,
+                ),
+              ),
+              const SizedBox(height: 10),
+              Text(
+                formatName,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                displayExts,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 9,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
   }
 }

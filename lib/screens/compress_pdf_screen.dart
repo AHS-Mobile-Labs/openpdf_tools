@@ -34,20 +34,35 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
           title: const Text('File picker failed'),
           content: Text('File picker failed: $e\n\nChoose an option:'),
           actions: [
-            TextButton(onPressed: () => Navigator.of(ctx).pop('inapp'), child: const Text('Use in-app picker')),
-            TextButton(onPressed: () => Navigator.of(ctx).pop('enter'), child: const Text('Enter path')),
-            TextButton(onPressed: () => Navigator.of(ctx).pop('cancel'), child: const Text('Cancel')),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('inapp'),
+              child: const Text('Use in-app picker'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('enter'),
+              child: const Text('Enter path'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop('cancel'),
+              child: const Text('Cancel'),
+            ),
           ],
         ),
       );
       if (!mounted) return;
 
       if (choice == 'inapp') {
-        final selected = await showInAppFilePicker(context, initialDirectory: Directory.current.path, allowedExtensions: ['pdf']);
+        final selected = await showInAppFilePicker(
+          context,
+          initialDirectory: Directory.current.path,
+          allowedExtensions: ['pdf'],
+        );
         if (!mounted) return;
         if (selected != null) {
           setState(() => _pdfPath = selected);
-          ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected: $selected')));
+          ScaffoldMessenger.of(
+            context,
+          ).showSnackBar(SnackBar(content: Text('Selected: $selected')));
         }
       } else if (choice == 'enter') {
         final controller = TextEditingController();
@@ -61,8 +76,14 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
               keyboardType: TextInputType.text,
             ),
             actions: [
-              TextButton(onPressed: () => Navigator.of(ctx).pop(false), child: const Text('Cancel')),
-              TextButton(onPressed: () => Navigator.of(ctx).pop(true), child: const Text('OK')),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancel'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text('OK'),
+              ),
             ],
           ),
         );
@@ -75,10 +96,14 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
           if (await file.exists()) {
             if (!mounted) return;
             setState(() => _pdfPath = path);
-            ScaffoldMessenger.of(context).showSnackBar(SnackBar(content: Text('Selected: $path')));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Selected: $path')));
           } else {
             if (!mounted) return;
-            ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('File not found')));
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(const SnackBar(content: Text('File not found')));
           }
         }
       }
@@ -91,34 +116,32 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
 
     try {
       final tempDir = await getTemporaryDirectory();
-      final outputPath = '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final outputPath =
+          '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.pdf';
 
       // Use ghostscript for professional PDF compression
       // This preserves document structure, text searchability, and interactivity
-      final result = await Process.run(
-        'gs',
-        [
-          '-sDEVICE=pdfwrite',
-          '-dCompatibilityLevel=1.4',
-          '-dPDFSETTINGS=/ebook', // Quality setting: /screen (smallest) /ebook /default /prepress /printer (largest)
-          '-dNOPAUSE',
-          '-dQUIET',
-          '-dBATCH',
-          '-dDetectDuplicateImages',
-          '-r${72 + (_quality - 20)~/ 2}', // DPI based on quality slider (72-108)
-          '-dCompressFonts=true',
-          '-r150x150',
-          '-dDownsampleColorImages=true',
-          '-dColorImageDownsampleType=/Bicubic',
-          '-dColorImageResolution=150',
-          '-dGrayImageDownsampleType=/Bicubic',
-          '-dGrayImageResolution=150',
-          '-dMonoImageDownsampleType=/Bicubic',
-          '-dMonoImageResolution=150',
-          '-sOutputFile=$outputPath',
-          _pdfPath!,
-        ],
-      );
+      final result = await Process.run('gs', [
+        '-sDEVICE=pdfwrite',
+        '-dCompatibilityLevel=1.4',
+        '-dPDFSETTINGS=/ebook', // Quality setting: /screen (smallest) /ebook /default /prepress /printer (largest)
+        '-dNOPAUSE',
+        '-dQUIET',
+        '-dBATCH',
+        '-dDetectDuplicateImages',
+        '-r${72 + (_quality - 20) ~/ 2}', // DPI based on quality slider (72-108)
+        '-dCompressFonts=true',
+        '-r150x150',
+        '-dDownsampleColorImages=true',
+        '-dColorImageDownsampleType=/Bicubic',
+        '-dColorImageResolution=150',
+        '-dGrayImageDownsampleType=/Bicubic',
+        '-dGrayImageResolution=150',
+        '-dMonoImageDownsampleType=/Bicubic',
+        '-dMonoImageResolution=150',
+        '-sOutputFile=$outputPath',
+        _pdfPath!,
+      ]);
 
       if (result.exitCode != 0) {
         throw Exception('Ghostscript compression failed: ${result.stderr}');
@@ -131,7 +154,8 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
 
       final originalSize = File(_pdfPath!).lengthSync();
       final compressedSize = compressedFile.lengthSync();
-      final reduction = ((1 - compressedSize / originalSize) * 100).toStringAsFixed(1);
+      final reduction = ((1 - compressedSize / originalSize) * 100)
+          .toStringAsFixed(1);
 
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -151,9 +175,9 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
       }
     } finally {
       if (mounted) setState(() => _isProcessing = false);
@@ -162,48 +186,79 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
-      appBar: AppBar(title: const Text('Compress PDF')),
-      body: Padding(
-        padding: const EdgeInsets.all(16),
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
+      appBar: AppBar(
+        title: const Text('Compress PDF'),
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
+      ),
+      body: SafeArea(
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
-            ElevatedButton.icon(
-              onPressed: pickPdf,
-              icon: const Icon(Icons.attach_file),
-              label: const Text('Select PDF'),
-            ),
-            const SizedBox(height: 12),
-            if (_pdfPath != null) Text('Selected: ${_pdfPath!.split('/').last}'),
-            const SizedBox(height: 12),
-            Row(
-              children: [
-                const Text('Quality: '),
-                Expanded(
-                  child: Slider(
-                    value: _quality.toDouble(),
-                    min: 20,
-                    max: 90,
-                    divisions: 7,
-                    label: _getQualityLabel(_quality),
-                    onChanged: (v) => setState(() => _quality = v.toInt()),
-                  ),
+            Expanded(
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.all(16),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    ElevatedButton.icon(
+                      onPressed: pickPdf,
+                      icon: const Icon(Icons.attach_file),
+                      label: const Text('Select PDF'),
+                    ),
+                    const SizedBox(height: 12),
+                    if (_pdfPath != null)
+                      Text('Selected: ${_pdfPath!.split('/').last}'),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        const Text('Quality: '),
+                        Expanded(
+                          child: Slider(
+                            value: _quality.toDouble(),
+                            min: 20,
+                            max: 90,
+                            divisions: 7,
+                            label: _getQualityLabel(_quality),
+                            onChanged: (v) =>
+                                setState(() => _quality = v.toInt()),
+                          ),
+                        ),
+                      ],
+                    ),
+                    Text(
+                      _getQualityDescription(_quality),
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                    if (_isProcessing) ...[
+                      const SizedBox(height: 16),
+                      const CircularProgressIndicator(),
+                      const SizedBox(height: 8),
+                      const Center(
+                        child: Text('Using Ghostscript compression...'),
+                      ),
+                    ],
+                  ],
                 ),
-              ],
+              ),
             ),
-            Text(_getQualityDescription(_quality), style: Theme.of(context).textTheme.bodySmall),
-            const SizedBox(height: 12),
-            ElevatedButton(
-              onPressed: (_pdfPath == null || _isProcessing) ? null : compressPdf,
-              child: Text(_isProcessing ? 'Compressing...' : 'Start Compression'),
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+              child: ElevatedButton(
+                onPressed: (_pdfPath == null || _isProcessing)
+                    ? null
+                    : compressPdf,
+                child: Text(
+                  _isProcessing ? 'Compressing...' : 'Start Compression',
+                ),
+              ),
             ),
-            if (_isProcessing) ...[
-              const SizedBox(height: 16),
-              const CircularProgressIndicator(),
-              const SizedBox(height: 8),
-              const Center(child: Text('Using Ghostscript compression...')),
-            ]
           ],
         ),
       ),

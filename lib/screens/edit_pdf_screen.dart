@@ -701,18 +701,26 @@ class _EditPdfScreenState extends State<EditPdfScreen>
   @override
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 900;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
       appBar: AppBar(
         title: const Text('Edit PDF'),
         centerTitle: true,
         elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
       ),
       body: AnimatedBuilder(
         animation: _backgroundColorAnimation,
         builder: (context, child) {
           return Container(
-            color: _backgroundColorAnimation.value ?? Colors.grey[50],
+            color: isDark
+                ? const Color(0xFF0F0F0F)
+                : (_backgroundColorAnimation.value ?? const Color(0xFFFAFAFA)),
             child: child,
           );
         },
@@ -724,7 +732,9 @@ class _EditPdfScreenState extends State<EditPdfScreen>
                   Expanded(
                     flex: 3,
                     child: Container(
-                      color: Colors.grey[100],
+                      color: isDark
+                          ? const Color(0xFF1C1C1C)
+                          : Colors.grey.shade100,
                       padding: const EdgeInsets.all(16),
                       child: _previewPath != null
                           ? SfPdfViewer.file(File(_previewPath!))
@@ -779,6 +789,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
   }
 
   Widget _buildEditPanel() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
       padding: const EdgeInsets.all(16),
       child: Column(
@@ -812,7 +823,9 @@ class _EditPdfScreenState extends State<EditPdfScreen>
                         Container(
                           padding: const EdgeInsets.all(12),
                           decoration: BoxDecoration(
-                            color: Colors.grey[100],
+                            color: isDark
+                                ? const Color(0xFF1C1C1C)
+                                : Colors.grey.shade100,
                             borderRadius: BorderRadius.circular(8),
                           ),
                           child: Row(
@@ -854,6 +867,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.text_fields,
               isSelected: _editType == 'addText',
               onTap: () => setState(() => _editType = 'addText'),
+              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _EditOptionCard(
@@ -862,6 +876,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.water_drop,
               isSelected: _editType == 'watermark',
               onTap: () => setState(() => _editType = 'watermark'),
+              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _EditOptionCard(
@@ -870,6 +885,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.rotate_right,
               isSelected: _editType == 'rotate',
               onTap: () => setState(() => _editType = 'rotate'),
+              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _EditOptionCard(
@@ -878,6 +894,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.crop,
               isSelected: _editType == 'crop',
               onTap: () => setState(() => _editType = 'crop'),
+              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _EditOptionCard(
@@ -886,6 +903,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.palette,
               isSelected: _editType == 'bgColor',
               onTap: () => setState(() => _editType = 'bgColor'),
+              isDark: isDark,
             ),
             const SizedBox(height: 12),
             _EditOptionCard(
@@ -894,6 +912,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               icon: Icons.compress,
               isSelected: _editType == 'compress',
               onTap: () => setState(() => _editType = 'compress'),
+              isDark: isDark,
             ),
             const SizedBox(height: 20),
             ElevatedButton.icon(
@@ -926,12 +945,17 @@ class _EditPdfScreenState extends State<EditPdfScreen>
                   Icon(
                     Icons.description_outlined,
                     size: 80,
-                    color: Colors.grey[300],
+                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                   ),
                   const SizedBox(height: 16),
                   Text(
                     'Select a PDF to get started',
-                    style: TextStyle(fontSize: 16, color: Colors.grey[600]),
+                    style: TextStyle(
+                      fontSize: 16,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
                     textAlign: TextAlign.center,
                   ),
                 ],
@@ -949,6 +973,7 @@ class _EditOptionCard extends StatelessWidget {
   final IconData icon;
   final bool isSelected;
   final VoidCallback onTap;
+  final bool isDark;
 
   const _EditOptionCard({
     required this.title,
@@ -956,6 +981,7 @@ class _EditOptionCard extends StatelessWidget {
     required this.icon,
     required this.isSelected,
     required this.onTap,
+    required this.isDark,
   });
 
   @override
@@ -965,7 +991,9 @@ class _EditOptionCard extends StatelessWidget {
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(12),
         side: BorderSide(
-          color: isSelected ? const Color(0xFFC6302C) : Colors.grey[300]!,
+          color: isSelected
+              ? const Color(0xFFC6302C)
+              : (isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade300),
           width: isSelected ? 2 : 1,
         ),
       ),
@@ -979,7 +1007,9 @@ class _EditOptionCard extends StatelessWidget {
               Icon(
                 icon,
                 size: 32,
-                color: isSelected ? const Color(0xFFC6302C) : Colors.grey,
+                color: isSelected
+                    ? const Color(0xFFC6302C)
+                    : (isDark ? Colors.grey.shade400 : Colors.grey),
               ),
               const SizedBox(width: 16),
               Expanded(
@@ -996,7 +1026,12 @@ class _EditOptionCard extends StatelessWidget {
                     const SizedBox(height: 4),
                     Text(
                       description,
-                      style: TextStyle(fontSize: 12, color: Colors.grey[600]),
+                      style: TextStyle(
+                        fontSize: 12,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
+                      ),
                     ),
                   ],
                 ),

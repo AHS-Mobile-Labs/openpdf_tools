@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'pdf_viewer_screen.dart';
 
@@ -51,38 +52,41 @@ class _HistoryScreenState extends State<HistoryScreen> {
     if (file.existsSync()) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(externalFile: file),
-        ),
+        MaterialPageRoute(builder: (_) => PdfViewerScreen(externalFile: file)),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File no longer exists')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File no longer exists')));
       _removeFromHistory(filePath);
     }
   }
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return DefaultTabController(
       length: 2,
       child: Scaffold(
+        backgroundColor: isDark
+            ? const Color(0xFF0F0F0F)
+            : const Color(0xFFFAFAFA),
         appBar: AppBar(
           title: const Text('History & Favorites'),
-          bottom: const TabBar(
-            tabs: [
+          backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+          foregroundColor: isDark ? Colors.white : Colors.black87,
+          bottom: TabBar(
+            labelColor: isDark ? Colors.white : Colors.black87,
+            unselectedLabelColor: isDark ? Colors.grey : Colors.grey.shade600,
+            indicatorColor: const Color(0xFFC6302C),
+            tabs: const [
               Tab(icon: Icon(Icons.history), text: 'Recent'),
               Tab(icon: Icon(Icons.star), text: 'Favorites'),
             ],
           ),
         ),
-        body: TabBarView(
-          children: [
-            _buildHistoryTab(),
-            _buildFavoritesTab(),
-          ],
-        ),
+        body: TabBarView(children: [_buildHistoryTab(), _buildFavoritesTab()]),
       ),
     );
   }
@@ -118,7 +122,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             return ListTile(
               leading: Icon(
                 Icons.description,
-                color: exists ? Colors.blue : Colors.grey,
+                color: exists ? AppConfig.primaryColor : Colors.grey,
               ),
               title: Text(
                 item.fileName,
@@ -129,7 +133,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 DateFormat('MMM dd, yyyy • HH:mm').format(item.date),
                 style: TextStyle(
                   fontSize: 12,
-                  color: exists ? Colors.grey : Colors.red,
+                  color: exists ? Colors.grey : AppConfig.primaryColor,
                 ),
               ),
               trailing: SizedBox(
@@ -155,9 +159,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
                   ],
                 ),
               ),
-              onTap: exists
-                  ? () => _openFile(item.filePath)
-                  : null,
+              onTap: exists ? () => _openFile(item.filePath) : null,
               enabled: exists,
             );
           },
@@ -199,7 +201,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
             return ListTile(
               leading: Icon(
                 Icons.description,
-                color: exists ? Colors.blue : Colors.grey,
+                color: exists ? AppConfig.primaryColor : Colors.grey,
               ),
               title: Text(
                 fileName,
@@ -210,16 +212,14 @@ class _HistoryScreenState extends State<HistoryScreen> {
                 exists ? 'Available' : 'File not found',
                 style: TextStyle(
                   fontSize: 12,
-                  color: exists ? Colors.grey : Colors.red,
+                  color: exists ? Colors.grey : AppConfig.primaryColor,
                 ),
               ),
               trailing: IconButton(
                 icon: const Icon(Icons.star, color: Colors.amber),
                 onPressed: () => _toggleFavorite(filePath),
               ),
-              onTap: exists
-                  ? () => _openFile(filePath)
-                  : null,
+              onTap: exists ? () => _openFile(filePath) : null,
               enabled: exists,
             );
           },

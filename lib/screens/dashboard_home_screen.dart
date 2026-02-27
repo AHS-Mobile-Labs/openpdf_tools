@@ -19,28 +19,7 @@ class DashboardHomeScreen extends StatefulWidget {
   State<DashboardHomeScreen> createState() => _DashboardHomeScreenState();
 }
 
-class _DashboardHomeScreenState extends State<DashboardHomeScreen>
-    with SingleTickerProviderStateMixin {
-  late AnimationController _animationController;
-  final ScrollController _scrollController = ScrollController();
-
-  @override
-  void initState() {
-    super.initState();
-    _animationController = AnimationController(
-      duration: const Duration(milliseconds: 600),
-      vsync: this,
-    );
-    _animationController.forward();
-  }
-
-  @override
-  void dispose() {
-    _animationController.dispose();
-    _scrollController.dispose();
-    super.dispose();
-  }
-
+class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   Future<void> _launchGitHub() async {
     try {
       if (await canLaunchUrl(Uri.parse(AppConfig.githubUrl))) {
@@ -54,115 +33,267 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    final isMobile = MediaQuery.of(context).size.width < 600;
+    final width = MediaQuery.of(context).size.width;
+    final isMobile = width < 600;
+    final isDesktop = width >= 600;
 
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
           : const Color(0xFFFAFAFA),
-      body: CustomScrollView(
-        controller: _scrollController,
-        slivers: [
-          // Header with app title
-          SliverAppBar(
-            expandedHeight: isMobile ? 180 : 200,
-            floating: false,
-            pinned: true,
-            backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-            elevation: 0,
-            flexibleSpace: FlexibleSpaceBar(
-              background: _buildHeader(isDark, isMobile),
-              titlePadding: const EdgeInsets.only(left: 16, bottom: 16),
-              title: Text(
-                AppConfig.appTitle,
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-            ),
-          ),
-          // Main content
-          SliverToBoxAdapter(
-            child: Padding(
-              padding: EdgeInsets.symmetric(
-                horizontal: isMobile ? 12 : 20,
-                vertical: 12,
-              ),
-              child: FadeTransition(
-                opacity: Tween(
-                  begin: 0.0,
-                  end: 1.0,
-                ).animate(_animationController),
+      body: SafeArea(
+        child: Column(
+          children: [
+            // scrollable content
+            Expanded(
+              child: SingleChildScrollView(
                 child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // Quick actions
-                    _buildQuickActionsSection(context, isDark, isMobile),
-                    const SizedBox(height: 32),
-
-                    // Main features grid
-                    _buildFeaturesSection(context, isDark, isMobile),
-                    const SizedBox(height: 32),
-
-                    // Recent files section (placeholder)
-                    _buildRecentFilesSection(isDark, isMobile),
-                    const SizedBox(height: 32),
-
-                    // Footer
-                    _buildFooter(isDark),
-                    const SizedBox(height: 24),
+                    _buildHeader(isDark, isMobile),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Column(
+                        children: [
+                          const SizedBox(height: 16),
+                          _buildQuickActions(context, isDark),
+                          const SizedBox(height: 20),
+                          _buildFeatures(context, isDark, isDesktop),
+                          const SizedBox(height: 20),
+                          _buildTips(isDark),
+                          const SizedBox(height: 16),
+                        ],
+                      ),
+                    ),
                   ],
                 ),
               ),
             ),
-          ),
-        ],
+            // pinned bottom
+            Padding(
+              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
+              child: _buildFooter(isDark),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildHeader(bool isDark, bool isMobile) {
     return Container(
-      decoration: BoxDecoration(
+      width: double.infinity,
+      height: isMobile ? 150.0 : 72.0,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(
         gradient: LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [
-            AppConfig.primaryColor,
-            AppConfig.primaryColor.withValues(alpha: 0.8),
-          ],
+          colors: [Color(0xFFB71C1C), Color(0xFFC6302C), Color(0xFFD84315)],
         ),
       ),
-      child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
+      child: Stack(
         children: [
-          SizedBox(
-            width: isMobile ? 50 : 60,
-            height: isMobile ? 50 : 60,
-            child: Image.asset(
-              'asset/app_img/OpenPDF Tools.png',
-              fit: BoxFit.contain,
+          // Decorative background circles
+          Positioned(
+            top: -30,
+            right: -20,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
             ),
           ),
-          const SizedBox(height: 12),
+          Positioned(
+            bottom: -40,
+            right: 60,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 10,
+            left: -30,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+          ),
+          // Mobile: centered stacked layout
+          if (isMobile)
+            Positioned.fill(
+              child: Column(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Container(
+                    padding: const EdgeInsets.all(3),
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white.withValues(alpha: 0.35),
+                        width: 2,
+                      ),
+                    ),
+                    child: Container(
+                      width: 44,
+                      height: 44,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.15),
+                      ),
+                      padding: const EdgeInsets.all(6),
+                      child: Image.asset(
+                        'asset/app_img/OpenPDF Tools.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  const Text(
+                    AppConfig.appTitle,
+                    style: TextStyle(
+                      fontSize: 19,
+                      fontWeight: FontWeight.w800,
+                      color: Colors.white,
+                      letterSpacing: 0.3,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        'Fast \u2022 Secure \u2022 Offline',
+                        style: TextStyle(
+                          fontSize: 11,
+                          color: Colors.white.withValues(alpha: 0.75),
+                          letterSpacing: 0.4,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      _versionBadge(),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          // Desktop: compact horizontal row
+          if (!isMobile)
+            Positioned.fill(
+              child: Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 20),
+                child: Row(
+                  children: [
+                    // Logo
+                    Container(
+                      width: 36,
+                      height: 36,
+                      decoration: BoxDecoration(
+                        shape: BoxShape.circle,
+                        color: Colors.white.withValues(alpha: 0.15),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1.5,
+                        ),
+                      ),
+                      padding: const EdgeInsets.all(5),
+                      child: Image.asset(
+                        'asset/app_img/OpenPDF Tools.png',
+                        fit: BoxFit.contain,
+                      ),
+                    ),
+                    const SizedBox(width: 12),
+                    // Title + tagline
+                    Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const Text(
+                          AppConfig.appTitle,
+                          style: TextStyle(
+                            fontSize: 15,
+                            fontWeight: FontWeight.w700,
+                            color: Colors.white,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          'Fast \u2022 Secure \u2022 Offline',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.white.withValues(alpha: 0.7),
+                            letterSpacing: 0.4,
+                          ),
+                        ),
+                      ],
+                    ),
+                    const Spacer(),
+                    _versionBadge(),
+                  ],
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _versionBadge() {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.18),
+        borderRadius: BorderRadius.circular(20),
+        border: Border.all(
+          color: Colors.white.withValues(alpha: 0.3),
+          width: 1,
+        ),
+      ),
+      child: Text(
+        'v${AppConfig.appVersion}',
+        style: const TextStyle(
+          fontSize: 9,
+          fontWeight: FontWeight.w600,
+          color: Colors.white,
+          letterSpacing: 0.3,
+        ),
+      ),
+    );
+  }
+
+  Widget _label(String text, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: AppConfig.primaryColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 7),
           Text(
-            'Manage Your PDFs',
+            text,
             style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.95),
-              fontSize: isMobile ? 18 : 22,
+              fontSize: 13,
               fontWeight: FontWeight.w600,
-              letterSpacing: 0.3,
-            ),
-          ),
-          const SizedBox(height: 2),
-          Text(
-            'Fast • Secure • Simple',
-            style: TextStyle(
-              color: Colors.white.withValues(alpha: 0.7),
-              fontSize: isMobile ? 11 : 13,
-              letterSpacing: 0.2,
+              color: isDark ? Colors.white : Colors.black87,
+              letterSpacing: 0.1,
             ),
           ),
         ],
@@ -170,54 +301,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
     );
   }
 
-  Widget _buildQuickActionsSection(
-    BuildContext context,
-    bool isDark,
-    bool isMobile,
-  ) {
-    final quickActions = [
-      ('View\nPDF', Icons.picture_as_pdf, const PdfViewerScreen(), Colors.blue),
-      ('Edit', Icons.edit, const EditPdfScreen(), Colors.purple),
-      ('Compress', Icons.compress, const CompressPdfScreen(), Colors.orange),
-      ('Convert', Icons.transform, const ConvertFromPdfScreen(), Colors.green),
-    ];
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          'Quick Actions',
-          style: TextStyle(
-            fontSize: isMobile ? 14 : 16,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : Colors.black87,
-            letterSpacing: 0.3,
-          ),
-        ),
-        const SizedBox(height: 12),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: isMobile ? 4 : 4,
-          childAspectRatio: 1.0,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          children: quickActions.map((action) {
-            return _buildQuickActionButton(
-              context,
-              action.$1,
-              action.$2,
-              action.$3,
-              action.$4,
-              isDark,
-            );
-          }).toList(),
-        ),
-      ],
-    );
-  }
-
-  Widget _buildQuickActionButton(
+  Widget _buildQA(
     BuildContext context,
     String label,
     IconData icon,
@@ -225,47 +309,88 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
     Color color,
     bool isDark,
   ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () =>
-            Navigator.push(context, MaterialPageRoute(builder: (_) => screen)),
-        borderRadius: BorderRadius.circular(12),
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: isDark ? const Color(0xFF252525) : Colors.white,
-            border: Border.all(
-              color: isDark ? const Color(0xFF404040) : Colors.grey.shade200,
-            ),
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => screen),
           ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Icon(icon, size: 24, color: color),
-              const SizedBox(height: 6),
-              Text(
-                label,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 10,
-                  fontWeight: FontWeight.w500,
-                  color: isDark ? Colors.white : Colors.black87,
-                  height: 1.2,
-                ),
+          borderRadius: BorderRadius.circular(10),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(10),
+              color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+              border: Border.all(
+                color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
               ),
-            ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(icon, size: 20, color: color),
+                const SizedBox(height: 5),
+                Text(
+                  label,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w500,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildFeaturesSection(
-    BuildContext context,
-    bool isDark,
-    bool isMobile,
-  ) {
+  Widget _buildQuickActions(BuildContext context, bool isDark) {
+    return Row(
+      children: [
+        _buildQA(
+          context,
+          'View PDF',
+          Icons.picture_as_pdf,
+          const PdfViewerScreen(),
+          Colors.blue,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Edit',
+          Icons.edit,
+          const EditPdfScreen(),
+          Colors.purple,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Compress',
+          Icons.compress,
+          const CompressPdfScreen(),
+          Colors.orange,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Convert',
+          Icons.transform,
+          const ConvertFromPdfScreen(),
+          Colors.green,
+          isDark,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildFeatures(BuildContext context, bool isDark, bool isDesktop) {
     final features = [
       FeatureItem(
         title: 'Convert to PDF',
@@ -300,32 +425,33 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        Text(
-          'All Features',
-          style: TextStyle(
-            fontSize: isMobile ? 14 : 16,
-            fontWeight: FontWeight.w600,
-            color: isDark ? Colors.white : Colors.black87,
-            letterSpacing: 0.3,
+        _label('All Features', isDark),
+        if (isDesktop)
+          ListView.separated(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: features.length,
+            separatorBuilder: (context, index) => const SizedBox(height: 6),
+            itemBuilder: (context, index) =>
+                _buildFeatureDesktop(context, features[index], isDark),
+          )
+        else
+          GridView.count(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            crossAxisCount: 2,
+            childAspectRatio: 1.35,
+            mainAxisSpacing: 8,
+            crossAxisSpacing: 8,
+            children: features
+                .map((f) => _buildFeatureMobile(context, f, isDark))
+                .toList(),
           ),
-        ),
-        const SizedBox(height: 12),
-        GridView.count(
-          shrinkWrap: true,
-          physics: const NeverScrollableScrollPhysics(),
-          crossAxisCount: isMobile ? 1 : 2,
-          childAspectRatio: isMobile ? 1.2 : 1.5,
-          mainAxisSpacing: 12,
-          crossAxisSpacing: 12,
-          children: features.map((feature) {
-            return _buildFeatureCard(context, feature, isDark);
-          }).toList(),
-        ),
       ],
     );
   }
 
-  Widget _buildFeatureCard(
+  Widget _buildFeatureMobile(
     BuildContext context,
     FeatureItem feature,
     bool isDark,
@@ -337,45 +463,105 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
           context,
           MaterialPageRoute(builder: (_) => feature.screen),
         ),
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(10),
         child: Container(
+          padding: const EdgeInsets.all(12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: isDark ? const Color(0xFF252525) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
             border: Border.all(
-              color: isDark ? const Color(0xFF404040) : Colors.grey.shade200,
+              color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
             ),
           ),
-          padding: const EdgeInsets.all(16),
-          child: Row(
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
             children: [
               Container(
-                padding: const EdgeInsets.all(12),
+                padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
                   color: feature.color.withValues(alpha: 0.1),
                   borderRadius: BorderRadius.circular(10),
                 ),
-                child: Icon(feature.icon, color: feature.color, size: 24),
+                child: Icon(feature.icon, size: 22, color: feature.color),
               ),
-              const SizedBox(width: 16),
+              const SizedBox(height: 7),
+              Text(
+                feature.title,
+                textAlign: TextAlign.center,
+                style: TextStyle(
+                  fontSize: 12,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 2),
+              Text(
+                feature.description,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildFeatureDesktop(
+    BuildContext context,
+    FeatureItem feature,
+    bool isDark,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => feature.screen),
+        ),
+        borderRadius: BorderRadius.circular(10),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(10),
+            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+            border: Border.all(
+              color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(9),
+                decoration: BoxDecoration(
+                  color: feature.color.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(9),
+                ),
+                child: Icon(feature.icon, size: 18, color: feature.color),
+              ),
+              const SizedBox(width: 11),
               Expanded(
                 child: Column(
-                  mainAxisAlignment: MainAxisAlignment.center,
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
                       feature.title,
                       style: TextStyle(
-                        fontSize: 14,
+                        fontSize: 13,
                         fontWeight: FontWeight.w600,
                         color: isDark ? Colors.white : Colors.black87,
                       ),
                     ),
-                    const SizedBox(height: 4),
+                    const SizedBox(height: 1),
                     Text(
                       feature.description,
                       style: TextStyle(
-                        fontSize: 12,
+                        fontSize: 11,
                         color: isDark
                             ? Colors.grey.shade400
                             : Colors.grey.shade600,
@@ -384,10 +570,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
                   ],
                 ),
               ),
-              const SizedBox(width: 8),
               Icon(
                 Icons.arrow_forward_ios,
-                size: 16,
+                size: 12,
                 color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
             ],
@@ -397,127 +582,58 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen>
     );
   }
 
-  Widget _buildRecentFilesSection(bool isDark, bool isMobile) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Text(
-              'Tips & Info',
+  Widget _buildTips(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: AppConfig.primaryColor.withValues(alpha: 0.07),
+        border: Border.all(
+          color: AppConfig.primaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.lightbulb_outline,
+            size: 16,
+            color: AppConfig.primaryColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Compress, convert, edit and merge PDFs \u2014 all offline, all free.',
               style: TextStyle(
-                fontSize: isMobile ? 14 : 16,
-                fontWeight: FontWeight.w600,
-                color: isDark ? Colors.white : Colors.black87,
-                letterSpacing: 0.3,
+                fontSize: 12,
+                height: 1.5,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
               ),
             ),
-          ],
-        ),
-        const SizedBox(height: 12),
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(12),
-            color: AppConfig.primaryColor.withValues(alpha: 0.1),
-            border: Border.all(
-              color: AppConfig.primaryColor.withValues(alpha: 0.3),
-            ),
           ),
-          padding: const EdgeInsets.all(16),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  Container(
-                    padding: const EdgeInsets.all(8),
-                    decoration: BoxDecoration(
-                      color: AppConfig.primaryColor.withValues(alpha: 0.1),
-                      borderRadius: BorderRadius.circular(8),
-                    ),
-                    child: const Icon(
-                      Icons.lightbulb,
-                      color: AppConfig.primaryColor,
-                      size: 18,
-                    ),
-                  ),
-                  const SizedBox(width: 12),
-                  const Expanded(
-                    child: Text(
-                      'Did you know?',
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                  ),
-                ],
-              ),
-              const SizedBox(height: 12),
-              Text(
-                'You can compress PDFs, add watermarks, rotate pages, crop sections, convert formats, and merge multiple files—all in one app!',
-                style: TextStyle(
-                  fontSize: 12,
-                  height: 1.6,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-                ),
-              ),
-            ],
-          ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 
   Widget _buildFooter(bool isDark) {
-    return Column(
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Divider(
-          color: isDark ? Colors.grey.shade800 : Colors.grey.shade200,
-          height: 32,
+        Text(
+          'v${AppConfig.appVersion}  \u00b7  Made with \u2764\ufe0f',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          ),
         ),
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Version ${AppConfig.appVersion}',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-                  ),
-                ),
-                const SizedBox(height: 4),
-                Text(
-                  'Made with ❤️',
-                  style: TextStyle(
-                    fontSize: 11,
-                    color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-                  ),
-                ),
-              ],
-            ),
-            GestureDetector(
-              onTap: _launchGitHub,
-              child: Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  shape: BoxShape.circle,
-                  color: isDark
-                      ? const Color(0xFF404040)
-                      : Colors.grey.shade200,
-                ),
-                child: Icon(
-                  FontAwesomeIcons.github,
-                  size: 18,
-                  color: isDark ? Colors.grey.shade300 : Colors.grey.shade700,
-                ),
-              ),
-            ),
-          ],
+        GestureDetector(
+          onTap: _launchGitHub,
+          child: Icon(
+            FontAwesomeIcons.github,
+            size: 16,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          ),
         ),
       ],
     );

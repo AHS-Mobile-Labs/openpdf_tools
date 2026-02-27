@@ -7,7 +7,6 @@ import 'pdf_viewer_screen.dart';
 
 // ignore: use_build_context_synchronously
 
-
 class ConvertFromPdfScreen extends StatefulWidget {
   const ConvertFromPdfScreen({super.key});
 
@@ -165,7 +164,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         return downloadsDir.path;
       }
     } catch (_) {}
-    
+
     try {
       // Fallback to home directory on Linux
       if (Platform.isLinux || Platform.isMacOS) {
@@ -268,7 +267,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
 
         ScaffoldMessenger.of(context).showSnackBar(
           // ignore: use_build_context_synchronously
-
           const SnackBar(content: Text('File not found')),
         );
       }
@@ -279,7 +277,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     if (_selectedPdfPath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
         // ignore: use_build_context_synchronously
-
         const SnackBar(content: Text('Please select a PDF file first')),
       );
       return;
@@ -327,8 +324,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         // ignore: use_build_context_synchronously
 
         // ignore: use_build_context_synchronously
-
-
         SnackBar(
           content: Text('✓ Saved: $fileName'),
           duration: const Duration(seconds: 3),
@@ -339,7 +334,8 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) => PdfViewerScreen(externalFile: File(outputPath)),
+                    builder: (_) =>
+                        PdfViewerScreen(externalFile: File(outputPath)),
                   ),
                 );
               } else {
@@ -362,20 +358,21 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     } catch (e) {
       if (!mounted) return;
 
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Conversion failed: $e')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text('Conversion failed: $e')));
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
-      // ignore: use_build_context_synchronously
-
+        // ignore: use_build_context_synchronously
       }
     }
   }
 
   Future<void> _performConversion(
-      ConversionFormat format, String outputPath) async {
+    ConversionFormat format,
+    String outputPath,
+  ) async {
     switch (format.format) {
       case 'Text':
         await _convertToText(outputPath);
@@ -422,10 +419,14 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     }
   }
 
-  Future<void> _convertToImages(ConversionFormat format, String outputPath) async {
+  Future<void> _convertToImages(
+    ConversionFormat format,
+    String outputPath,
+  ) async {
     // Create a temporary directory for image processing, but ensure it's cleaned up
     final tempDir = await getTemporaryDirectory();
-    final imageDir = '${tempDir.path}/pdf_images_${DateTime.now().millisecondsSinceEpoch}';
+    final imageDir =
+        '${tempDir.path}/pdf_images_${DateTime.now().millisecondsSinceEpoch}';
     await Directory(imageDir).create(recursive: true);
 
     try {
@@ -479,12 +480,13 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   }
 
   Future<void> _convertUsingLibreOffice(
-      ConversionFormat format, String outputPath) async {
+    ConversionFormat format,
+    String outputPath,
+  ) async {
     final outDir = Directory(outputPath).parent.path;
-    final outFileName = Path.basename(_selectedPdfPath!).replaceAll(
-      RegExp(r'\.[^.]*$'),
-      '',
-    );
+    final outFileName = Path.basename(
+      _selectedPdfPath!,
+    ).replaceAll(RegExp(r'\.[^.]*$'), '');
 
     final formatMap = {
       'Word': 'docx',
@@ -504,17 +506,14 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     final outFormat = formatMap[format.format] ?? format.fileExtension;
 
     try {
-      final result = await Process.run(
-        'libreoffice',
-        [
-          '--headless',
-          '--convert-to',
-          outFormat,
-          '--outdir',
-          outDir,
-          _selectedPdfPath!,
-        ],
-      );
+      final result = await Process.run('libreoffice', [
+        '--headless',
+        '--convert-to',
+        outFormat,
+        '--outdir',
+        outDir,
+        _selectedPdfPath!,
+      ]);
 
       if (result.exitCode != 0) {
         throw Exception('LibreOffice conversion failed: ${result.stderr}');
@@ -570,9 +569,16 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
 
   @override
   Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+
     return Scaffold(
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
       appBar: AppBar(
         title: const Text('Convert from PDF'),
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black87,
         elevation: 0,
       ),
       body: Column(
@@ -581,10 +587,17 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
-              color: Colors.green.shade100,
+              color: isDark
+                  ? Colors.green.shade900.withValues(alpha: 0.4)
+                  : Colors.green.shade100,
               child: Row(
                 children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade700),
+                  Icon(
+                    Icons.check_circle,
+                    color: isDark
+                        ? Colors.green.shade300
+                        : Colors.green.shade700,
+                  ),
                   const SizedBox(width: 12),
                   Expanded(
                     child: Column(
@@ -643,12 +656,13 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                   )
                 : GridView.builder(
                     padding: const EdgeInsets.all(16),
-                    gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: 3,
-                      childAspectRatio: 1.0,
-                      crossAxisSpacing: 12,
-                      mainAxisSpacing: 12,
-                    ),
+                    gridDelegate:
+                        const SliverGridDelegateWithFixedCrossAxisCount(
+                          crossAxisCount: 3,
+                          childAspectRatio: 1.0,
+                          crossAxisSpacing: 12,
+                          mainAxisSpacing: 12,
+                        ),
                     itemCount: conversionFormats.length,
                     itemBuilder: (context, index) {
                       final format = conversionFormats[index];
@@ -657,11 +671,10 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
 
                       return _ConversionFormatCard(
                         format: format,
+                        isDark: isDark,
                         isProcessing: isProcessing,
                         isDisabled: _isProcessing && !isSelected,
-                        onTap: _isProcessing
-                            ? null
-                            : () => _convertPdf(format),
+                        onTap: _isProcessing ? null : () => _convertPdf(format),
                       );
                     },
                   ),
@@ -690,12 +703,14 @@ class ConversionFormat {
 
 class _ConversionFormatCard extends StatefulWidget {
   final ConversionFormat format;
+  final bool isDark;
   final bool isProcessing;
   final bool isDisabled;
   final VoidCallback? onTap;
 
   const _ConversionFormatCard({
     required this.format,
+    required this.isDark,
     required this.isProcessing,
     required this.isDisabled,
     required this.onTap,
@@ -717,9 +732,10 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-    _scaleAnimation = Tween<double>(begin: 1.0, end: 0.95).animate(
-      CurvedAnimation(parent: _controller, curve: Curves.easeInOut),
-    );
+    _scaleAnimation = Tween<double>(
+      begin: 1.0,
+      end: 0.95,
+    ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
 
   @override
@@ -752,7 +768,7 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
                 color: widget.format.color.withValues(alpha: 0.3),
                 width: 1.5,
               ),
-              color: Colors.white,
+              color: widget.isDark ? const Color(0xFF1C1C1C) : Colors.white,
               boxShadow: [
                 BoxShadow(
                   color: Colors.black.withValues(alpha: 0.08),
@@ -797,6 +813,8 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
                                 height: 1.0,
                                 color: widget.isDisabled
                                     ? Colors.grey
+                                    : widget.isDark
+                                    ? Colors.white
                                     : Colors.black87,
                               ),
                             ),
@@ -817,8 +835,9 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
                         width: 20,
                         height: 20,
                         child: CircularProgressIndicator(
-                          valueColor:
-                              AlwaysStoppedAnimation<Color>(Colors.white),
+                          valueColor: AlwaysStoppedAnimation<Color>(
+                            Colors.white,
+                          ),
                           strokeWidth: 2,
                         ),
                       ),
