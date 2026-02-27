@@ -1,7 +1,6 @@
 import 'dart:io' show File;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
-import 'package:pdfrx_engine/pdfrx_engine.dart';
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:provider/provider.dart';
 import 'package:url_launcher/url_launcher.dart';
@@ -618,7 +617,7 @@ class _HomeScreenState extends State<HomeScreen> {
         ),
         // Content Grid with responsive layout
         SliverPadding(
-          padding: EdgeInsets.all(isMobile ? 12 : 16),
+          padding: EdgeInsets.all(isMobile ? 0 : 4),
           sliver: SliverGrid(
             gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
               crossAxisCount: gridColumns,

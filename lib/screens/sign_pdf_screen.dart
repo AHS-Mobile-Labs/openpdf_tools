@@ -1,8 +1,10 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart' show XFile;
+import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../services/pdf_signature_service.dart';
 import '../config/app_config.dart';
@@ -433,12 +435,14 @@ class _SignPdfScreenState extends State<SignPdfScreen> {
                           subtitle: const Text(
                             'Sign with cryptographic signature (RSA-256) saved locally',
                           ),
-                          leading: Radio(
+                          leading: Radio<bool>(
                             value: false,
                             groupValue: _useElectronicSignature,
-                            onChanged: (value) => setState(
-                              () => _useElectronicSignature = value!,
-                            ),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _useElectronicSignature = value);
+                              }
+                            },
                           ),
                         ),
                         ListTile(
@@ -446,12 +450,14 @@ class _SignPdfScreenState extends State<SignPdfScreen> {
                           subtitle: const Text(
                             'Send signature request to another person via email',
                           ),
-                          leading: Radio(
+                          leading: Radio<bool>(
                             value: true,
                             groupValue: _useElectronicSignature,
-                            onChanged: (value) => setState(
-                              () => _useElectronicSignature = value!,
-                            ),
+                            onChanged: (value) {
+                              if (value != null) {
+                                setState(() => _useElectronicSignature = value);
+                              }
+                            },
                           ),
                         ),
                       ],
@@ -670,7 +676,7 @@ class _SignPdfScreenState extends State<SignPdfScreen> {
         );
       } else {
         // Use native sharing on other platforms
-        await Share.shareXFiles([
+        await share_plus.Share.shareXFiles([
           XFile(filePath),
         ], text: '$fileType: $fileName');
       }

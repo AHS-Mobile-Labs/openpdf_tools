@@ -181,10 +181,10 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
       if (pth.isEmpty) return;
       final f = File(pth);
       if (await f.exists()) {
-        // ignore: use_build_context_synchronously
+        if (!mounted) return;
         Navigator.of(context).pop([f.path]);
       } else {
-        // ignore: use_build_context_synchronously
+        if (!mounted) return;
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(const SnackBar(content: Text('File not found')));

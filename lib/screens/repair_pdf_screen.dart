@@ -1,8 +1,10 @@
+// ignore_for_file: deprecated_member_use
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
-import 'package:share_plus/share_plus.dart';
+import 'package:share_plus/share_plus.dart' show XFile;
+import 'package:share_plus/share_plus.dart' as share_plus;
 
 import '../services/pdf_repair_service.dart';
 import '../config/app_config.dart';
@@ -224,7 +226,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
         );
       } else {
         // Use native sharing on other platforms
-        await Share.shareXFiles([
+        await share_plus.Share.shareXFiles([
           XFile(filePath),
         ], text: '$fileType: $fileName');
       }

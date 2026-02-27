@@ -129,7 +129,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
 
       if (choice == 'inapp') {
-        // ignore: use_build_context_synchronously
+        if (!mounted) return;
         final selected = await showInAppFilePicker(
           context,
           initialDirectory: Directory.current.path,
@@ -140,15 +140,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             _pdfFile = File(selected);
             _zoom = 1.0;
           });
-          // ignore: use_build_context_synchronously
+          if (!mounted) return;
           ScaffoldMessenger.of(
             context,
           ).showSnackBar(SnackBar(content: Text('Selected: $selected')));
         }
       } else if (choice == 'enter') {
+        if (!mounted) return;
         final controller = TextEditingController();
         final submit = await showDialog<bool>(
-          // ignore: use_build_context_synchronously
           context: context,
           builder: (ctx) => AlertDialog(
             title: const Text('Enter PDF path'),
@@ -181,12 +181,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             });
             _loadPdfBytes();
             _addToHistoryAndCheckFavorite();
-            // ignore: use_build_context_synchronously
+            if (!mounted) return;
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(SnackBar(content: Text('Selected: $path')));
           } else {
-            // ignore: use_build_context_synchronously
+            if (!mounted) return;
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(const SnackBar(content: Text('File not found')));
@@ -194,34 +194,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         }
       }
     }
-  }
-
-  void _askPassword() {
-    final controller = TextEditingController();
-
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (_) => AlertDialog(
-        title: const Text('PDF Password'),
-        content: TextField(
-          controller: controller,
-          obscureText: true,
-          decoration: const InputDecoration(hintText: 'Enter password'),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () {
-              setState(() {
-                _password = controller.text;
-              });
-              Navigator.pop(context);
-            },
-            child: const Text('Open'),
-          ),
-        ],
-      ),
-    );
   }
 
   Future<void> _sharePdf() async {
@@ -401,19 +373,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ),
       ),
     );
-  }
-
-  String _getFileSizeSync() {
-    try {
-      if (_pdfFile != null) {
-        final bytes = _pdfFile!.lengthSync();
-        return (bytes / (1024 * 1024)).toStringAsFixed(2);
-      }
-    } catch (e) {
-      // File size not available (e.g., on web platform)
-      return '0';
-    }
-    return '0';
   }
 
   Future<Uint8List?> _getFileBytes() async {
