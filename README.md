@@ -1,5 +1,11 @@
 <div align="center">
-  <img src="asset/app_img/OpenPDF Tools.png" alt="OpenPDF Tools Logo" width="200" height="200">
+  <img 
+    src="asset/app_img/OpenPDF Tools.png" 
+    alt="OpenPDF Tools Logo" 
+    width="200" 
+    height="200"
+    style="border-radius: 20px;"
+  >
 </div>
 
 # OpenPDF Tools
