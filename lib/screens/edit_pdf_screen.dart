@@ -1,6 +1,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:openpdf_tools/services/pdf_editing_service.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
@@ -49,6 +51,22 @@ class _EditPdfScreenState extends State<EditPdfScreen>
 
   Future<void> _pickPdf() async {
     try {
+      // Request permissions first
+      if (PlatformHelper.isAndroid) {
+        final hasPermission =
+            await PlatformFileHandler.requestStoragePermission();
+        if (!hasPermission && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Storage permission denied. Attempting to proceed...',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],

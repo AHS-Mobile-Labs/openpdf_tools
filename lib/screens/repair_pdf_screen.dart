@@ -2,6 +2,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show XFile;
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -42,6 +44,17 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
   // Pick a PDF file
   Future<void> _pickPDFFile() async {
     try {
+      // Request permissions first
+      if (PlatformHelper.isAndroid) {
+        final hasPermission =
+            await PlatformFileHandler.requestStoragePermission();
+        if (!hasPermission && mounted) {
+          _showErrorSnackBar(
+            'Storage permission denied. Attempting to proceed...',
+          );
+        }
+      }
+
       debugPrint('[RepairPdfScreen] Opening file picker');
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,

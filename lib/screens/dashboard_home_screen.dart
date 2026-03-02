@@ -12,6 +12,7 @@ import 'edit_pdf_screen.dart';
 import 'pdf_from_images_screen.dart';
 import 'merge_pdf_screen.dart';
 import 'split_pdf_screen.dart';
+import 'sign_pdf_screen_refactored.dart';
 
 /// Modern, clean dashboard home screen with improved UX
 class DashboardHomeScreen extends StatefulWidget {
@@ -435,6 +436,13 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
         icon: Icons.history,
         color: const Color(0xFF7E57C2),
         screen: const HistoryScreen(),
+      ),
+      FeatureItem(
+        title: 'Sign PDF',
+        description: 'Add digital signatures',
+        icon: Icons.edit_document,
+        color: const Color(0xFF0D47A1),
+        screen: const SignPdfScreenRefactored(),
       ),
     ];
 

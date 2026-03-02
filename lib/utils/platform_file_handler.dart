@@ -1,35 +1,100 @@
 import 'dart:io';
+import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:path_provider/path_provider.dart';
+import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 
-/// Platform-specific file handling utilities
+/// Platform-specific file handling utilities with comprehensive Android support
 class PlatformFileHandler {
-  /// Request storage permissions if needed
+  /// Request storage permissions with popup dialog (not full-screen)
   static Future<bool> requestStoragePermission() async {
     if (!PlatformHelper.isMobile) return true;
 
-    final status = await Permission.storage.request();
-    return status.isGranted;
+    try {
+      if (PlatformHelper.isAndroid) {
+        // Use standard storage permission which shows popup dialog
+        // On Android 6-12: requests READ/WRITE_EXTERNAL_STORAGE
+        // On Android 13+: requests READ_MEDIA_IMAGES/READ_MEDIA_VIDEO
+        final status = await Permission.storage.request();
+        return status.isGranted;
+      }
+    } catch (e) {
+      // Permission request error - return false to handle gracefully
+      return false;
+    }
+    return true;
+  }
+
+  /// Request media permissions for Android 13+
+  static Future<bool> requestMediaPermissions() async {
+    if (!PlatformHelper.isAndroid) return true;
+
+    try {
+      // For Android 13+, request specific media permissions
+      final photoStatus = await Permission.photos.request();
+      final videoStatus = await Permission.videos.request();
+
+      return photoStatus.isGranted || videoStatus.isGranted;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Request camera permission for image capture
+  static Future<bool> requestCameraPermission() async {
+    if (!PlatformHelper.isMobile) return true;
+
+    try {
+      final status = await Permission.camera.request();
+      return status.isGranted;
+    } catch (e) {
+      return false;
+    }
   }
 
   /// Request media library access (iOS)
   static Future<bool> requestMediaLibraryAccess() async {
     if (!PlatformHelper.isIOS) return true;
 
-    final status = await Permission.photos.request();
-    return status.isGranted;
+    try {
+      final status = await Permission.photos.request();
+      return status.isGranted;
+    } catch (e) {
+      return false;
+    }
   }
 
-  /// Request specific file permissions for the platform
+  /// Check if permissions are permanently denied
+  static Future<bool> arePermissionsPermanentlyDenied() async {
+    if (!PlatformHelper.isAndroid) return false;
+
+    try {
+      final storageStatus = await Permission.storage.status;
+      return storageStatus.isDenied;
+    } catch (e) {
+      return false;
+    }
+  }
+
+  /// Request all necessary permissions for the app
   static Future<bool> requestFilePermissions() async {
     if (!PlatformHelper.isMobile) return true;
 
-    if (PlatformHelper.isAndroid) {
-      return await requestStoragePermission();
-    } else if (PlatformHelper.isIOS) {
-      return await requestMediaLibraryAccess();
+    try {
+      if (PlatformHelper.isAndroid) {
+        // Request storage permissions
+        final storageGranted = await requestStoragePermission();
+
+        // Request media permissions for Android 13+
+        await requestMediaPermissions();
+
+        return storageGranted;
+      } else if (PlatformHelper.isIOS) {
+        return await requestMediaLibraryAccess();
+      }
+    } catch (e) {
+      return false;
     }
     return true;
   }
@@ -37,36 +102,44 @@ class PlatformFileHandler {
   /// Get platform-specific documents directory
   static Future<Directory> getDocumentsDirectory() async {
     if (PlatformHelper.isAndroid || PlatformHelper.isIOS) {
-      return getApplicationDocumentsDirectory();
+      return path_provider.getApplicationDocumentsDirectory();
     } else if (PlatformHelper.isDesktop) {
       return Directory.systemTemp;
     }
-    return getApplicationDocumentsDirectory();
+    return path_provider.getApplicationDocumentsDirectory();
   }
 
-  /// Get platform-specific downloads directory
+  /// Get platform-specific downloads directory (with proper Android handling)
   static Future<Directory?> getDownloadsDirectory() async {
     if (PlatformHelper.isAndroid || PlatformHelper.isIOS) {
-      return getApplicationDocumentsDirectory();
+      try {
+        // For Android, use the app-specific cache directory
+        // This works best with scoped storage on Android 11+
+        return await path_provider.getApplicationCacheDirectory();
+      } catch (e) {
+        // Fallback to app documents directory
+      }
+      return path_provider.getApplicationDocumentsDirectory();
     } else if (PlatformHelper.isDesktop) {
       // On desktop, use the system Downloads folder
       if (PlatformHelper.isWindows) {
-        return Directory('${Platform.environment['USERPROFILE']}\\Downloads');
+        final userProfile = Platform.environment['USERPROFILE'];
+        if (userProfile != null) {
+          return Directory('$userProfile\\Downloads');
+        }
       } else if (PlatformHelper.isMacOS || PlatformHelper.isLinux) {
-        return Directory('${Platform.environment['HOME']}/Downloads');
+        final home = Platform.environment['HOME'];
+        if (home != null) {
+          return Directory('$home/Downloads');
+        }
       }
     }
-    return getApplicationDocumentsDirectory();
-  }
-
-  /// Get optimal temporary directory for the platform
-  static Future<Directory> getTempDirectory() async {
-    return getTemporaryDirectory();
+    return path_provider.getApplicationDocumentsDirectory();
   }
 
   /// Get app cache directory
   static Future<Directory> getCacheDirectory() async {
-    return getApplicationCacheDirectory();
+    return path_provider.getApplicationCacheDirectory();
   }
 
   /// Pick a file with platform-specific optimizations
@@ -76,40 +149,74 @@ class PlatformFileHandler {
     List<String> allowedExtensions = const ['pdf'],
   }) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: allowedExtensions,
-        allowMultiple: allowMultiple,
-        dialogTitle: dialogTitle,
-      );
+      // Request permissions before picking file
+      final hasPermission = await requestFilePermissions();
+      if (!hasPermission && PlatformHelper.isAndroid) {
+        // Attempt anyway - file picker might work without explicit permission
+      }
+
+      final result = await FilePicker.platform
+          .pickFiles(
+            type: FileType.custom,
+            allowedExtensions: allowedExtensions,
+            allowMultiple: allowMultiple,
+            dialogTitle: dialogTitle,
+            withData: false, // Don't load file data into memory
+            withReadStream: true,
+          )
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
 
       if (result != null && result.files.isNotEmpty) {
-        return File(result.files.first.path ?? '');
+        final filePath = result.files.first.path;
+        if (filePath != null && filePath.isNotEmpty) {
+          final file = File(filePath);
+          if (await file.exists()) {
+            return file;
+          }
+        }
+      }
+    } on PlatformException catch (e) {
+      if (e.code != 'read_external_storage_denied') {
+        // Handle this error gracefully
       }
     } catch (e) {
-      // File picker error handled silently
+      // File picker error handled silently - user might have cancelled
     }
     return null;
   }
 
-  /// Pick multiple files
+  /// Pick multiple files with better error handling
   static Future<List<File>> pickMultipleFiles({
     String? dialogTitle,
     List<String> allowedExtensions = const ['pdf'],
   }) async {
     try {
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: allowedExtensions,
-        allowMultiple: true,
-        dialogTitle: dialogTitle,
-      );
+      // Request permissions before picking files
+      final hasPermission = await requestFilePermissions();
+      if (!hasPermission && PlatformHelper.isAndroid) {
+        // Attempt anyway - file picker might work without explicit permission
+      }
+
+      final result = await FilePicker.platform
+          .pickFiles(
+            type: FileType.custom,
+            allowedExtensions: allowedExtensions,
+            allowMultiple: true,
+            dialogTitle: dialogTitle,
+            withData: false,
+            withReadStream: true,
+          )
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
 
       if (result != null && result.files.isNotEmpty) {
         return result.files
             .map((file) => File(file.path ?? ''))
             .where((file) => file.path.isNotEmpty)
             .toList();
+      }
+    } on PlatformException catch (e) {
+      if (e.code != 'read_external_storage_denied') {
+        // Handle error
       }
     } catch (e) {
       // File picker error handled silently
@@ -191,23 +298,22 @@ class PlatformFileHandler {
     return dir?.path ?? (await getDocumentsDirectory()).path;
   }
 
-  /// Check available storage space
+  /// Check available storage space (Android-optimized)
   static Future<int> getAvailableStorageSpace() async {
     try {
       if (PlatformHelper.isAndroid) {
-        final dir = await getExternalStorageDirectory();
-        if (dir != null) {
-          final stat = await FileStat.stat(dir.path);
-          return stat.size;
-        }
+        final dir = await path_provider.getApplicationCacheDirectory();
+        // Use stat to get available space
+        final stat = FileStat.statSync(dir.path);
+        return stat.size > 0 ? stat.size : 1024 * 1024 * 1024; // 1GB default
       } else if (PlatformHelper.isDesktop) {
         // For desktop, return a large default value
         return 1024 * 1024 * 1024; // 1GB
       }
     } catch (e) {
-      // Storage space error handled silently
+      // Storage space error - return default
     }
-    return 0;
+    return 100 * 1024 * 1024; // 100MB default
   }
 
   /// Check if path is accessible

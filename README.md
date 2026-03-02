@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="asset/app_img/OpenPDF Tools.png" alt="OpenPDF Tools Logo" width="200" height="200">
+</div>
+
 # 📄 OpenPDF Tools
 
 A professional, feature-rich Flutter application for comprehensive PDF management and manipulation. Seamlessly view, convert, compress, and edit PDF files across **desktop and mobile platforms** with an intuitive and modern interface.
@@ -10,14 +14,16 @@ A professional, feature-rich Flutter application for comprehensive PDF managemen
 
 ## � Table of Contents
 
-- [Download](#-download-openpdf-tools)
+- [Download](#️-download-openpdf-tools)
 - [Features](#-features)
 - [Platform Support](#-platform-support)
+- [Optimization Information](#️-optimization-information)
 - [Getting Started](#-getting-started)
 - [Project Structure](#-project-structure)
 - [Dependencies](#-dependencies)
-- [Configuration](#-configuration)
+- [Customization](#-customization)
 - [Security & Permissions](#-security--permissions)
+- [UI Design](#-ui-design)
 - [Troubleshooting](#-troubleshooting)
 - [Contributing](#-contributing)
 - [License](#-license)
@@ -48,9 +54,11 @@ Stay tuned for official release announcements.
 - **PDF Editor** - Add text, annotations, and make modifications
 - **Merge PDF** - Combine PDFs in the order you want with the easiest PDF merger available
 - **Split PDF** - Separate one page or a whole set for easy conversion into independent PDF files
+- **Sign PDF** - 🆕 Production-grade digital signatures with enterprise security
 - **Smart History** - Auto-manage 50 recent files with quick access favorites
 
 ### 🚀 Advanced Capabilities
+- **Digital Signatures** - Secure PDF signing with certificate validation and expiry detection
 - **Cross-Platform Sharing** - Seamless file sharing with Android Intent integration
 - **Smart File Browser** - Fast directory navigation with permission handling
 - **Persistent Storage** - Local history management using SharedPreferences
@@ -94,9 +102,9 @@ This project has been **fully optimized for cross-platform development** with co
 
 ### Documentation
 For detailed information, see:
-- [OPTIMIZATIONS_SUMMARY.md](./OPTIMIZATIONS_SUMMARY.md) - Overview of all optimizations
-- [PLATFORM_OPTIMIZATION_GUIDE.md](./PLATFORM_OPTIMIZATION_GUIDE.md) - Detailed platform guide
-- [MULTI_PLATFORM_SETUP.md](./MULTI_PLATFORM_SETUP.md) - Setup and deployment guide
+- [OPTIMIZATIONS_SUMMARY.md](./documentation/production/OPTIMIZATIONS_SUMMARY.md) - Overview of all optimizations
+- [PLATFORM_OPTIMIZATION_GUIDE.md](./documentation/platform-setup/PLATFORM_OPTIMIZATION_GUIDE.md) - Detailed platform guide
+- [MULTI_PLATFORM_SETUP.md](./documentation/platform-setup/MULTI_PLATFORM_SETUP.md) - Setup and deployment guide
 
 ---
 
@@ -118,7 +126,7 @@ flutter --version
 
 **Step 1: Clone the Repository**
 ```bash
-git clone https://github.com/ameerhamzasaifi/openpdf_tools.git
+git clone https://github.com/AHS-Mobile-Labs/openpdf_tools.git
 cd openpdf_tools
 ```
 
@@ -477,8 +485,8 @@ This project is licensed under the **MIT License**. See the [LICENSE](LICENSE) f
 
 ### Getting Help
 
-- 📋 **Report Issues**: [GitHub Issues](https://github.com/ameerhamzasaifi/openpdf_tools/issues)
-- 💬 **Discuss Ideas**: [GitHub Discussions](https://github.com/ameerhamzasaifi/openpdf_tools/discussions)
+- 📋 **Report Issues**: [GitHub Issues](https://github.com/AHS-Mobile-Labs/openpdf_tools/issues)
+- 💬 **Discuss Ideas**: [GitHub Discussions](https://github.com/AHS-Mobile-Labs/openpdf_tools/discussions)
 - 📚 **Learn Flutter**: [Official Flutter Docs](https://flutter.dev/docs)
 - 🎓 **Dart Guide**: [Effective Dart](https://dart.dev/guides/language/effective-dart)
 

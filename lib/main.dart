@@ -16,7 +16,6 @@ import 'screens/history_screen.dart';
 import 'screens/edit_pdf_screen.dart';
 import 'screens/pdf_from_images_screen.dart';
 import 'screens/dashboard_home_screen.dart';
-import 'screens/sign_pdf_screen.dart';
 import 'screens/repair_pdf_screen.dart';
 
 // Import widgets
@@ -48,8 +47,23 @@ Future<void> main() async {
   // Request permissions for mobile
   if (PlatformHelper.isMobile) {
     try {
-      await PlatformFileHandler.requestFilePermissions();
-      debugPrint('[main] File permissions requested');
+      debugPrint(
+        '[main] Requesting file permissions for ${PlatformHelper.platformName}',
+      );
+      final granted = await PlatformFileHandler.requestFilePermissions();
+      if (granted) {
+        debugPrint('[main] File permissions granted successfully');
+      } else {
+        debugPrint(
+          '[main] File permissions denied - app will attempt limited functionality',
+        );
+      }
+
+      // Also request camera permission if on Android
+      if (PlatformHelper.isAndroid) {
+        debugPrint('[main] Requesting camera permission');
+        await PlatformFileHandler.requestCameraPermission();
+      }
     } catch (e) {
       debugPrint('[main] Error requesting permissions: $e');
     }
@@ -344,11 +358,6 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         screen: const PdfFromImagesScreen(),
       ),
       ModernNavigationItem(
-        icon: Icons.edit_note,
-        label: 'Sign PDF',
-        screen: const SignPdfScreen(),
-      ),
-      ModernNavigationItem(
         icon: Icons.healing,
         label: 'Repair PDF',
         screen: const RepairPdfScreen(),
@@ -536,13 +545,6 @@ class _HomeScreenState extends State<HomeScreen> {
         subtitle: 'Create PDFs',
         color: const Color(0xFFE65100),
         screen: const PdfFromImagesScreen(),
-      ),
-      ToolCardData(
-        icon: Icons.edit_note,
-        title: 'Sign PDF',
-        subtitle: 'Digital Signatures',
-        color: const Color(0xFF0288D1),
-        screen: const SignPdfScreen(),
       ),
       ToolCardData(
         icon: Icons.healing,

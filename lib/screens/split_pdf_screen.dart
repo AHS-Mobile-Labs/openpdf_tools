@@ -2,6 +2,8 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 
 import '../services/pdf_manipulation_service.dart';
 import 'pdf_viewer_screen.dart';
@@ -37,6 +39,23 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
 
   Future<void> _pickPdf() async {
     try {
+      // Request permissions first
+      if (PlatformHelper.isAndroid) {
+        final hasPermission =
+            await PlatformFileHandler.requestStoragePermission();
+        if (!hasPermission && mounted) {
+          // Show warning but proceed
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Storage permission denied. Attempting to proceed...',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],

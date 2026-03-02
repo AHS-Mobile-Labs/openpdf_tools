@@ -194,10 +194,44 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
 
   Future<void> _useGallery() async {
     try {
+      // Request permissions first
+      PermissionStatus cameraStatus = PermissionStatus.denied;
+      PermissionStatus photosStatus = PermissionStatus.denied;
+
+      if (PlatformHelper.isAndroid) {
+        // On Android 13+, request READ_MEDIA_IMAGES
+        // On Android 6-12, request CAMERA
+        photosStatus = await Permission.photos.request();
+        if (!mounted) return;
+
+        // Also request camera if selecting images
+        if (photosStatus.isGranted) {
+          cameraStatus = await Permission.camera.request();
+        }
+      } else if (PlatformHelper.isIOS) {
+        // On iOS, request photo library access
+        photosStatus = await Permission.photos.request();
+      }
+
+      if (!mounted) return;
+
+      // Check if permission was granted
+      if (!photosStatus.isGranted && !cameraStatus.isGranted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text(
+              'Permission denied. Please grant permission in settings.',
+            ),
+            duration: Duration(seconds: 3),
+          ),
+        );
+        return;
+      }
+
       final picker = ImagePicker();
       if (widget.allowMultiple) {
         final picked = await picker.pickMultiImage();
-        if (picked.isNotEmpty) {
+        if (picked.isNotEmpty && mounted) {
           // ignore: use_build_context_synchronously
           Navigator.of(context).pop(picked.map((e) => e.path).toList());
         }
@@ -209,11 +243,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
     } catch (e) {
       developer.log('Gallery pick failed', error: e);
       if (mounted) {
-        // ignore: use_build_context_synchronously
-        // ignore: use_build_context_synchronously
-
-        // ignore: use_build_context_synchronously
-
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Gallery pick failed: $e')));

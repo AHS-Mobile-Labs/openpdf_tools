@@ -5,7 +5,10 @@ import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
 import 'package:path_provider/path_provider.dart';
+import 'package:path/path.dart' as Path;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
+import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 import '../config/app_config.dart';
 import 'pdf_viewer_screen.dart';
 
@@ -21,24 +24,60 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   String? _selectedFormat;
   File? _selectedFile;
 
-  static const Map<String, String> supportedFormats = {
-    'Word to PDF': 'docx,doc',
-    'PowerPoint to PDF': 'pptx,ppt',
-    'Excel to PDF': 'xlsx,xls',
-    'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
-    'SVG to PDF': 'svg',
-    'TIFF to PDF': 'tiff,tif',
-    'Text to PDF': 'txt',
-    'RTF to PDF': 'rtf',
-    'EPUB to PDF': 'epub',
-    'ODT to PDF': 'odt',
-    'ODP to PDF': 'odp',
-    'ODS to PDF': 'ods',
-    'ODG to PDF': 'odg',
-  };
+  /// Get supported formats based on platform
+  /// Mobile (Android/iOS): Only Images, TIFF, Text
+  /// Desktop/Web (Windows, macOS, Linux): All formats
+  Map<String, String> _getSupportedFormats() {
+    if (Platform.isAndroid || Platform.isIOS) {
+      // Mobile: Only basic supported formats
+      return {
+        'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
+        'TIFF to PDF': 'tiff,tif',
+        'Text to PDF': 'txt',
+      };
+    }
+    // Desktop/Web: All formats supported
+    return {
+      'Word to PDF': 'docx,doc',
+      'PowerPoint to PDF': 'pptx,ppt',
+      'Excel to PDF': 'xlsx,xls',
+      'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
+      'SVG to PDF': 'svg',
+      'TIFF to PDF': 'tiff,tif',
+      'Text to PDF': 'txt',
+      'RTF to PDF': 'rtf',
+      'EPUB to PDF': 'epub',
+      'ODT to PDF': 'odt',
+      'ODP to PDF': 'odp',
+      'ODS to PDF': 'ods',
+      'ODG to PDF': 'odg',
+    };
+  }
 
   Future<void> pickFile(String format) async {
     try {
+      // Request permissions first
+      if (PlatformHelper.isAndroid) {
+        final hasPermission =
+            await PlatformFileHandler.requestStoragePermission();
+        if (!hasPermission && mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(
+              content: Text(
+                'Storage permission denied. Attempting to proceed...',
+              ),
+              duration: Duration(seconds: 2),
+            ),
+          );
+        }
+      }
+
+      // Also request camera permission if converting images from camera
+      if (format.contains('Images') && PlatformHelper.isAndroid) {
+        await PlatformFileHandler.requestCameraPermission();
+      }
+
+      final supportedFormats = _getSupportedFormats();
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: supportedFormats[format]!.split(','),
@@ -78,6 +117,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
       if (choice == 'inapp') {
         // ignore: use_build_context_synchronously
+        final supportedFormats = _getSupportedFormats();
         final selected = await showInAppFilePicker(
           // ignore: use_build_context_synchronously
           context,
@@ -147,7 +187,9 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
     setState(() => _isProcessing = true);
 
     try {
-      final fileExtension = _selectedFile!.path.split('.').last.toLowerCase();
+      final fileExtension = Path.extension(
+        _selectedFile!.path,
+      ).replaceFirst('.', '').toLowerCase();
       String? outputPath;
 
       if ([
@@ -162,6 +204,16 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         outputPath = await _convertImageToPdf(_selectedFile!);
       } else if (fileExtension == 'txt') {
         outputPath = await _convertTextToPdf(_selectedFile!);
+      } else if (fileExtension == 'svg') {
+        outputPath = await _convertSvgToPdf(_selectedFile!);
+      } else if (['tiff', 'tif'].contains(fileExtension)) {
+        outputPath = await _convertTiffToPdf(_selectedFile!);
+      } else if (fileExtension == 'rtf') {
+        outputPath = await _convertRtfToPdf(_selectedFile!);
+      } else if (fileExtension == 'epub') {
+        outputPath = await _convertEpubToPdf(_selectedFile!);
+      } else if (fileExtension == 'odg') {
+        outputPath = await _convertOdgToPdf(_selectedFile!);
       } else if ([
         'docx',
         'doc',
@@ -198,82 +250,220 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertImageToPdf(File imageFile) async {
-    final imageBytes = await imageFile.readAsBytes();
-    final image = img.decodeImage(imageBytes);
-    if (image == null) throw Exception('Failed to decode image');
+    try {
+      final imageBytes = await imageFile.readAsBytes();
+      final image = img.decodeImage(imageBytes);
+      if (image == null) throw Exception('Failed to decode image');
 
-    final pdf = pw.Document();
-    pdf.addPage(
-      pw.Page(
-        pageFormat: PdfPageFormat(
-          image.width.toDouble(),
-          image.height.toDouble(),
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat(
+            image.width.toDouble(),
+            image.height.toDouble(),
+          ),
+          build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
         ),
-        build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
-      ),
-    );
+      );
 
-    final tempDir = await getTemporaryDirectory();
-    final outputPath =
-        '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    await File(outputPath).writeAsBytes(await pdf.save());
-    return outputPath;
+      final tempDir = await getTemporaryDirectory();
+      final outputPath = Path.join(
+        tempDir.path,
+        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      await File(outputPath).writeAsBytes(await pdf.save());
+      return outputPath;
+    } catch (e) {
+      throw Exception('Image to PDF conversion failed: $e');
+    }
   }
 
   Future<String?> _convertTextToPdf(File textFile) async {
-    final content = await textFile.readAsString();
-    final pdf = pw.Document();
-    final lines = content.split('\n');
-    const linesPerPage = 50;
+    try {
+      final content = await textFile.readAsString();
+      final pdf = pw.Document();
+      final lines = content.split('\n');
+      const linesPerPage = 50;
 
-    for (int i = 0; i < lines.length; i += linesPerPage) {
-      final pageLines = lines
-          .sublist(i, (i + linesPerPage).clamp(0, lines.length))
-          .join('\n');
+      for (int i = 0; i < lines.length; i += linesPerPage) {
+        final pageLines = lines
+            .sublist(i, (i + linesPerPage).clamp(0, lines.length))
+            .join('\n');
 
-      pdf.addPage(
-        pw.Page(
-          build: (pw.Context context) => pw.Padding(
-            padding: const pw.EdgeInsets.all(20),
-            child: pw.Text(pageLines, style: const pw.TextStyle(fontSize: 12)),
+        pdf.addPage(
+          pw.Page(
+            build: (pw.Context context) => pw.Padding(
+              padding: const pw.EdgeInsets.all(20),
+              child: pw.Text(
+                pageLines,
+                style: const pw.TextStyle(fontSize: 12),
+              ),
+            ),
           ),
-        ),
+        );
+      }
+
+      final tempDir = await getTemporaryDirectory();
+      final outputPath = Path.join(
+        tempDir.path,
+        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      await File(outputPath).writeAsBytes(await pdf.save());
+      return outputPath;
+    } catch (e) {
+      throw Exception('Text to PDF conversion failed: $e');
+    }
+  }
+
+  Future<String?> _convertOfficeFormatToPdf(File sourceFile) async {
+    // Android and iOS don't have LibreOffice available
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'Office format conversion is not supported on mobile devices.\n\n'
+        'On Android/iOS, use the web version at:\n'
+        '• CloudConvert.com\n'
+        '• Zamzar.com\n'
+        '• AnyConv.com\n\n'
+        'Or convert on desktop (Windows/macOS/Linux) first, '
+        'then share the PDF.',
       );
     }
 
     final tempDir = await getTemporaryDirectory();
-    final outputPath =
-        '${tempDir.path}/converted_${DateTime.now().millisecondsSinceEpoch}.pdf';
-    await File(outputPath).writeAsBytes(await pdf.save());
-    return outputPath;
+    final filename = Path.basenameWithoutExtension(sourceFile.path);
+
+    // Build the LibreOffice command based on platform
+    final command = Platform.isWindows ? 'soffice' : 'libreoffice';
+
+    try {
+      final result = await Process.run(command, [
+        '--headless',
+        '--convert-to',
+        'pdf',
+        '--outdir',
+        tempDir.path,
+        sourceFile.path,
+      ]);
+
+      if (result.exitCode == 0) {
+        final convertedFile = File(Path.join(tempDir.path, '$filename.pdf'));
+        if (await convertedFile.exists()) return convertedFile.path;
+      }
+
+      throw Exception(
+        'LibreOffice conversion failed.\n\n'
+        'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
+        'Linux: sudo apt-get install libreoffice\n'
+        'macOS: brew install libreoffice\n'
+        'Windows: Download from https://www.libreoffice.org/\n\n'
+        'Error: ${result.stderr}',
+      );
+    } catch (e) {
+      if (e.toString().contains('No such file')) {
+        throw Exception(
+          'LibreOffice not found on this system.\n\n'
+          'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
+          'Linux: sudo apt-get install libreoffice\n'
+          'macOS: brew install libreoffice\n'
+          'Windows: Download from https://www.libreoffice.org/',
+        );
+      }
+      rethrow;
+    }
   }
 
-  Future<String?> _convertOfficeFormatToPdf(File sourceFile) async {
-    final tempDir = await getTemporaryDirectory();
-
-    final result = await Process.run('libreoffice', [
-      '--headless',
-      '--convert-to',
-      'pdf',
-      '--outdir',
-      tempDir.path,
-      sourceFile.path,
-    ]);
-
-    if (result.exitCode == 0) {
-      final filename = sourceFile.path.split('/').last.split('.').first;
-      final convertedFile = File('${tempDir.path}/$filename.pdf');
-      if (await convertedFile.exists()) return convertedFile.path;
+  Future<String?> _convertSvgToPdf(File svgFile) async {
+    // On mobile platforms, SVG conversion is not supported
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'SVG to PDF conversion is not supported on mobile devices.\n\n'
+        'Please use a desktop application or online converter.\n'
+        'Recommended online converters:\n'
+        '• CloudConvert.com\n'
+        '• Zamzar.com\n'
+        '• AnyConv.com',
+      );
     }
+    // Use LibreOffice for SVG conversion on desktop (supports SVG->PDF)
+    return _convertOfficeFormatToPdf(svgFile);
+  }
 
-    throw Exception(
-      'LibreOffice not found or conversion failed.\n\n'
-      'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
-      'Linux: sudo apt-get install libreoffice\n'
-      'macOS: brew install libreoffice\n'
-      'Windows: Download from https://www.libreoffice.org/\n\n'
-      'Error: ${result.stderr}',
-    );
+  Future<String?> _convertTiffToPdf(File tiffFile) async {
+    // Convert TIFF image to PDF using PDF package
+    try {
+      final imageBytes = await tiffFile.readAsBytes();
+      final image = img.decodeImage(imageBytes);
+      if (image == null) throw Exception('Failed to decode TIFF image');
+
+      final pdf = pw.Document();
+      pdf.addPage(
+        pw.Page(
+          pageFormat: PdfPageFormat(
+            image.width.toDouble(),
+            image.height.toDouble(),
+          ),
+          build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
+        ),
+      );
+
+      final tempDir = await getTemporaryDirectory();
+      final outputPath = Path.join(
+        tempDir.path,
+        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      );
+      await File(outputPath).writeAsBytes(await pdf.save());
+      return outputPath;
+    } catch (e) {
+      throw Exception('TIFF to PDF conversion failed: $e');
+    }
+  }
+
+  Future<String?> _convertRtfToPdf(File rtfFile) async {
+    // On mobile platforms, RTF conversion is not supported
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'RTF to PDF conversion is not supported on mobile devices.\n\n'
+        'Please use a desktop application or online converter.\n'
+        'Recommended online converters:\n'
+        '• CloudConvert.com\n'
+        '• Zamzar.com\n'
+        '• AnyConv.com',
+      );
+    }
+    // Use LibreOffice for RTF conversion on desktop
+    return _convertOfficeFormatToPdf(rtfFile);
+  }
+
+  Future<String?> _convertEpubToPdf(File epubFile) async {
+    // On mobile platforms, EPUB conversion uses limited HTML method
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'EPUB to PDF conversion is not supported on mobile devices.\n\n'
+        'Please use a desktop application or online converter.\n'
+        'Recommended online converters:\n'
+        '• CloudConvert.com\n'
+        '• Zamzar.com\n'
+        '• AnyConv.com',
+      );
+    }
+    // Use LibreOffice for EPUB conversion on desktop
+    return _convertOfficeFormatToPdf(epubFile);
+  }
+
+  Future<String?> _convertOdgToPdf(File odgFile) async {
+    // On mobile platforms, ODG conversion is not supported
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'ODG (Drawing) to PDF conversion is not supported on mobile devices.\n\n'
+        'Please use a desktop application or online converter.\n'
+        'Recommended online converters:\n'
+        '• CloudConvert.com\n'
+        '• Zamzar.com\n'
+        '• AnyConv.com',
+      );
+    }
+    // Use LibreOffice for ODG (OpenDocument Drawing) conversion on desktop
+    return _convertOfficeFormatToPdf(odgFile);
   }
 
   Future<void> _showSuccessDialog(String filePath) async {
@@ -284,7 +474,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✓ ${filePath.split('/').last} ($sizeInMB MB)'),
+        content: Text('✓ ${Path.basename(filePath)} ($sizeInMB MB)'),
         duration: const Duration(seconds: 2),
       ),
     );
@@ -376,6 +566,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Widget _buildFormatList(bool isDark, double width) {
+    final supportedFormats = _getSupportedFormats();
     final entries = supportedFormats.entries.toList();
     final cols = width < 400
         ? 2
