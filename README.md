@@ -39,7 +39,7 @@ OpenPDF Tools will soon be available on the following platforms:
 - **Apple App Store (iOS)** – 🚧 Coming soon  
 - **macOS Direct Download** – 🚧 Coming soon  
 - **Indus App Store** – 🚧 Coming soon  
-- **Samsung Galaxy Store** – 🚧 Coming soon  
+- **Samsung Galaxy AppsStore** – 🚧 Coming soon  
 
 Stay tuned for official release announcements.
 ---
