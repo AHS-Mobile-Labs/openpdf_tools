@@ -526,8 +526,6 @@ This project wouldn't be possible without:
 
 ---
 
----
-
 ## 📧 Get in Touch
 
 **Author**: [Ameer Hamza Saifi](https://github.com/ameerhamzasaifi)
