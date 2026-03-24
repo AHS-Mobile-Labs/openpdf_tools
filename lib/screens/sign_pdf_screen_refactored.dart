@@ -7,35 +7,23 @@ import '../services/secure_file_picker_service.dart';
 import '../services/production_pdf_signing_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
-
-/// Production-grade Sign PDF screen with enterprise-ready UI/UX
-/// Implements step-by-step signing workflow with comprehensive validation
 class SignPdfScreenRefactored extends StatefulWidget {
   const SignPdfScreenRefactored({super.key});
-
   @override
   State<SignPdfScreenRefactored> createState() =>
       _SignPdfScreenRefactoredState();
 }
-
 class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
-  // Signing workflow steps
   static const int totalSteps = 5;
   int _currentStep = 0;
-
-  // File selections
   File? _selectedPdfFile;
   File? _selectedCertificateFile;
   PdfMetadata? _pdfMetadata;
   CertificateInfo? _certificateInfo;
-
-  // Form state
   final _nameController = TextEditingController();
   final _reasonController = TextEditingController();
   final _emailController = TextEditingController();
   final _passwordController = TextEditingController();
-
-  // UI state
   bool _isProcessing = false;
   final double _signingProgress = 0.0;
   String? _errorMessage;
@@ -43,15 +31,11 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
   bool _showPassword = false;
   bool _useVisibleSignature = true;
   SignatureLocation _selectedLocation = SignatureLocation.bottomLeft;
-
-  // Validation state
   bool _pdfValidated = false;
   bool _certificateValidated = false;
   bool _passwordVerified = false;
   bool _nameEntered = false;
-
   CertificateValidationResult? _certificateValidation;
-
   @override
   void dispose() {
     _nameController.dispose();
@@ -60,11 +44,9 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
     _passwordController.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -81,15 +63,10 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
           : SingleChildScrollView(
               child: Column(
                 children: [
-                  // Step indicator
                   _buildStepIndicator(isDark),
                   const SizedBox(height: 20),
-
-                  // Error / Success messages
                   if (_errorMessage != null) _buildErrorBanner(isDark),
                   if (_successMessage != null) _buildSuccessBanner(isDark),
-
-                  // Step content
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: Column(
@@ -106,8 +83,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
                     ),
                   ),
                   const SizedBox(height: 20),
-
-                  // Navigation buttons
                   Padding(
                     padding: const EdgeInsets.symmetric(horizontal: 16),
                     child: _buildNavigationButtons(isDark),
@@ -118,7 +93,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
             ),
     );
   }
-
   Widget _buildStepIndicator(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -130,7 +104,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
             children: List.generate(totalSteps, (index) {
               final isActive = index == _currentStep;
               final isCompleted = index < _currentStep;
-
               return Expanded(
                 child: Column(
                   children: [
@@ -199,7 +172,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   String _getStepTitle(int step) {
     const titles = [
       'Select PDF File',
@@ -210,7 +182,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
     ];
     return titles[step];
   }
-
   Widget _buildStep1SelectPdf(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -256,7 +227,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildStep2SelectCertificate(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -317,7 +287,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildStep3EnterPassword(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -384,7 +353,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildStep4EnterSignerInfo(bool isDark) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -445,14 +413,12 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildStep5Review(bool isDark) {
     final canSign =
         _pdfValidated &&
         _certificateValidated &&
         _passwordVerified &&
         _nameEntered;
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -550,14 +516,11 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildCertificateDetails(bool isDark) {
     if (_certificateInfo == null) return const SizedBox.shrink();
-
     final isExpiring = CertificateService.shouldWarnAboutExpiry(
       _certificateInfo!,
     );
-
     return Column(
       children: [
         _buildMetadataRow('Subject:', _certificateInfo!.subject),
@@ -582,7 +545,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildNavigationButtons(bool isDark) {
     return Row(
       children: [
@@ -617,7 +579,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ],
     );
   }
-
   Widget _buildCard(bool isDark, {required Widget child}) {
     return Container(
       padding: const EdgeInsets.all(16),
@@ -631,7 +592,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       child: child,
     );
   }
-
   Widget _buildMetadataRow(String label, dynamic value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -656,7 +616,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   Widget _buildReviewRow(String label, String? value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -677,7 +636,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   Widget _buildErrorBanner(bool isDark) {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -705,7 +663,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   Widget _buildSuccessBanner(bool isDark) {
     return Container(
       margin: const EdgeInsets.all(16),
@@ -729,7 +686,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   Widget _buildProcessingState() {
     return Center(
       child: Column(
@@ -758,7 +714,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   Future<void> _selectPdfFile() async {
     try {
       final file = await SecureFilePickerService.pickPdfFile();
@@ -775,17 +730,13 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       _showError('Failed to select PDF: $e');
     }
   }
-
   Future<void> _selectCertificate() async {
     try {
       final file = await SecureFilePickerService.pickCertificateFile();
       if (file != null) {
         setState(() => _isProcessing = true);
-
-        // Validate certificate
         _certificateValidation =
             await CertificateService.validateCertificateFile(file);
-
         if (_certificateValidation!.isValid) {
           setState(() {
             _selectedCertificateFile = file;
@@ -803,23 +754,18 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       _showError('Failed to select certificate: $e');
     }
   }
-
   Future<void> _verifyPassword() async {
     if (_passwordController.text.isEmpty || _selectedCertificateFile == null) {
       _showError('Please enter password and select certificate');
       return;
     }
-
     try {
       setState(() => _isProcessing = true);
-
       final isValid = await CertificateService.verifyCertificatePassword(
         _selectedCertificateFile!,
         _passwordController.text,
       );
-
       setState(() => _isProcessing = false);
-
       if (isValid) {
         setState(() {
           _passwordVerified = true;
@@ -828,8 +774,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       } else {
         _showError('Invalid certificate password');
       }
-
-      // Parse certificate
       _certificateInfo = await CertificateService.parseCertificate(
         _selectedCertificateFile!,
         _passwordController.text,
@@ -839,7 +783,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       _showError('Password verification failed: $e');
     }
   }
-
   bool _canProceedToNextStep() {
     switch (_currentStep) {
       case 0:
@@ -854,7 +797,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
         return true;
     }
   }
-
   void _proceedToNextStep() async {
     if (_currentStep == 2 && !_passwordVerified) {
       await _verifyPassword();
@@ -865,26 +807,19 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       setState(() => _currentStep++);
     }
   }
-
   Future<void> _performSigning() async {
     try {
       setState(() => _isProcessing = true);
-
-      // Get output directory
       final outputDir = await SecureFilePickerService.getOutputDirectory();
       final outputFileName = SecureFilePickerService.generateOutputFilename(
         _selectedPdfFile!.path.split('/').last,
       );
       final outputPath = '$outputDir/$outputFileName';
-
-      // Validate output path
       if (!await SecureFilePickerService.validateOutputPath(outputPath)) {
         _showError('Cannot write to output directory');
         setState(() => _isProcessing = false);
         return;
       }
-
-      // Create signing request
       final signingRequest = SigningRequest(
         pdfFilePath: _selectedPdfFile!.path,
         nameOnSignature: _nameController.text,
@@ -898,22 +833,14 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
         visibleSignature: _useVisibleSignature,
         location: _selectedLocation,
       );
-
-      // Perform signing
       final result = await ProductionPdfSigningService.signPdf(signingRequest);
-
-      // Clear sensitive data
       ProductionPdfSigningService.clearSensitiveData(
         password: _passwordController.text,
       );
       CertificateService.clearSensitiveData(_passwordController.text);
-
       setState(() => _isProcessing = false);
-
       if (result.success && mounted) {
         _showSuccess('PDF signed successfully!');
-
-        // Show success dialog
         if (mounted) {
           _showSigningSuccessDialog(result);
         }
@@ -925,7 +852,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       _showError('Signing error: $e');
     }
   }
-
   void _showSigningSuccessDialog(SigningResult result) {
     showDialog(
       context: context,
@@ -970,7 +896,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       ),
     );
   }
-
   void _openSignedPdf(String? filePath) {
     if (filePath != null && !kIsWeb) {
       Navigator.push(
@@ -981,12 +906,10 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       );
     }
   }
-
   void _showError(String message) {
     setState(() => _errorMessage = message);
     Future.delayed(const Duration(seconds: 5), _clearErrorMessages);
   }
-
   void _showSuccess(String message) {
     setState(() => _successMessage = message);
     Future.delayed(const Duration(seconds: 3), () {
@@ -995,7 +918,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       }
     });
   }
-
   void _clearErrorMessages() {
     setState(() {
       _errorMessage = null;

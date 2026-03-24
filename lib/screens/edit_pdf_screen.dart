@@ -11,7 +11,6 @@ import 'pdf_viewer_screen.dart';
 
 class EditPdfScreen extends StatefulWidget {
   const EditPdfScreen({super.key});
-
   @override
   State<EditPdfScreen> createState() => _EditPdfScreenState();
 }
@@ -26,7 +25,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
   Color _selectedBackgroundColor = Colors.white;
   String? _previewPath;
   bool _showPreviewModal = false;
-
   @override
   void initState() {
     super.initState();
@@ -34,7 +32,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       duration: const Duration(milliseconds: 800),
       vsync: this,
     );
-
     _backgroundColorAnimation =
         ColorTween(begin: Colors.white, end: Colors.white).animate(
           CurvedAnimation(
@@ -52,7 +49,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
 
   Future<void> _pickPdf() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -67,12 +63,10 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           );
         }
       }
-
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
-
       if (result != null && result.files.single.path != null) {
         setState(() => _pdfPath = result.files.single.path);
       }
@@ -99,7 +93,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ],
         ),
       );
-
       if (choice == 'enter') {
         final controller = TextEditingController();
         if (!mounted) return;
@@ -190,9 +183,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       if (mounted) {
         setState(() => _previewPath = preview);
       }
-    } catch (e) {
-      // Preview generation failed, ignore silently
-    }
+    } catch (_) {}
   }
 
   Future<void> _addTextToPdf() async {
@@ -202,10 +193,8 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     final textController = TextEditingController(text: 'Sample Text');
     final fontSizeController = TextEditingController(text: '20');
-
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -248,9 +237,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         ],
       ),
     );
-
     if (result == null) return;
-
     setState(() => _isProcessing = true);
     try {
       final outputPath = await PdfEditingService.addTextToPdf(
@@ -258,14 +245,12 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         text: result['text'],
         fontSize: result['fontSize'],
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Text added: ${File(outputPath).path.split('/').last}'),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -289,7 +274,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     final angle = await showDialog<int>(
       context: context,
       builder: (context) => AlertDialog(
@@ -313,16 +297,13 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         ),
       ),
     );
-
     if (angle == null) return;
-
     setState(() => _isProcessing = true);
     try {
       final outputPath = await PdfEditingService.rotatePdf(
         inputPath: _pdfPath!,
         angle: angle,
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -331,7 +312,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -355,10 +335,8 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     final watermarkController = TextEditingController(text: 'WATERMARK');
     final opacityController = TextEditingController(text: '0.5');
-
     final result = await showDialog<Map<String, dynamic>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -420,9 +398,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         ],
       ),
     );
-
     if (result == null) return;
-
     setState(() => _isProcessing = true);
     try {
       final outputPath = await PdfEditingService.addWatermarkWithPlacement(
@@ -432,7 +408,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         opacity: result['opacity'],
         fontSize: 20,
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -441,7 +416,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -465,12 +439,10 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     final leftController = TextEditingController(text: '0');
     final bottomController = TextEditingController(text: '0');
     final rightController = TextEditingController(text: '612');
     final topController = TextEditingController(text: '792');
-
     final result = await showDialog<List<double>>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -536,16 +508,13 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         ],
       ),
     );
-
     if (result == null) return;
-
     setState(() => _isProcessing = true);
     try {
       final outputPath = await PdfEditingService.cropPdf(
         inputPath: _pdfPath!,
         cropBox: result,
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -554,7 +523,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -578,10 +546,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     Color pickedColor = _selectedBackgroundColor;
-
-    // ignore: use_build_context_synchronously
     await showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -604,7 +569,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         ],
       ),
     );
-
     setState(() => _isProcessing = true);
     try {
       _backgroundColorAnimation =
@@ -615,20 +579,16 @@ class _EditPdfScreenState extends State<EditPdfScreen>
             ),
           );
       _backgroundColorAnimationController.forward(from: 0);
-
       final r = ((pickedColor.r * 255.0).round().clamp(0, 255));
       final g = ((pickedColor.g * 255.0).round().clamp(0, 255));
       final b = ((pickedColor.b * 255.0).round().clamp(0, 255));
       final colorHex =
           '#${((r << 16) | (g << 8) | b).toRadixString(16).toUpperCase().padLeft(6, '0')}';
-
       final outputPath = await PdfEditingService.changeBackgroundColor(
         inputPath: _pdfPath!,
         hexColor: colorHex,
       );
-
       setState(() => _selectedBackgroundColor = pickedColor);
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -637,7 +597,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -661,13 +620,11 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       return;
     }
-
     setState(() => _isProcessing = true);
     try {
       final outputPath = await PdfEditingService.compressPdf(
         inputPath: _pdfPath!,
       );
-
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -676,7 +633,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
           ),
         ),
       );
-
       Navigator.push(
         context,
         MaterialPageRoute(
@@ -721,7 +677,6 @@ class _EditPdfScreenState extends State<EditPdfScreen>
   Widget build(BuildContext context) {
     final isWide = MediaQuery.of(context).size.width > 900;
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -994,7 +949,6 @@ class _EditOptionCard extends StatelessWidget {
   final bool isSelected;
   final VoidCallback onTap;
   final bool isDark;
-
   const _EditOptionCard({
     required this.title,
     required this.description,
@@ -1003,7 +957,6 @@ class _EditOptionCard extends StatelessWidget {
     required this.onTap,
     required this.isDark,
   });
-
   @override
   Widget build(BuildContext context) {
     return Card(

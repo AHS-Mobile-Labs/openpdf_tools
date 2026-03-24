@@ -1,17 +1,10 @@
 import 'package:flutter/material.dart';
-
-/// The splash screen UI shown when app launches.
-/// 
-/// Displays OpenPDF Tools logo, company name (AHS Mobile Labs),
-/// and open source attribution for 3 seconds before transitioning to home screen.
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
-
   @override
   Widget build(BuildContext context) {
     final screenWidth = MediaQuery.of(context).size.width;
     final screenHeight = MediaQuery.of(context).size.height;
-
     return Scaffold(
       body: Container(
         width: screenWidth,
@@ -32,7 +25,6 @@ class SplashScreen extends StatelessWidget {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.center,
               children: [
-                // Logo
                 SizedBox(
                   width: 150,
                   height: 150,
@@ -42,8 +34,6 @@ class SplashScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // App Title
                 const Text(
                   'OpenPDF Tools',
                   style: TextStyle(
@@ -55,8 +45,6 @@ class SplashScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 12),
-
-                // Subtitle
                 const Text(
                   'Professional PDF Management',
                   style: TextStyle(
@@ -68,8 +56,6 @@ class SplashScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 48),
-
-                // Company Name
                 const Text(
                   '© 2026 AHS Mobile Labs',
                   style: TextStyle(
@@ -80,8 +66,6 @@ class SplashScreen extends StatelessWidget {
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: 8),
-
-                // Open Source Badge
                 Container(
                   padding:
                       const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
@@ -104,8 +88,6 @@ class SplashScreen extends StatelessWidget {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Version info
                 const Text(
                   'Version 1.0.0',
                   style: TextStyle(

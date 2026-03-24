@@ -1,14 +1,10 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:openpdf_tools/services/theme_service.dart' as theme_service;
-
-/// Theme switcher button widget
 class ThemeSwitcher extends StatelessWidget {
   final bool compact;
   final VoidCallback? onChanged;
-
   const ThemeSwitcher({super.key, this.compact = false, this.onChanged});
-
   @override
   Widget build(BuildContext context) {
     return Consumer<theme_service.ThemeService>(
@@ -16,17 +12,13 @@ class ThemeSwitcher extends StatelessWidget {
         if (!themeService.isInitialized) {
           return const SizedBox.shrink();
         }
-
         if (compact) {
           return _buildCompactButton(context, themeService);
         }
-
         return _buildFullButton(context, themeService);
       },
     );
   }
-
-  /// Build compact icon button
   Widget _buildCompactButton(
     BuildContext context,
     theme_service.ThemeService themeService,
@@ -43,8 +35,6 @@ class ThemeSwitcher extends StatelessWidget {
       },
     );
   }
-
-  /// Build full button with label
   Widget _buildFullButton(
     BuildContext context,
     theme_service.ThemeService themeService,
@@ -80,13 +70,9 @@ class ThemeSwitcher extends StatelessWidget {
     );
   }
 }
-
-/// Theme mode selector dropdown
 class ThemeModeSelector extends StatelessWidget {
   final Function(theme_service.ThemeMode)? onChanged;
-
   const ThemeModeSelector({super.key, this.onChanged});
-
   @override
   Widget build(BuildContext context) {
     return Consumer<theme_service.ThemeService>(
@@ -94,7 +80,6 @@ class ThemeModeSelector extends StatelessWidget {
         if (!themeService.isInitialized) {
           return const SizedBox.shrink();
         }
-
         return DropdownButton<theme_service.ThemeMode>(
           value: themeService.themeMode,
           items: theme_service.ThemeMode.values
@@ -122,7 +107,6 @@ class ThemeModeSelector extends StatelessWidget {
       },
     );
   }
-
   IconData _getThemeModeIcon(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:
@@ -133,7 +117,6 @@ class ThemeModeSelector extends StatelessWidget {
         return Icons.brightness_auto;
     }
   }
-
   String _getThemeModeName(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:
@@ -145,11 +128,8 @@ class ThemeModeSelector extends StatelessWidget {
     }
   }
 }
-
-/// Theme mode settings tile for settings screens
 class ThemeModeTile extends StatelessWidget {
   const ThemeModeTile({super.key});
-
   @override
   Widget build(BuildContext context) {
     return Consumer<theme_service.ThemeService>(
@@ -157,7 +137,6 @@ class ThemeModeTile extends StatelessWidget {
         if (!themeService.isInitialized) {
           return const SizedBox.shrink();
         }
-
         return Column(
           children: [
             ListTile(
@@ -182,7 +161,6 @@ class ThemeModeTile extends StatelessWidget {
       },
     );
   }
-
   String _getThemeModeName(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:

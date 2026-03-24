@@ -13,7 +13,6 @@ import 'package:openpdf_tools/utils/platform_helper.dart';
 
 class PdfFromImagesScreen extends StatefulWidget {
   const PdfFromImagesScreen({super.key});
-
   @override
   State<PdfFromImagesScreen> createState() => _PdfFromImagesScreenState();
 }
@@ -22,13 +21,9 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
   final List<Uint8List> _imageBytesList = [];
   final List<String> _imageNames = [];
   bool _isProcessing = false;
-
   Future<void> pickImages() async {
-    // Prefer the platform gallery picker on mobile (handles permissions nicely),
-    // otherwise use the in-app multi-file picker.
     try {
       if (kIsWeb) {
-        // Web: use ImagePicker which supports web
         final picker = ImagePicker();
         final picked = await picker.pickMultiImage();
         if (picked.isNotEmpty) {
@@ -42,7 +37,6 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
         }
         return;
       }
-
       if (PlatformHelper.isMobile) {
         final picker = ImagePicker();
         final picked = await picker.pickMultiImage();
@@ -57,15 +51,12 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
           return;
         }
       }
-
-      // Desktop fallback path
       final selected = await showInAppFilePickerMultiple(
-        // ignore: use_build_context_synchronously
         context,
         initialDirectory: Directory.current.path,
         allowedExtensions: ['jpg', 'jpeg', 'png', 'webp'],
       );
-
+      if (!mounted) return;
       if (selected == null || selected.isEmpty) {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -74,7 +65,6 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
         }
         return;
       }
-
       for (final p in selected) {
         final bytes = await File(p).readAsBytes();
         setState(() {
@@ -95,10 +85,8 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
     setState(() => _isProcessing = true);
     try {
       final pdf = pw.Document();
-
       for (int i = 0; i < _imageBytesList.length; i++) {
         Uint8List bytes = _imageBytesList[i];
-
         if (!kIsWeb) {
           try {
             final compressed = await FlutterImageCompress.compressWithList(
@@ -108,19 +96,15 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
             bytes = compressed;
           } catch (_) {}
         }
-
         pdf.addPage(
           pw.Page(
             build: (_) => pw.Center(child: pw.Image(pw.MemoryImage(bytes))),
           ),
         );
       }
-
       final bytes = await pdf.save();
-
-      // Ask the user whether to download or share the generated PDF.
+      if (!mounted) return;
       final action = await showDialog<String>(
-        // ignore: use_build_context_synchronously
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('PDF Ready'),
@@ -143,17 +127,14 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
           ],
         ),
       );
-
       if (action == 'download') {
         if (kIsWeb) {
-          // Web: use Printing.sharePdf which handles web downloads
           await Printing.sharePdf(bytes: bytes, filename: 'openpdf_images.pdf');
         } else {
           final dir = await getApplicationDocumentsDirectory();
           final file = File('${dir.path}/openpdf_images.pdf');
           await file.writeAsBytes(bytes);
           if (mounted) {
-            // ignore: use_build_context_synchronously
             ScaffoldMessenger.of(
               context,
             ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
@@ -169,14 +150,12 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
       ).showSnackBar(SnackBar(content: Text('Failed to create PDF: $e')));
     } finally {
       setState(() => _isProcessing = false);
-      // ignore: use_build_context_synchronously
     }
   }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -202,8 +181,6 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
                 : ReorderableListView(
                     onReorder: (oldIndex, newIndex) {
                       setState(() {
-                        // ignore: use_build_context_synchronously
-
                         if (newIndex > oldIndex) newIndex -= 1;
                         final itemBytes = _imageBytesList.removeAt(oldIndex);
                         _imageBytesList.insert(newIndex, itemBytes);

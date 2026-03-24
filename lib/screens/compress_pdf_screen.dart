@@ -10,28 +10,21 @@ import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
-
 class CompressPdfScreen extends StatefulWidget {
   const CompressPdfScreen({super.key});
-
   @override
   State<CompressPdfScreen> createState() => _CompressPdfScreenState();
 }
-
 class _CompressPdfScreenState extends State<CompressPdfScreen> {
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
-
   String? _pdfPath;
   bool _isProcessing = false;
   int _quality = 60;
-
   Future<void> pickPdf() async {
     try {
-      // Request all necessary permissions for Android
       if (PlatformHelper.isAndroid) {
         await PlatformFileHandler.requestFilePermissions();
       }
-
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
@@ -40,7 +33,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       if (res == null || res.files.isEmpty) return;
       setState(() => _pdfPath = res.files.single.path);
     } catch (e) {
-      // FilePicker on Linux requires `zenity`. Offer a fallback that includes an in-app picker.
       final choice = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -63,7 +55,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         ),
       );
       if (!mounted) return;
-
       if (choice == 'inapp') {
         final selected = await showInAppFilePicker(
           context,
@@ -101,7 +92,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
           ),
         );
         if (!mounted) return;
-
         if (submit == true) {
           final path = controller.text.trim();
           if (path.isEmpty) return;
@@ -122,10 +112,8 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
     }
   }
-
   Future<void> compressPdf() async {
     if (_pdfPath == null) return;
-
     if (kIsWeb) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -138,47 +126,33 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
       return;
     }
-
     setState(() => _isProcessing = true);
-
     try {
       final tempDir = await getTemporaryDirectory();
-
-      // Ensure the temp directory exists
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
-
       final outputPath =
           '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       debugPrint('[CompressPdf] Compressing PDF from: $_pdfPath');
       debugPrint('[CompressPdf] Output path: $outputPath');
       debugPrint('[CompressPdf] Platform: ${PlatformHelper.platformName}');
-
-      // Use platform-specific compression
       if (PlatformHelper.isAndroid) {
-        // Android: Use native method channel with PDFBox
         await _compressPdfAndroid(outputPath);
       } else {
-        // Desktop: Try Ghostscript, fallback to copy
         await _compressPdfDesktop(outputPath);
       }
-
       final compressedFile = File(outputPath);
       if (!await compressedFile.exists()) {
         throw Exception('Compressed PDF was not created at: $outputPath');
       }
-
       final originalSize = File(_pdfPath!).lengthSync();
       final compressedSize = compressedFile.lengthSync();
       final reduction = ((1 - compressedSize / originalSize) * 100)
           .toStringAsFixed(1);
-
       debugPrint(
         '[CompressPdf] Success! Original: ${(originalSize / 1024).toStringAsFixed(2)} KB, Compressed: ${(compressedSize / 1024).toStringAsFixed(2)} KB',
       );
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -215,8 +189,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       if (mounted) setState(() => _isProcessing = false);
     }
   }
-
-  /// Android compression using native method channel
   Future<void> _compressPdfAndroid(String outputPath) async {
     try {
       final result = await platform
@@ -231,11 +203,9 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
               'Android compression timed out after 120 seconds',
             ),
           );
-
       if (result == null || result.isEmpty) {
         throw Exception('Android compression returned null or empty path');
       }
-
       debugPrint('[CompressPdf] Android compression successful: $result');
     } on TimeoutException catch (e) {
       debugPrint('[CompressPdf] Android compression timeout: $e');
@@ -250,20 +220,17 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       throw Exception('Android compression error: $e');
     }
   }
-
-  /// Desktop compression using Ghostscript or fallback copy
   Future<void> _compressPdfDesktop(String outputPath) async {
     try {
-      // Try Ghostscript if available
       final result = await Process.run('gs', [
         '-sDEVICE=pdfwrite',
         '-dCompatibilityLevel=1.4',
-        '-dPDFSETTINGS=/ebook', // Quality setting: /screen (smallest) /ebook /default /prepress /printer (largest)
+        '-dPDFSETTINGS=/ebook',         '-dPDFSETTINGS=/ebook',
         '-dNOPAUSE',
         '-dQUIET',
         '-dBATCH',
         '-dDetectDuplicateImages',
-        '-r${72 + (_quality - 20) ~/ 2}', // DPI based on quality slider (72-108)
+        '-r${72 + (_quality - 20) ~/ 2}',         '-r${72 + (_quality - 20) ~/ 2}',
         '-dCompressFonts=true',
         '-r150x150',
         '-dDownsampleColorImages=true',
@@ -276,7 +243,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         '-sOutputFile=$outputPath',
         _pdfPath!,
       ]);
-
       debugPrint('[CompressPdf] Ghostscript exit code: ${result.exitCode}');
       if (result.exitCode != 0) {
         debugPrint('[CompressPdf] Ghostscript error: ${result.stderr}');
@@ -284,7 +250,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
     } catch (e) {
       if (e.toString().contains('No such file or directory')) {
-        // Ghostscript not installed, fallback to copying
         debugPrint('[CompressPdf] Ghostscript not found, using fallback copy');
         await File(_pdfPath!).copy(outputPath);
       } else {
@@ -292,11 +257,9 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -376,13 +339,11 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       ),
     );
   }
-
   String _getQualityLabel(int quality) {
     if (quality <= 40) return 'Low (/screen)';
     if (quality <= 60) return 'Medium (/ebook)';
     return 'High (/printer)';
   }
-
   String _getQualityDescription(int quality) {
     if (quality <= 40) {
       return '📱 Screen quality - Smallest file size, suitable for web';

@@ -8,14 +8,11 @@ import 'package:image_picker/image_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../utils/platform_helper.dart';
 
-/// Get a sensible default directory for file picking on Linux/macOS/Windows
 Future<String> _getDefaultPickDirectory() async {
   if (kIsWeb) {
-    return '/'; // Web doesn't have file system access
+    return '/';
   }
-
   try {
-    // Try Downloads directory first
     final downloadsDir = await getDownloadsDirectory();
     if (downloadsDir != null && await downloadsDir.exists()) {
       return downloadsDir.path;
@@ -23,9 +20,7 @@ Future<String> _getDefaultPickDirectory() async {
   } catch (e) {
     developer.log('Error getting downloads directory', error: e);
   }
-
   try {
-    // Fallback to home directory - platform-specific
     final homeDir = const String.fromEnvironment('HOME', defaultValue: '/home');
     if (homeDir.isNotEmpty && await Directory(homeDir).exists()) {
       return homeDir;
@@ -33,24 +28,17 @@ Future<String> _getDefaultPickDirectory() async {
   } catch (e) {
     developer.log('Error accessing home directory', error: e);
   }
-
-  // Final fallback to root or current directory
   return '/home';
 }
 
-/// Simple in-app file picker dialog that supports single and multi-selection,
-/// Android runtime permission checks, and a mobile-optimized layout.
-///
-/// Use `showInAppFilePicker` for single-file selection, or
-/// `showInAppFilePickerMultiple` for multi-select.
 Future<String?> showInAppFilePicker(
   BuildContext context, {
   String? initialDirectory,
   List<String>? allowedExtensions,
 }) async {
   final dir = initialDirectory ?? await _getDefaultPickDirectory();
+  if (!context.mounted) return null;
   final res = await showDialog<List<String>>(
-    // ignore: use_build_context_synchronously
     context: context,
     builder: (ctx) => _InAppFilePickerDialog(
       initialDir: dir,
@@ -67,8 +55,8 @@ Future<List<String>?> showInAppFilePickerMultiple(
   List<String>? allowedExtensions,
 }) async {
   final dir = initialDirectory ?? await _getDefaultPickDirectory();
+  if (!context.mounted) return null;
   return showDialog<List<String>>(
-    // ignore: use_build_context_synchronously
     context: context,
     builder: (ctx) => _InAppFilePickerDialog(
       initialDir: dir,
@@ -87,7 +75,6 @@ class _InAppFilePickerDialog extends StatefulWidget {
     required this.allowedExtensions,
     required this.allowMultiple,
   });
-
   @override
   State<_InAppFilePickerDialog> createState() => _InAppFilePickerDialogState();
 }
@@ -97,7 +84,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
   List<FileSystemEntity> entries = [];
   bool loading = false;
   final Set<String> _selected = {};
-
   @override
   void initState() {
     super.initState();
@@ -106,12 +92,9 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
   }
 
   Future<void> _ensurePermissionsAndRead() async {
-    // On Android we need to request storage permission for direct file access
     if (!kIsWeb && PlatformHelper.isAndroid) {
       final status = await Permission.storage.request();
-      if (!status.isGranted) {
-        // If not granted, still allow entering a path or using the gallery alternative
-      }
+      if (!status.isGranted) {}
     }
     _readDir();
   }
@@ -154,7 +137,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
 
   Future<void> _enterPath() async {
     final controller = TextEditingController(text: currentDir);
-    // ignore: use_build_context_synchronously
     final ok = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -175,7 +157,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
         ],
       ),
     );
-
     if (ok == true) {
       final pth = controller.text.trim();
       if (pth.isEmpty) return;
@@ -194,28 +175,18 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
 
   Future<void> _useGallery() async {
     try {
-      // Request permissions first
       PermissionStatus cameraStatus = PermissionStatus.denied;
       PermissionStatus photosStatus = PermissionStatus.denied;
-
       if (PlatformHelper.isAndroid) {
-        // On Android 13+, request READ_MEDIA_IMAGES
-        // On Android 6-12, request CAMERA
         photosStatus = await Permission.photos.request();
         if (!mounted) return;
-
-        // Also request camera if selecting images
         if (photosStatus.isGranted) {
           cameraStatus = await Permission.camera.request();
         }
       } else if (PlatformHelper.isIOS) {
-        // On iOS, request photo library access
         photosStatus = await Permission.photos.request();
       }
-
       if (!mounted) return;
-
-      // Check if permission was granted
       if (!photosStatus.isGranted && !cameraStatus.isGranted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
@@ -227,12 +198,10 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
         );
         return;
       }
-
       final picker = ImagePicker();
       if (widget.allowMultiple) {
         final picked = await picker.pickMultiImage();
         if (picked.isNotEmpty && mounted) {
-          // ignore: use_build_context_synchronously
           Navigator.of(context).pop(picked.map((e) => e.path).toList());
         }
       } else {
@@ -256,7 +225,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
         !kIsWeb && (PlatformHelper.isAndroid || PlatformHelper.isIOS);
     final width = isMobile ? MediaQuery.of(context).size.width * 0.95 : 700.0;
     final height = isMobile ? MediaQuery.of(context).size.height * 0.7 : 420.0;
-
     return AlertDialog(
       title: Row(
         children: [
@@ -315,8 +283,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
                             title: Text(name),
                             onTap: () {
                               setState(() => currentDir = e.path);
-                              // ignore: use_build_context_synchronously
-
                               _readDir();
                             },
                           );
@@ -336,7 +302,6 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
                                           : _selected.remove(e.path),
                                     ),
                                   )
-                                // ignore: use_build_context_synchronously
                                 : const Icon(Icons.insert_drive_file),
                             title: Text(name),
                             subtitle: Text(

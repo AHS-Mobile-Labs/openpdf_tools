@@ -1,10 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/animation_utils.dart';
-
-// ============= PREMIUM BUTTON COMPONENTS =============
-
-/// Premium elevated button with smooth interactions
 class PremiumButton extends StatefulWidget {
   final String label;
   final VoidCallback onPressed;
@@ -12,7 +8,6 @@ class PremiumButton extends StatefulWidget {
   final IconData? icon;
   final bool fullWidth;
   final EdgeInsets padding;
-
   const PremiumButton({
     super.key,
     required this.label,
@@ -25,11 +20,9 @@ class PremiumButton extends StatefulWidget {
       vertical: PremiumSpacing.md,
     ),
   });
-
   @override
   State<PremiumButton> createState() => _PremiumButtonState();
 }
-
 class _PremiumButtonState extends State<PremiumButton> {
   @override
   Widget build(BuildContext context) {
@@ -98,14 +91,11 @@ class _PremiumButtonState extends State<PremiumButton> {
     );
   }
 }
-
-/// Premium outlined button with subtle styling
 class PremiumOutlinedButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
   final IconData? icon;
   final bool fullWidth;
-
   const PremiumOutlinedButton({
     super.key,
     required this.label,
@@ -113,11 +103,9 @@ class PremiumOutlinedButton extends StatelessWidget {
     this.icon,
     this.fullWidth = false,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return ButtonAnimations.scaleOnPress(
       onPressed: onPressed,
       child: Container(
@@ -170,10 +158,6 @@ class PremiumOutlinedButton extends StatelessWidget {
     );
   }
 }
-
-// ============= PREMIUM CARD COMPONENTS =============
-
-/// Premium card with glassmorphism effect
 class PremiumCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -181,7 +165,6 @@ class PremiumCard extends StatelessWidget {
   final Color? backgroundColor;
   final double? elevation;
   final bool enableGlassmorphism;
-
   const PremiumCard({
     super.key,
     required this.child,
@@ -191,7 +174,6 @@ class PremiumCard extends StatelessWidget {
     this.elevation,
     this.enableGlassmorphism = false,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -200,7 +182,6 @@ class PremiumCard extends StatelessWidget {
         (isDark
             ? PremiumColors.darkSurfaceSecondary
             : PremiumColors.lightSurfacePrimary);
-
     final cardContent = Container(
       decoration: BoxDecoration(
         color: enableGlassmorphism ? bgColor.withValues(alpha: 0.8) : bgColor,
@@ -218,22 +199,17 @@ class PremiumCard extends StatelessWidget {
       ),
       child: Padding(padding: padding, child: child),
     );
-
     if (onTap != null) {
       return CardAnimations.elevationOnTap(onTap: onTap!, child: cardContent);
     }
-
     return cardContent;
   }
 }
-
-/// Premium gradient card
 class PremiumGradientCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
   final List<Color> colors;
   final VoidCallback? onTap;
-
   const PremiumGradientCard({
     super.key,
     required this.child,
@@ -241,7 +217,6 @@ class PremiumGradientCard extends StatelessWidget {
     this.colors = const [PremiumColors.luxuryRed, Color(0xFFE94B3C)],
     this.onTap,
   });
-
   @override
   Widget build(BuildContext context) {
     final cardContent = Container(
@@ -262,18 +237,12 @@ class PremiumGradientCard extends StatelessWidget {
       ),
       child: Padding(padding: padding, child: child),
     );
-
     if (onTap != null) {
       return CardAnimations.elevationOnTap(onTap: onTap!, child: cardContent);
     }
-
     return cardContent;
   }
 }
-
-// ============= PREMIUM INPUT COMPONENTS =============
-
-/// Premium text field with animations
 class PremiumTextField extends StatefulWidget {
   final String label;
   final String? hint;
@@ -285,7 +254,6 @@ class PremiumTextField extends StatefulWidget {
   final VoidCallback? onSuffixTap;
   final String? Function(String?)? validator;
   final bool obscureText;
-
   const PremiumTextField({
     super.key,
     required this.label,
@@ -299,16 +267,13 @@ class PremiumTextField extends StatefulWidget {
     this.validator,
     this.obscureText = false,
   });
-
   @override
   State<PremiumTextField> createState() => _PremiumTextFieldState();
 }
-
 class _PremiumTextFieldState extends State<PremiumTextField>
     with SingleTickerProviderStateMixin {
   late AnimationController _focusController;
   late Animation<double> _focusAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -316,20 +281,16 @@ class _PremiumTextFieldState extends State<PremiumTextField>
       duration: AnimationUtils.fast,
       vsync: this,
     );
-
     _focusAnimation = Tween<double>(begin: 0, end: 1).animate(_focusController);
   }
-
   @override
   void dispose() {
     _focusController.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return AnimatedBuilder(
       animation: _focusAnimation,
       builder: (context, child) {
@@ -418,17 +379,12 @@ class _PremiumTextFieldState extends State<PremiumTextField>
     );
   }
 }
-
-// ============= PREMIUM CHIP COMPONENTS =============
-
-/// Premium chip with smooth interactions
 class PremiumChip extends StatefulWidget {
   final String label;
   final bool selected;
   final VoidCallback onSelected;
   final IconData? icon;
   final Color? backgroundColor;
-
   const PremiumChip({
     super.key,
     required this.label,
@@ -437,16 +393,13 @@ class PremiumChip extends StatefulWidget {
     this.icon,
     this.backgroundColor,
   });
-
   @override
   State<PremiumChip> createState() => _PremiumChipState();
 }
-
 class _PremiumChipState extends State<PremiumChip>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -454,13 +407,11 @@ class _PremiumChipState extends State<PremiumChip>
       duration: AnimationUtils.fast,
       vsync: this,
     );
-
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: 1.05,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
-
   @override
   void didUpdateWidget(PremiumChip oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -470,17 +421,14 @@ class _PremiumChipState extends State<PremiumChip>
       _controller.reverse();
     }
   }
-
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return ScaleTransition(
       scale: _scaleAnimation,
       child: Container(
@@ -545,26 +493,19 @@ class _PremiumChipState extends State<PremiumChip>
     );
   }
 }
-
-// ============= PREMIUM SKELETON LOADERS =============
-
-/// Skeleton loader with shimmer effect
 class SkeletonLoader extends StatelessWidget {
   final double width;
   final double height;
   final double borderRadius;
-
   const SkeletonLoader({
     super.key,
     required this.width,
     required this.height,
     this.borderRadius = PremiumSpacing.radiusMd,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return LoadingAnimations.shimmer(
       child: Container(
         width: width,
@@ -579,13 +520,9 @@ class SkeletonLoader extends StatelessWidget {
     );
   }
 }
-
-/// Skeleton card loader
 class SkeletonCardLoader extends StatelessWidget {
   final int lines;
-
   const SkeletonCardLoader({super.key, this.lines = 3});
-
   @override
   Widget build(BuildContext context) {
     return PremiumCard(
@@ -606,16 +543,11 @@ class SkeletonCardLoader extends StatelessWidget {
     );
   }
 }
-
-// ============= PREMIUM BADGE COMPONENTS =============
-
-/// Premium badge with customizable styling
 class PremiumBadge extends StatelessWidget {
   final String label;
   final Color? bgColor;
   final Color? textColor;
   final IconData? icon;
-
   const PremiumBadge({
     super.key,
     required this.label,
@@ -623,7 +555,6 @@ class PremiumBadge extends StatelessWidget {
     this.textColor,
     this.icon,
   });
-
   @override
   Widget build(BuildContext context) {
     return Container(
@@ -657,24 +588,17 @@ class PremiumBadge extends StatelessWidget {
     );
   }
 }
-
-// ============= PREMIUM DIVIDER COMPONENTS =============
-
-/// Premium divider with optional label
 class PremiumDivider extends StatelessWidget {
   final String? label;
   final EdgeInsets padding;
-
   const PremiumDivider({
     super.key,
     this.label,
     this.padding = const EdgeInsets.symmetric(vertical: PremiumSpacing.lg),
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     if (label == null) {
       return Padding(
         padding: padding,
@@ -685,7 +609,6 @@ class PremiumDivider extends StatelessWidget {
         ),
       );
     }
-
     return Padding(
       padding: padding,
       child: Row(
@@ -720,10 +643,6 @@ class PremiumDivider extends StatelessWidget {
     );
   }
 }
-
-// ============= PREMIUM LIST ITEMS =============
-
-/// Premium list tile with smooth interactions
 class PremiumListTile extends StatelessWidget {
   final String title;
   final String? subtitle;
@@ -732,7 +651,6 @@ class PremiumListTile extends StatelessWidget {
   final VoidCallback? onTap;
   final Color? backgroundColor;
   final EdgeInsets padding;
-
   const PremiumListTile({
     super.key,
     required this.title,
@@ -743,11 +661,9 @@ class PremiumListTile extends StatelessWidget {
     this.backgroundColor,
     this.padding = const EdgeInsets.all(PremiumSpacing.lg),
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     final content = Container(
       decoration: BoxDecoration(
         color:
@@ -811,11 +727,9 @@ class PremiumListTile extends StatelessWidget {
         ),
       ),
     );
-
     if (onTap != null) {
       return CardAnimations.elevationOnTap(onTap: onTap!, child: content);
     }
-
     return content;
   }
 }

@@ -3,12 +3,8 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
-
-/// PDF editing service that uses native Android methods via MethodChannel
-/// and command-line tools on desktop for actual PDF manipulation.
 class PdfEditingService {
   static const _platform = MethodChannel('com.openpdf.tools/pdfManipulation');
-
   static void _checkWebSupport(String operation) {
     if (kIsWeb) {
       throw Exception(
@@ -16,8 +12,6 @@ class PdfEditingService {
       );
     }
   }
-
-  /// Add text to PDF
   static Future<String> addTextToPdf({
     required String inputPath,
     required String text,
@@ -31,9 +25,7 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/text_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       debugPrint('[PdfEditingService] Adding text to PDF: $inputPath');
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>('addTextToPdf', {
           'inputPath': inputPath,
@@ -46,7 +38,6 @@ class PdfEditingService {
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native addTextToPdf returned null');
       } else {
-        // Desktop: copy file (no command-line tool for this)
         await File(inputPath).copy(outputPath);
         return outputPath;
       }
@@ -54,8 +45,6 @@ class PdfEditingService {
       throw Exception('Failed to add text: $e');
     }
   }
-
-  /// Rotate PDF
   static Future<String> rotatePdf({
     required String inputPath,
     required int angle,
@@ -68,7 +57,6 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/rotated_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>('rotatePdf', {
           'inputPath': inputPath,
@@ -78,7 +66,6 @@ class PdfEditingService {
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native rotatePdf returned null');
       } else {
-        // Desktop: try qpdf rotate
         try {
           final rotArg = angle == 90
               ? '+90'
@@ -93,7 +80,6 @@ class PdfEditingService {
           ]);
           if (result.exitCode == 0) return outputPath;
         } catch (_) {}
-        // Fallback: copy
         await File(inputPath).copy(outputPath);
         return outputPath;
       }
@@ -101,8 +87,6 @@ class PdfEditingService {
       throw Exception('Failed to rotate PDF: $e');
     }
   }
-
-  /// Crop PDF
   static Future<String> cropPdf({
     required String inputPath,
     required List<double> cropBox,
@@ -115,7 +99,6 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/cropped_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>('cropPdf', {
           'inputPath': inputPath,
@@ -135,8 +118,6 @@ class PdfEditingService {
       throw Exception('Failed to crop PDF: $e');
     }
   }
-
-  /// Add watermark to PDF
   static Future<String> addWatermarkWithPlacement({
     required String inputPath,
     required String text,
@@ -152,7 +133,6 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/watermarked_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>('addWatermark', {
           'inputPath': inputPath,
@@ -171,8 +151,6 @@ class PdfEditingService {
       throw Exception('Failed to add watermark: $e');
     }
   }
-
-  /// Change PDF background color
   static Future<String> changeBackgroundColor({
     required String inputPath,
     required String hexColor,
@@ -185,7 +163,6 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/colored_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>(
           'changeBackgroundColor',
@@ -205,8 +182,6 @@ class PdfEditingService {
       throw Exception('Failed to change background color: $e');
     }
   }
-
-  /// Compress PDF
   static Future<String> compressPdf({required String inputPath}) async {
     _checkWebSupport('PDF compression');
     try {
@@ -216,7 +191,6 @@ class PdfEditingService {
       }
       final outputPath =
           '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.pdf';
-
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<String>('compressPdf', {
           'inputPath': inputPath,
@@ -225,7 +199,6 @@ class PdfEditingService {
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native compressPdf returned null');
       } else {
-        // Desktop: try ghostscript
         try {
           final result = await Process.run('gs', [
             '-sDEVICE=pdfwrite',
@@ -246,8 +219,6 @@ class PdfEditingService {
       throw Exception('Failed to compress PDF: $e');
     }
   }
-
-  /// Get PDF page count
   static Future<int> getPageCount({required String inputPath}) async {
     if (kIsWeb) return 1;
     try {

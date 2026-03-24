@@ -1,4 +1,3 @@
-// ignore_for_file: deprecated_member_use
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -7,18 +6,14 @@ import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show XFile;
 import 'package:share_plus/share_plus.dart' as share_plus;
-
 import '../services/pdf_repair_service.dart';
 import '../config/app_config.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
-
 class RepairPdfScreen extends StatefulWidget {
   const RepairPdfScreen({super.key});
-
   @override
   State<RepairPdfScreen> createState() => _RepairPdfScreenState();
 }
-
 class _RepairPdfScreenState extends State<RepairPdfScreen> {
   String? _selectedFilePath;
   String? _fileName;
@@ -27,25 +22,18 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
   Map<String, dynamic>? _analysisResult;
   PDFIntegrityReport? _integrityReport;
   String _processingStatus = '';
-
   @override
   void dispose() {
     debugPrint('[RepairPdfScreen] Disposing screen');
     super.dispose();
   }
-
-  /// Helper function to safely update UI state
-  /// Prevents "setState called after dispose" errors
   void _safeSetState(VoidCallback callback) {
     if (mounted) {
       setState(callback);
     }
   }
-
-  // Pick a PDF file
   Future<void> _pickPDFFile() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -55,19 +43,16 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
           );
         }
       }
-
       debugPrint('[RepairPdfScreen] Opening file picker');
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
         withData: false,
       );
-
       if (result != null && result.files.isNotEmpty) {
         final filePath = result.files.first.path;
         final fileName = result.files.first.name;
         debugPrint('[RepairPdfScreen] File selected: $fileName at $filePath');
-
         _safeSetState(() {
           _selectedFilePath = filePath;
           _fileName = fileName;
@@ -80,35 +65,27 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       _showErrorSnackBar('Error picking file: $e');
     }
   }
-
-  // Analyze the PDF
   Future<void> _analyzePDF() async {
     if (_selectedFilePath == null) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
-
     _safeSetState(() {
       _isAnalyzing = true;
       _processingStatus = 'Analyzing PDF...';
     });
-
     try {
       debugPrint('[RepairPdfScreen] Starting PDF analysis');
-
       final analysis = await PDFRepairService.analyzePDF(_selectedFilePath!);
       if (!mounted) return;
-
       final report = await PDFRepairService.checkIntegrity(_selectedFilePath!);
       if (!mounted) return;
-
       _safeSetState(() {
         _analysisResult = analysis;
         _integrityReport = report;
         _isAnalyzing = false;
         _processingStatus = '';
       });
-
       debugPrint('[RepairPdfScreen] PDF analysis completed');
     } catch (e) {
       debugPrint('[RepairPdfScreen] Error analyzing PDF: $e');
@@ -119,38 +96,29 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       _showErrorSnackBar('Error analyzing PDF: $e');
     }
   }
-
-  // Repair the PDF
   Future<void> _repairPDF() async {
     if (_selectedFilePath == null) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
-
     _safeSetState(() {
       _isProcessing = true;
       _processingStatus = 'Repairing PDF...';
     });
-
     try {
       debugPrint('[RepairPdfScreen] Starting PDF repair');
-
       final outputDir = await getApplicationDocumentsDirectory();
       final fileName = _fileName!.replaceAll('.pdf', '_repaired.pdf');
       final outputPath = '${outputDir.path}/$fileName';
-
       final success = await PDFRepairService.repairPDF(
         inputPath: _selectedFilePath!,
         outputPath: outputPath,
       );
-
       if (!mounted) return;
-
       _safeSetState(() {
         _isProcessing = false;
         _processingStatus = '';
       });
-
       if (success) {
         debugPrint('[RepairPdfScreen] PDF repair completed successfully');
         _showSuccessSnackBar('PDF repaired successfully');
@@ -168,33 +136,25 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       _showErrorSnackBar('Error: $e');
     }
   }
-
-  // Recover text from PDF
   Future<void> _recoverText() async {
     if (_selectedFilePath == null) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
-
     _safeSetState(() {
       _isProcessing = true;
       _processingStatus = 'Recovering text...';
     });
-
     try {
       debugPrint('[RepairPdfScreen] Starting text recovery');
-
       final recoveredTexts = await PDFRepairService.recoverText(
         _selectedFilePath!,
       );
-
       if (!mounted) return;
-
       _safeSetState(() {
         _isProcessing = false;
         _processingStatus = '';
       });
-
       if (recoveredTexts.isNotEmpty) {
         debugPrint(
           '[RepairPdfScreen] Text recovery completed: ${recoveredTexts.length} segments',
@@ -213,7 +173,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       _showErrorSnackBar('Error: $e');
     }
   }
-
   Future<void> _handleShareFile(
     String filePath,
     String fileName,
@@ -226,7 +185,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
           const SnackBar(content: Text('File saved successfully')),
         );
       } else if (PlatformHelper.isLinux) {
-        // File sharing not supported on Linux - show file location instead
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -244,7 +202,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
           ),
         );
       } else {
-        // Use native sharing on other platforms
         await share_plus.SharePlus.instance.share(
           share_plus.ShareParams(
             files: [XFile(filePath)],
@@ -258,7 +215,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       }
     }
   }
-
   void _showSuccessSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -274,7 +230,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       ),
     );
   }
-
   void _showErrorSnackBar(String message) {
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
@@ -290,7 +245,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       ),
     );
   }
-
   void _showRepairedFileDialog(String filePath, String fileName) {
     showDialog(
       context: context,
@@ -332,7 +286,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       ),
     );
   }
-
   void _showRecoveredTextDialog(List<String> texts) {
     showDialog(
       context: context,
@@ -369,12 +322,10 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       ),
     );
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = MediaQuery.of(context).size.width < 600;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Repair PDF'),
@@ -389,7 +340,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  // Header Card
                   Container(
                     padding: const EdgeInsets.all(20),
                     decoration: BoxDecoration(
@@ -429,8 +379,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // File Selection Section
                   const Text(
                     'Step 1: Select PDF File',
                     style: TextStyle(fontSize: 14, fontWeight: FontWeight.w600),
@@ -487,8 +435,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-
-                  // Analysis Section
                   if (_selectedFilePath != null) ...[
                     const Text(
                       'Step 2: Analyze PDF',
@@ -516,8 +462,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                     const SizedBox(height: 24),
                   ],
-
-                  // Analysis Results Section
                   if (_analysisResult != null) ...[
                     Container(
                       padding: const EdgeInsets.all(16),
@@ -616,8 +560,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                     const SizedBox(height: 24),
                   ],
-
-                  // Action Buttons
                   if (_selectedFilePath != null && _analysisResult != null) ...[
                     const Text(
                       'Step 3: Repair PDF',
@@ -664,10 +606,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                       ),
                     ),
                   ],
-
                   const SizedBox(height: 24),
-
-                  // Info Section
                   Container(
                     padding: const EdgeInsets.all(16),
                     decoration: BoxDecoration(
@@ -693,7 +632,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
             ),
     );
   }
-
   Widget _buildDetailRow(String label, String value) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 8),
@@ -709,7 +647,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       ),
     );
   }
-
   Widget _buildProcessingScreen() {
     return Center(
       child: Column(

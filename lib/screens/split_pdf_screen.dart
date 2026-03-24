@@ -1,18 +1,15 @@
-// ignore_for_file: deprecated_member_use
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
-
 import '../services/pdf_manipulation_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
 
 class SplitPdfScreen extends StatefulWidget {
   const SplitPdfScreen({super.key});
-
   @override
   State<SplitPdfScreen> createState() => _SplitPdfScreenState();
 }
@@ -24,7 +21,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
   bool _extractAllPages = true;
   late TextEditingController _startPageController;
   late TextEditingController _endPageController;
-
   @override
   void initState() {
     super.initState();
@@ -41,12 +37,10 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
         if (!hasPermission && mounted) {
-          // Show warning but proceed
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
               content: Text(
@@ -57,17 +51,13 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           );
         }
       }
-
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
-
       if (!mounted) return;
-
       if (res != null && res.files.isNotEmpty) {
         final filePath = res.files.single.path!;
-
         try {
           setState(() {
             _pdfPath = filePath;
@@ -75,9 +65,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
             _startPageController.clear();
             _endPageController.clear();
           });
-
           if (!mounted) return;
-
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
               content: Text('Selected: ${res.files.single.name}'),
@@ -100,7 +88,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       setState(() => _errorMessage = 'Please select a PDF file');
       return;
     }
-
     if (kIsWeb) {
       setState(
         () => _errorMessage =
@@ -108,8 +95,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       );
       return;
     }
-
-    // Request permissions before starting split
     if (PlatformHelper.isAndroid) {
       final hasPermission =
           await PlatformFileHandler.requestStoragePermission();
@@ -123,20 +108,14 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         return;
       }
     }
-
     setState(() => _isProcessing = true);
-
     try {
       late List<String> outputPaths;
-
       if (_extractAllPages) {
-        // Extract all pages individually
         outputPaths = await PdfManipulationService.splitPdf(_pdfPath!);
       } else {
-        // Extract page range
         final startPage = int.tryParse(_startPageController.text.trim());
         final endPage = int.tryParse(_endPageController.text.trim());
-
         if (startPage == null || endPage == null) {
           setState(() {
             _isProcessing = false;
@@ -144,7 +123,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           });
           return;
         }
-
         if (startPage < 1 || endPage < startPage) {
           setState(() {
             _isProcessing = false;
@@ -152,7 +130,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           });
           return;
         }
-
         final outputPath = await PdfManipulationService.splitPdfRange(
           _pdfPath!,
           startPage: startPage,
@@ -160,11 +137,8 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         );
         outputPaths = [outputPath];
       }
-
       if (!mounted) return;
-
       setState(() => _isProcessing = false);
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
@@ -173,8 +147,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           backgroundColor: Colors.green,
         ),
       );
-
-      // Navigate to the first output PDF
       if (!kIsWeb) {
         Navigator.push(
           context,
@@ -186,10 +158,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-
       String errorMessage = 'Failed to split PDF: $e';
-
-      // Provide more specific error messages
       if (e.toString().contains('MissingPluginException')) {
         errorMessage =
             'PDF split feature not available on this device. Please try a different method or update the app.';
@@ -200,12 +169,10 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         errorMessage =
             'The PDF file could not be accessed. Please select the file again.';
       }
-
       setState(() {
         _isProcessing = false;
         _errorMessage = errorMessage;
       });
-
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(content: Text(errorMessage), backgroundColor: Colors.red),
       );
@@ -226,7 +193,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = MediaQuery.of(context).size.width < 600;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Split PDF'),
@@ -242,7 +208,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Info card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -275,8 +240,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Selected PDF info
               if (_pdfPath != null) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -348,8 +311,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                   ),
                 ),
                 const SizedBox(height: 24),
-
-                // Split options
                 Text(
                   'Split Options',
                   style: TextStyle(
@@ -359,8 +320,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Option 1: Extract all pages
                 GestureDetector(
                   onTap: () {
                     setState(() => _extractAllPages = true);
@@ -381,7 +340,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                     ),
                     child: Row(
                       children: [
-                        Radio<bool>(
+                        Radio<bool>.adaptive(
                           value: true,
                           groupValue: _extractAllPages,
                           onChanged: (value) {
@@ -419,8 +378,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                   ),
                 ),
                 const SizedBox(height: 12),
-
-                // Option 2: Extract page range
                 GestureDetector(
                   onTap: () {
                     setState(() => _extractAllPages = false);
@@ -443,7 +400,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                       children: [
                         Row(
                           children: [
-                            Radio<bool>(
+                            Radio<bool>.adaptive(
                               value: false,
                               groupValue: _extractAllPages,
                               onChanged: (value) {
@@ -520,8 +477,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-
-              // Error message
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -545,8 +500,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-
-              // Action buttons
               Column(
                 children: [
                   SizedBox(

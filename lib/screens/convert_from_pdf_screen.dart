@@ -12,11 +12,8 @@ import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 import 'pdf_viewer_screen.dart';
 
-// ignore: use_build_context_synchronously
-
 class ConvertFromPdfScreen extends StatefulWidget {
   const ConvertFromPdfScreen({super.key});
-
   @override
   State<ConvertFromPdfScreen> createState() => _ConvertFromPdfScreenState();
 }
@@ -25,9 +22,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   bool _isProcessing = false;
   String? _selectedPdfPath;
   String? _selectedFormat;
-
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
-  // All conversion formats
   static const List<ConversionFormat> conversionFormats = [
     ConversionFormat(
       name: 'PDF to Word',
@@ -163,20 +158,15 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       color: Color(0xFF1976D2),
     ),
   ];
-
   Future<String> _getInitialDirectory() async {
     if (kIsWeb) return '';
-
     try {
-      // Try to use the Downloads directory first
       final downloadsDir = await getDownloadsDirectory();
       if (downloadsDir != null && await downloadsDir.exists()) {
         return downloadsDir.path;
       }
     } catch (_) {}
-
     try {
-      // Fallback to home directory on Linux
       if (PlatformHelper.isLinux || PlatformHelper.isMacOS) {
         final homeDir = Platform.environment['HOME'];
         if (homeDir != null && await Directory(homeDir).exists()) {
@@ -184,8 +174,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         }
       }
     } catch (_) {}
-
-    // Final fallback to current working directory
     try {
       return Directory.current.path;
     } catch (_) {
@@ -195,7 +183,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -210,18 +197,15 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           );
         }
       }
-
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
       );
-
       if (result != null && result.files.isNotEmpty) {
         setState(() => _selectedPdfPath = result.files.first.path!);
       }
     } catch (e) {
       if (!mounted) return;
-
       final choice = await showDialog<String>(
         context: context,
         builder: (ctx) => AlertDialog(
@@ -243,11 +227,10 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           ],
         ),
       );
-
       if (choice == 'inapp') {
         final initialDir = await _getInitialDirectory();
+        if (!mounted) return;
         final selected = await showInAppFilePicker(
-          // ignore: use_build_context_synchronously
           context,
           initialDirectory: initialDir,
           allowedExtensions: ['pdf'],
@@ -284,21 +267,17 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         ],
       ),
     );
-
     if (submit == true) {
       final path = controller.text.trim();
       if (path.isEmpty) return;
-
       final file = File(path);
       if (await file.exists()) {
         setState(() => _selectedPdfPath = path);
       } else {
         if (!mounted) return;
-
-        ScaffoldMessenger.of(context).showSnackBar(
-          // ignore: use_build_context_synchronously
-          const SnackBar(content: Text('File not found')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('File not found')));
       }
     }
   }
@@ -306,31 +285,25 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   Future<void> _convertPdf(ConversionFormat format) async {
     if (_selectedPdfPath == null) {
       ScaffoldMessenger.of(context).showSnackBar(
-        // ignore: use_build_context_synchronously
         const SnackBar(content: Text('Please select a PDF file first')),
       );
       return;
     }
-
     setState(() {
       _isProcessing = true;
       _selectedFormat = format.format;
     });
-
     if (kIsWeb) {
       _showWebConversionDialog(format);
       setState(() => _isProcessing = false);
       return;
     }
-
     try {
-      // Get Downloads directory or fallback to home directory
       Directory outputDir;
       final downloadsDir = await getDownloadsDirectory();
       if (downloadsDir != null) {
         outputDir = downloadsDir;
       } else {
-        // Fallback to home directory on Linux
         final homeDir = PlatformHelper.isLinux || PlatformHelper.isMacOS
             ? Platform.environment['HOME']
             : null;
@@ -340,31 +313,18 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           outputDir = await getApplicationDocumentsDirectory();
         }
       }
-
-      // Ensure directory exists
       if (!await outputDir.exists()) {
         await outputDir.create(recursive: true);
       }
-
       final fileName =
           '${path_lib.basename(_selectedPdfPath!).replaceAll('.pdf', '')}_converted.${format.fileExtension}';
       final outputPath = '${outputDir.path}/$fileName';
-
-      // Call conversion based on format
       await _performConversion(format, outputPath);
-
       if (!mounted) return;
-
-      // Check if the output file was actually created
       if (!await File(outputPath).exists()) return;
-
-      // Check if output is a PDF file
+      if (!mounted) return;
       final isPdfOutput = format.fileExtension == 'pdf';
-
       ScaffoldMessenger.of(context).showSnackBar(
-        // ignore: use_build_context_synchronously
-
-        // ignore: use_build_context_synchronously
         SnackBar(
           content: Text('✓ Saved: $fileName'),
           duration: const Duration(seconds: 3),
@@ -380,20 +340,18 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                   ),
                 );
               } else if (PlatformHelper.isMobile) {
-                // Mobile: share the file
                 share_plus.SharePlus.instance.share(
                   share_plus.ShareParams(files: [share_plus.XFile(outputPath)]),
                 );
               } else {
-                // Desktop: open file in default application
                 Process.run('xdg-open', [outputPath]);
               }
             },
           ),
         ),
       );
-
       if (isPdfOutput) {
+        if (!mounted) return;
         Navigator.push(
           context,
           MaterialPageRoute(
@@ -403,14 +361,12 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Conversion failed: $e')));
     } finally {
       if (mounted) {
         setState(() => _isProcessing = false);
-        // ignore: use_build_context_synchronously
       }
     }
   }
@@ -455,14 +411,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   }
 
   Future<void> _convertToText(String outputPath) async {
-    // Ensure output directory exists
     final outDir = File(outputPath).parent;
     if (!await outDir.exists()) {
       await outDir.create(recursive: true);
     }
-
     if (Platform.isAndroid) {
-      // Android: Use method channel to extract text via PDFBox
       try {
         final result = await platform.invokeMethod<String>('extractText', {
           'inputPath': _selectedPdfPath!,
@@ -475,12 +428,10 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         throw Exception('Text extraction failed: $e');
       }
     } else {
-      // Desktop: Use command-line tool
       final result = await Process.run('pdftotext', [
         _selectedPdfPath!,
         outputPath,
       ]);
-
       if (result.exitCode != 0) {
         throw Exception('Text conversion failed: ${result.stderr}');
       }
@@ -495,7 +446,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     final imageDir =
         '${tempDir.path}/pdf_images_${DateTime.now().millisecondsSinceEpoch}';
     await Directory(imageDir).create(recursive: true);
-
     try {
       String imageFormat = '';
       switch (format.format) {
@@ -511,9 +461,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         default:
           imageFormat = 'png';
       }
-
       if (Platform.isAndroid) {
-        // Android: Use method channel to render PDF pages as images
         try {
           final result = await platform
               .invokeMethod<List<dynamic>>('pdfToImages', {
@@ -529,7 +477,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           throw Exception('Image conversion failed: $e');
         }
       } else {
-        // Desktop: Use pdftoppm command
         final result = await Process.run('pdftoppm', [
           '-$imageFormat',
           '-r',
@@ -537,16 +484,12 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           _selectedPdfPath!,
           '$imageDir/page',
         ]);
-
         if (result.exitCode != 0) {
           throw Exception('Image conversion failed: ${result.stderr}');
         }
       }
-
-      // If format is Images, zip all images
       if (format.format == 'Images') {
         if (Platform.isAndroid) {
-          // Android: use method channel for zipping
           try {
             await platform.invokeMethod<String>('zipDirectory', {
               'inputDir': imageDir,
@@ -556,19 +499,16 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
             throw Exception('Zip creation failed: $e');
           }
         } else {
-          // Desktop: use zip command
           final zipResult = await Process.run('zip', [
             '-r',
             outputPath,
             imageDir,
           ]);
-
           if (zipResult.exitCode != 0) {
             throw Exception('Zip creation failed: ${zipResult.stderr}');
           }
         }
       } else {
-        // Single image format (JPG/PNG/SVG): copy the first generated image to outputPath
         final imageFiles =
             Directory(imageDir).listSync().whereType<File>().toList()
               ..sort((a, b) => a.path.compareTo(b.path));
@@ -579,7 +519,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         }
       }
     } finally {
-      // Clean up temporary image directory
       try {
         if (await Directory(imageDir).exists()) {
           await Directory(imageDir).delete(recursive: true);
@@ -593,22 +532,16 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     String outputPath,
   ) async {
     if (Platform.isAndroid) {
-      // Android: Office formats not directly supported - offer web alternative
       _showWebConversionDialog(format);
       return;
     }
-
     final outDir = Directory(outputPath).parent.path;
-
-    // Ensure output directory exists before LibreOffice tries to use it
     if (!await Directory(outDir).exists()) {
       await Directory(outDir).create(recursive: true);
     }
-
     final outFileName = path_lib
         .basename(_selectedPdfPath!)
         .replaceAll(RegExp(r'\.[^.]*$'), '');
-
     final formatMap = {
       'Word': 'docx',
       'DOCX': 'docx',
@@ -623,9 +556,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       'RTF': 'rtf',
       'EPUB': 'epub',
     };
-
     final outFormat = formatMap[format.format] ?? format.fileExtension;
-
     try {
       final result = await Process.run('libreoffice', [
         '--headless',
@@ -635,18 +566,14 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         outDir,
         _selectedPdfPath!,
       ]);
-
       if (result.exitCode != 0) {
         throw Exception('LibreOffice conversion failed: ${result.stderr}');
       }
-
-      // LibreOffice generates files with its own naming, rename to desired output
       final generatedFile = File('$outDir/$outFileName.$outFormat');
       if (await generatedFile.exists()) {
         await generatedFile.rename(outputPath);
       }
     } catch (e) {
-      // Clean up any partially generated files
       try {
         if (await File(outputPath).exists()) {
           await File(outputPath).delete();
@@ -661,9 +588,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     if (!await outDir.exists()) {
       await outDir.create(recursive: true);
     }
-
     if (Platform.isAndroid) {
-      // Android: Use method channel to encrypt PDF using PDFBox
       try {
         final result = await platform.invokeMethod<String>('encryptPdf', {
           'inputPath': _selectedPdfPath!,
@@ -678,7 +603,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         throw Exception('Secure PDF creation failed: $e');
       }
     } else {
-      // Desktop: Use qpdf command
       final result = await Process.run('qpdf', [
         '--encrypt',
         'userpassword',
@@ -688,7 +612,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         _selectedPdfPath!,
         outputPath,
       ]);
-
       if (result.exitCode != 0) {
         throw Exception('Secure PDF creation failed: ${result.stderr}');
       }
@@ -700,9 +623,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     if (!await outDir.exists()) {
       await outDir.create(recursive: true);
     }
-
     if (Platform.isAndroid) {
-      // Android: Create PDF/A compliant PDF using method channel
       try {
         final result = await platform.invokeMethod<String>('createPdfA', {
           'inputPath': _selectedPdfPath!,
@@ -715,7 +636,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         throw Exception('PDF/A conversion failed: $e');
       }
     } else {
-      // Desktop: PDF/A conversion using ghostscript
       final result = await Process.run('gs', [
         '-sDEVICE=pdfwrite',
         '-dPDFA=1',
@@ -723,7 +643,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         '-f',
         _selectedPdfPath!,
       ]);
-
       if (result.exitCode != 0) {
         throw Exception('PDF/A conversion failed: ${result.stderr}');
       }
@@ -756,7 +675,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -855,7 +773,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                       final format = conversionFormats[index];
                       final isSelected = _selectedFormat == format.format;
                       final isProcessing = _isProcessing && isSelected;
-
                       return _ConversionFormatCard(
                         format: format,
                         isDark: isDark,
@@ -878,7 +795,6 @@ class ConversionFormat {
   final String fileExtension;
   final IconData icon;
   final Color color;
-
   const ConversionFormat({
     required this.name,
     required this.format,
@@ -894,7 +810,6 @@ class _ConversionFormatCard extends StatefulWidget {
   final bool isProcessing;
   final bool isDisabled;
   final VoidCallback? onTap;
-
   const _ConversionFormatCard({
     required this.format,
     required this.isDark,
@@ -902,7 +817,6 @@ class _ConversionFormatCard extends StatefulWidget {
     required this.isDisabled,
     required this.onTap,
   });
-
   @override
   State<_ConversionFormatCard> createState() => _ConversionFormatCardState();
 }
@@ -911,7 +825,6 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();

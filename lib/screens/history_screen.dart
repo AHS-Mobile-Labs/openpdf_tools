@@ -6,25 +6,20 @@ import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
-
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
-
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
-
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<HistoryItem>> _historyFuture;
   Set<String> _favorites = {};
-
   @override
   void initState() {
     super.initState();
     _historyFuture = FileHistoryService.getHistory();
     _loadData();
   }
-
   void _loadData() async {
     final favorites = await FileHistoryService.getFavorites();
     setState(() {
@@ -32,7 +27,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _historyFuture = FileHistoryService.getHistory();
     });
   }
-
   void _toggleFavorite(String filePath) async {
     final isFav = await FileHistoryService.toggleFavorite(filePath);
     setState(() {
@@ -43,12 +37,10 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     });
   }
-
   void _removeFromHistory(String filePath) async {
     await FileHistoryService.removeFromHistory(filePath);
     _loadData();
   }
-
   void _openFile(String filePath) {
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -69,11 +61,9 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _removeFromHistory(filePath);
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return DefaultTabController(
       length: 2,
       child: Scaffold(
@@ -99,7 +89,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
   }
-
   Widget _buildHistoryTab() {
     return FutureBuilder<List<HistoryItem>>(
       future: _historyFuture,
@@ -107,7 +96,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
         if (!snapshot.hasData || snapshot.data!.isEmpty) {
           return const Center(
             child: Column(
@@ -120,14 +108,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           );
         }
-
         final items = snapshot.data!;
         return ListView.builder(
           itemCount: items.length,
           itemBuilder: (context, index) {
             final item = items[index];
             final exists = item.fileExists;
-
             return ListTile(
               leading: Icon(
                 Icons.description,
@@ -176,7 +162,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
       },
     );
   }
-
   Widget _buildFavoritesTab() {
     return FutureBuilder<List<String>>(
       future: FileHistoryService.getFavorites(),
@@ -184,7 +169,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
         if (snapshot.connectionState == ConnectionState.waiting) {
           return const Center(child: CircularProgressIndicator());
         }
-
         final favorites = snapshot.data ?? [];
         if (favorites.isEmpty) {
           return const Center(
@@ -198,14 +182,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
             ),
           );
         }
-
         return ListView.builder(
           itemCount: favorites.length,
           itemBuilder: (context, index) {
             final filePath = favorites[index];
             final exists = kIsWeb ? false : File(filePath).existsSync();
             final fileName = filePath.split('/').last;
-
             return ListTile(
               leading: Icon(
                 Icons.description,

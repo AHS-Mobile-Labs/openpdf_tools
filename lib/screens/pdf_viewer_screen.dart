@@ -19,9 +19,7 @@ import 'history_screen.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final File? externalFile;
-
   const PdfViewerScreen({super.key, this.externalFile});
-
   @override
   State<PdfViewerScreen> createState() => _PdfViewerScreenState();
 }
@@ -38,18 +36,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   double _brightness = 1.0;
   bool _isNightMode = false;
   int _rotationAngle = 0;
-  String _viewMode = 'fit'; // 'fit', 'width', 'height'
-  String? _webFileName; // For web: stores the file name
-  int? _webFileSize; // For web: stores the file size in bytes
-
+  String _viewMode = 'fit';
+  String? _webFileName;
+  int? _webFileSize;
   @override
   void initState() {
     super.initState();
-
-    // Add listener to update UI when page changes
     _pdfViewerController.addListener(_onPdfViewerControllerChanged);
-
-    // If app is opened via "Open with → OpenPDF Tools"
     if (widget.externalFile != null) {
       _pdfFile = widget.externalFile;
       _loadPdfBytes();
@@ -64,9 +57,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _addToHistoryAndCheckFavorite() async {
-    // Web files don't have persistent history
     if (kIsWeb) return;
-
     if (_pdfFile != null) {
       await FileHistoryService.addToHistory(_pdfFile!.path);
       final isFav = await FileHistoryService.isFavorite(_pdfFile!.path);
@@ -114,7 +105,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       });
       return;
     }
-
     if (kIsWeb) {
       setState(() {
         _isLoadingBytes = true;
@@ -139,7 +129,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -154,18 +143,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           );
         }
       }
-
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
-        withData: kIsWeb, // Get bytes on web
+        withData: kIsWeb,
       );
-
       if (result != null && result.files.single.path != null) {
         if (kIsWeb) {
-          // Web: use bytes directly
           setState(() {
-            _pdfFile = null; // No file path on web
+            _pdfFile = null;
             _webFileName = result.files.single.name;
             _webFileSize = result.files.single.size;
             _pdfBytes = result.files.single.bytes;
@@ -177,7 +163,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             _isLoadingBytes = false;
           });
         } else {
-          // Desktop/Mobile: use file path
           setState(() {
             _pdfFile = File(result.files.single.path!);
             _webFileName = null;
@@ -193,8 +178,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         }
       }
     } catch (e) {
-      // FilePicker on Linux requires `zenity`. Offer a fallback that includes an in-app picker.
-      // Web doesn't support fallback options
       if (kIsWeb) {
         if (mounted) {
           ScaffoldMessenger.of(
@@ -203,10 +186,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         }
         return;
       }
-
-      // ignore: use_build_context_synchronously
+      if (!mounted) return;
       final choice = await showDialog<String>(
-        // ignore: use_build_context_synchronously
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('File picker failed'),
@@ -227,7 +208,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ],
         ),
       );
-
       if (choice == 'inapp') {
         if (!mounted) return;
         final selected = await showInAppFilePicker(
@@ -275,7 +255,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             ],
           ),
         );
-
         if (submit == true) {
           final path = controller.text.trim();
           if (path.isEmpty) return;
@@ -316,8 +295,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ).showSnackBar(const SnackBar(content: Text('No PDF loaded')));
       return;
     }
-
-    // Share not available on web
     if (kIsWeb) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -325,7 +302,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
       return;
     }
-
     try {
       if (Platform.isAndroid || Platform.isIOS) {
         await share_plus.SharePlus.instance.share(
@@ -336,7 +312,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       }
     } catch (e) {
       if (!mounted) return;
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Failed to open folder: $e')));
@@ -351,13 +326,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ).showSnackBar(const SnackBar(content: Text('No PDF loaded')));
       return;
     }
-
     if (kIsWeb) {
-      // Web: Trigger download in browser
       if (_pdfBytes == null) return;
       try {
-        // Use html library to trigger download
-        // For now, just show a message since web download is browser-handled
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -374,25 +345,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       }
       return;
     }
-
-    // Desktop/Mobile: Copy file to app documents directory
     try {
       final dir = await getApplicationDocumentsDirectory();
       final fileName = _pdfFile!.path.split('/').last;
       final savePath = '${dir.path}/$fileName';
-
       if (await _pdfFile!.exists()) {
         await _pdfFile!.copy(savePath);
-
         if (!mounted) return;
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('✓ Saved to $savePath')));
       }
     } catch (e) {
       if (!mounted) return;
-      // ignore: use_build_context_synchronously
       ScaffoldMessenger.of(
         context,
       ).showSnackBar(SnackBar(content: Text('Download failed: $e')));
@@ -407,8 +372,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ).showSnackBar(const SnackBar(content: Text('No PDF loaded')));
       return;
     }
-
-    // Rename not available on web
     if (kIsWeb) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
@@ -416,11 +379,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
       return;
     }
-
     final currentName = _pdfFile!.path.split('/').last.replaceAll('.pdf', '');
     final controller = TextEditingController(text: currentName);
-
-    // ignore: use_build_context_synchronously
     final newName = await showDialog<String>(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -441,35 +401,24 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ],
       ),
     );
-
     if (newName != null && newName.isNotEmpty) {
       try {
         final oldPath = _pdfFile!.path;
         final directory = _pdfFile!.parent;
         final newPath = '${directory.path}/$newName.pdf';
         final renamedFile = await _pdfFile!.rename(newPath);
-
-        // Update history and favorites with new path
         await FileHistoryService.updateHistoryPath(oldPath, newPath);
         await FileHistoryService.updateFavoritePath(oldPath, newPath);
-
         setState(() {
           _pdfFile = renamedFile;
         });
         _loadPdfBytes();
-
         if (!mounted) return;
-        // ignore: use_build_context_synchronously
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: const Text('✓ PDF renamed successfully')),
         );
       } catch (e) {
         if (!mounted) return;
-        // ignore: use_build_context_synchronously
-        // ignore: use_build_context_synchronously
-
-        // ignore: use_build_context_synchronously
-
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Rename failed: $e')));
@@ -510,7 +459,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   void _jumpToPage() {
     if (_pdfViewerController.pageCount <= 0) return;
-
     final controller = TextEditingController();
     showDialog(
       context: context,
@@ -674,11 +622,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   Future<Uint8List?> _getFileBytes() async {
     try {
-      // On web, bytes are already loaded directly
       if (kIsWeb) {
         return _pdfBytes;
       }
-      // On other platforms, read from file
       if (_pdfFile != null) {
         return await _pdfFile!.readAsBytes();
       }
@@ -691,7 +637,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-    // Handle both web and native file info
     final fileName = kIsWeb
         ? (_webFileName ?? 'View PDF')
         : (_pdfFile != null ? p.basename(_pdfFile!.path) : 'View PDF');
@@ -702,7 +647,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         : (_pdfFile != null
               ? (_pdfFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)
               : '0');
-
     return Scaffold(
       backgroundColor: _isNightMode
           ? const Color(0xFF0A0A0A)
@@ -752,7 +696,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   onPressed: (_pdfFile == null && _pdfBytes == null)
                       ? null
                       : () async {
-                          // Favorites only work on desktop/mobile platforms
                           if (kIsWeb) {
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -840,7 +783,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               },
               child: Stack(
                 children: [
-                  // PDF Viewer with brightness adjustment
                   ColorFiltered(
                     colorFilter: ColorFilter.matrix(<double>[
                       _brightness,
@@ -897,7 +839,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             ),
                     ),
                   ),
-                  // Enhanced Bottom Control Bar
                   if (_showControls)
                     Positioned(
                       bottom: MediaQuery.of(context).padding.bottom,
@@ -905,7 +846,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       right: 0,
                       child: Column(
                         children: [
-                          // Brightness slider
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.black54,
@@ -953,7 +893,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                               ],
                             ),
                           ),
-                          // Zoom and Control Buttons
                           Container(
                             decoration: BoxDecoration(
                               color: Colors.black87,
@@ -974,7 +913,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                             child: Row(
                               mainAxisAlignment: MainAxisAlignment.spaceEvenly,
                               children: [
-                                // Zoom Out
                                 IconButton(
                                   icon: const Icon(
                                     Icons.zoom_out,
@@ -984,7 +922,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                   iconSize: 20,
                                   tooltip: 'Zoom Out',
                                 ),
-                                // Zoom Display
                                 Container(
                                   padding: const EdgeInsets.symmetric(
                                     horizontal: 12,
@@ -1003,7 +940,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                     ),
                                   ),
                                 ),
-                                // Zoom In
                                 IconButton(
                                   icon: const Icon(
                                     Icons.zoom_in,
@@ -1014,7 +950,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                   tooltip: 'Zoom In',
                                 ),
                                 const Spacer(),
-                                // View Mode
                                 IconButton(
                                   icon: const Icon(
                                     Icons.image,
@@ -1024,7 +959,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                   tooltip: 'View Mode',
                                   iconSize: 20,
                                 ),
-                                // Rotation
                                 IconButton(
                                   icon: const Icon(
                                     Icons.rotate_right,
@@ -1034,7 +968,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                   tooltip: 'Rotate',
                                   iconSize: 20,
                                 ),
-                                // Page Jump
                                 IconButton(
                                   icon: const Icon(
                                     Icons.skip_next,
@@ -1044,7 +977,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                                   tooltip: 'Jump to Page',
                                   iconSize: 20,
                                 ),
-                                // Reset
                                 IconButton(
                                   icon: const Icon(
                                     Icons.refresh,
@@ -1060,7 +992,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ],
                       ),
                     ),
-                  // Page indicator
                   if (_showControls && _pdfViewerController.pageCount > 0)
                     Positioned(
                       top: 16,
@@ -1101,7 +1032,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ),
                       ),
                     ),
-                  // Rotation indicator
                   if (_showControls && _rotationAngle != 0)
                     Positioned(
                       top: 16,
@@ -1125,7 +1055,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ),
                       ),
                     ),
-                  // Tap to show/hide controls hint
                   if (!_showControls)
                     Positioned(
                       bottom: 16,
@@ -1157,7 +1086,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ),
                       ),
                     ),
-                  // View Mode indicator
                   if (_showControls && _viewMode != 'fit')
                     Positioned(
                       top: 56,

@@ -5,12 +5,8 @@ import 'package:pdf/widgets.dart' as pw;
 import 'isolate_helper.dart';
 import 'pdf_signature_isolate_tasks.dart';
 
-/// Service for handling PDF digital signatures with production-ready cryptographic support
 class PDFSignatureService {
-  // Signature metadata storage
   static final Map<String, SignatureMetadata> _signatureRegistry = {};
-
-  /// Production-ready PDF signing with cryptographic signature (SHA-256 & HMAC)
   static Future<bool> addSignatureToDocument({
     required String inputPath,
     required String outputPath,
@@ -23,16 +19,12 @@ class PDFSignatureService {
     String? keyPassword,
   }) async {
     try {
-      // Validate inputs
       final file = File(inputPath);
       if (!file.existsSync()) {
         debugPrint('Input PDF file not found: $inputPath');
         return false;
       }
-
       final pdfBytes = await file.readAsBytes();
-
-      // Generate cryptographic signature using SHA-256
       final signature = await _generateCryptographicSignature(
         pdfBytes,
         signatureName,
@@ -40,8 +32,6 @@ class PDFSignatureService {
         privateKeyPath,
         keyPassword,
       );
-
-      // Create signed PDF with metadata
       final signedPDF = await _createSignedPDF(
         pdfBytes,
         signatureName,
@@ -50,8 +40,6 @@ class PDFSignatureService {
         reason,
         signature,
       );
-
-      // Store signature metadata for validation
       _registerSignature(
         outputPath,
         SignatureMetadata(
@@ -63,11 +51,8 @@ class PDFSignatureService {
           isValid: true,
         ),
       );
-
-      // Write signed PDF
       final outputFile = File(outputPath);
       await outputFile.writeAsBytes(signedPDF);
-
       debugPrint(
         'PDF signed successfully with cryptographic signature: $outputPath',
       );
@@ -78,8 +63,6 @@ class PDFSignatureService {
     }
   }
 
-  /// Generate a cryptographic signature using SHA-256 and HMAC
-  /// Runs in a background isolate to prevent blocking the main thread
   static Future<Map<String, String>> _generateCryptographicSignature(
     List<int> pdfBytes,
     String signerName,
@@ -89,8 +72,6 @@ class PDFSignatureService {
   ) async {
     try {
       debugPrint('[PDFSignatureService] Generating cryptographic signature');
-
-      // Run signature generation in background isolate
       final signatureData = SignatureGenerationData(
         pdfBytes: pdfBytes,
         signerName: signerName,
@@ -98,14 +79,12 @@ class PDFSignatureService {
         privateKeyPath: privateKeyPath,
         keyPassword: keyPassword,
       );
-
       final signature = await IsolateHelper.computeWithTimeout(
         generateCryptographicSignatureIsolateTask,
         signatureData,
         timeout: const Duration(seconds: 30),
         debugLabel: 'Signature Generation',
       );
-
       debugPrint('[PDFSignatureService] Signature generation completed');
       return signature;
     } catch (e) {
@@ -114,7 +93,6 @@ class PDFSignatureService {
     }
   }
 
-  /// Create PDF with signature embedded
   static Future<List<int>> _createSignedPDF(
     List<int> originalBytes,
     String signatureName,
@@ -125,8 +103,6 @@ class PDFSignatureService {
   ) async {
     try {
       final pdf = pw.Document();
-
-      // Add signature page
       pdf.addPage(
         pw.Page(
           pageFormat: PdfPageFormat.a4,
@@ -214,7 +190,6 @@ class PDFSignatureService {
           },
         ),
       );
-
       return pdf.save();
     } catch (e) {
       debugPrint('Error creating signed PDF: $e');
@@ -222,7 +197,6 @@ class PDFSignatureService {
     }
   }
 
-  /// Helper to build signature info rows
   static pw.Widget _buildSignatureInfo(
     String label,
     String value, {
@@ -256,7 +230,6 @@ class PDFSignatureService {
     );
   }
 
-  /// Validate a signed PDF
   static Future<SignatureValidation> validateSignature(String pdfPath) async {
     try {
       final file = File(pdfPath);
@@ -267,7 +240,6 @@ class PDFSignatureService {
           timestamp: DateTime.now(),
         );
       }
-
       final metadata = _signatureRegistry[pdfPath];
       if (metadata == null) {
         return SignatureValidation(
@@ -276,7 +248,6 @@ class PDFSignatureService {
           timestamp: DateTime.now(),
         );
       }
-
       return SignatureValidation(
         isValid: metadata.isValid,
         message: 'Signature verified successfully',
@@ -295,7 +266,6 @@ class PDFSignatureService {
     }
   }
 
-  /// Get signature details
   static Future<Map<String, dynamic>> getSignatureDetails(
     String pdfPath,
   ) async {
@@ -304,7 +274,6 @@ class PDFSignatureService {
       if (metadata == null) {
         return {'hasSignature': false, 'message': 'No signature found'};
       }
-
       return {
         'hasSignature': true,
         'signedBy': metadata.signedBy,
@@ -318,17 +287,15 @@ class PDFSignatureService {
     }
   }
 
-  /// Register signature metadata
   static void _registerSignature(String path, SignatureMetadata metadata) {
     _signatureRegistry[path] = metadata;
   }
 
-  /// Request electronic signature (integration ready)
   static Future<bool> requestElectronicSignature({
     required String pdfPath,
     required String recipientEmail,
     required String message,
-    String provider = 'docusign', // Can be 'docusign', 'signnow', etc.
+    String provider = 'docusign',
   }) async {
     try {
       debugPrint('Signature request initiated:');
@@ -336,14 +303,6 @@ class PDFSignatureService {
       debugPrint('  Document: $pdfPath');
       debugPrint('  Recipient: $recipientEmail');
       debugPrint('  Message: $message');
-
-      // In production, integrate with:
-      // - DocuSign API (https://www.docusign.com/developers/apis)
-      // - SignNow API (https://developer.signnow.com/)
-      // - HelloSign/Dropbox Sign API (https://www.hellosign.com/api)
-      // - Adobe Sign API (https://developer.adobe.com/console)
-      // - OneSpan API (https://developer.onespan.com/)
-
       return true;
     } catch (e) {
       debugPrint('Error requesting e-signature: $e');
@@ -351,7 +310,6 @@ class PDFSignatureService {
     }
   }
 
-  /// Batch sign multiple documents
   static Future<bool> batchSignDocuments({
     required List<String> inputPaths,
     required String outputDirectory,
@@ -365,7 +323,6 @@ class PDFSignatureService {
         final inputPath = inputPaths[i];
         final fileName = File(inputPath).uri.pathSegments.last;
         final outputPath = '$outputDirectory/signed_$fileName';
-
         final success = await addSignatureToDocument(
           inputPath: inputPath,
           outputPath: outputPath,
@@ -374,7 +331,6 @@ class PDFSignatureService {
           certificatePath: certificatePath,
           privateKeyPath: privateKeyPath,
         );
-
         if (!success) {
           debugPrint('Failed to sign: $inputPath');
           return false;
@@ -387,10 +343,8 @@ class PDFSignatureService {
     }
   }
 
-  /// Export public certificate
   static Future<bool> exportCertificate({required String outputPath}) async {
     try {
-      // Generate sample certificate for export
       final certificate = '''-----BEGIN CERTIFICATE-----
 MIID+zCCAuOgAwIBAgIUXxT8MZlzLdGNJL8zQdKI5T3KJJowDQYJKoZIhvcNAQEL
 BQAwbjELMAkGA1UEBhMCVVMxCzAJBgNVBAgMAkNBMRYwFAYDVQQHDA1TYW4gRnJh
@@ -408,10 +362,8 @@ jL9K3L+L4M/M5N/N6O/O7P/P8Q/Q9R/R+S/S/T/T+U/U+V/V+W/W+X/X+Y/Y+Z/
 Z+a/a+b/b+c/c+d/d+e/e+f/f+g/g+h/h+i/i+j/j+k/k+l/l+m/m+n/n+o/o+p
 /p+q/q+r/r+s/s+t/t+u/u+v/v+w/w+x/x+y/y+z/z
 -----END CERTIFICATE-----''';
-
       final file = File(outputPath);
       await file.writeAsString(certificate);
-
       debugPrint('Certificate exported to: $outputPath');
       return true;
     } catch (e) {
@@ -421,7 +373,6 @@ Z+a/a+b/b+c/c+d/d+e/e+f/f+g/g+h/h+i/i+j/j+k/k+l/l+m/m+n/n+o/o+p
   }
 }
 
-/// Signature metadata class
 class SignatureMetadata {
   final String signedBy;
   final DateTime timestamp;
@@ -429,7 +380,6 @@ class SignatureMetadata {
   final String certificateHash;
   final String algorithm;
   final bool isValid;
-
   SignatureMetadata({
     required this.signedBy,
     required this.timestamp,
@@ -440,7 +390,6 @@ class SignatureMetadata {
   });
 }
 
-/// Signature validation result class
 class SignatureValidation {
   final bool isValid;
   final String message;
@@ -448,7 +397,6 @@ class SignatureValidation {
   final DateTime timestamp;
   final String? algorithm;
   final String? certificateHash;
-
   SignatureValidation({
     required this.isValid,
     required this.message,

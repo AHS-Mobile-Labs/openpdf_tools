@@ -1,10 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/widgets/premium_components.dart';
-
-/// Premium modal dialog manager with smooth animations
 class PremiumModalManager {
-  /// Show a premium dialog with fade and scale animation
   static Future<T?> showPremiumDialog<T>(
     BuildContext context, {
     required Widget child,
@@ -18,8 +15,6 @@ class PremiumModalManager {
       builder: (context) => child,
     );
   }
-
-  /// Show premium bottom sheet with slide animation
   static Future<T?> showPremiumBottomSheet<T>(
     BuildContext context, {
     required Widget Function(BuildContext) builder,
@@ -35,8 +30,6 @@ class PremiumModalManager {
       barrierColor: Colors.black.withValues(alpha: 0.4),
     );
   }
-
-  /// Show a premium snackbar
   static void showPremiumSnackBar(
     BuildContext context, {
     required String message,
@@ -45,10 +38,8 @@ class PremiumModalManager {
     VoidCallback? onDismiss,
   }) {
     ScaffoldMessenger.of(context).clearSnackBars();
-
     Color backgroundColor;
     IconData icon;
-
     switch (type) {
       case SnackBarType.success:
         backgroundColor = PremiumColors.success;
@@ -67,7 +58,6 @@ class PremiumModalManager {
         icon = Icons.info_rounded;
         break;
     }
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Row(
@@ -94,14 +84,10 @@ class PremiumModalManager {
         margin: const EdgeInsets.all(PremiumSpacing.lg),
       ),
     );
-
     onDismiss?.call();
   }
 }
-
 enum SnackBarType { success, error, warning, info }
-
-/// Premium alert dialog with smooth animations
 class PremiumAlertDialog extends StatelessWidget {
   final String title;
   final String message;
@@ -110,7 +96,6 @@ class PremiumAlertDialog extends StatelessWidget {
   final VoidCallback? onConfirm;
   final VoidCallback? onCancel;
   final Color? confirmButtonColor;
-
   const PremiumAlertDialog({
     super.key,
     required this.title,
@@ -121,11 +106,9 @@ class PremiumAlertDialog extends StatelessWidget {
     this.onCancel,
     this.confirmButtonColor,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(
@@ -197,24 +180,19 @@ class PremiumAlertDialog extends StatelessWidget {
     );
   }
 }
-
-/// Premium bottom sheet wrapper
 class PremiumBottomSheet extends StatelessWidget {
   final String? title;
   final Widget child;
   final VoidCallback? onClose;
-
   const PremiumBottomSheet({
     super.key,
     this.title,
     required this.child,
     this.onClose,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return AnimatedBuilder(
       animation:
           ModalRoute.of(context)?.animation ?? AlwaysStoppedAnimation(1.0),
@@ -251,7 +229,6 @@ class PremiumBottomSheet extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            // Handle bar
             Padding(
               padding: const EdgeInsets.only(top: PremiumSpacing.lg),
               child: Container(
@@ -318,17 +295,12 @@ class PremiumBottomSheet extends StatelessWidget {
     );
   }
 }
-
-/// Premium loading dialog
 class PremiumLoadingDialog extends StatelessWidget {
   final String? message;
-
   const PremiumLoadingDialog({super.key, this.message});
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Dialog(
       backgroundColor: Colors.transparent,
       child: Container(

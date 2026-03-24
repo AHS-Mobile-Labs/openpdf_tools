@@ -17,7 +17,6 @@ import 'pdf_viewer_screen.dart';
 
 class ConvertToPdfScreen extends StatefulWidget {
   const ConvertToPdfScreen({super.key});
-
   @override
   State<ConvertToPdfScreen> createState() => _ConvertToPdfScreenState();
 }
@@ -26,20 +25,14 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   bool _isProcessing = false;
   String? _selectedFormat;
   File? _selectedFile;
-
-  /// Get supported formats based on platform
-  /// Mobile (Android/iOS): Only Images, TIFF, Text
-  /// Desktop/Web (Windows, macOS, Linux): All formats
   Map<String, String> _getSupportedFormats() {
     if (kIsWeb || PlatformHelper.isMobile) {
-      // Mobile/Web: Only basic supported formats
       return {
         'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
         'TIFF to PDF': 'tiff,tif',
         'Text to PDF': 'txt',
       };
     }
-    // Desktop/Web: All formats supported
     return {
       'Word to PDF': 'docx,doc',
       'PowerPoint to PDF': 'pptx,ppt',
@@ -59,7 +52,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
   Future<void> pickFile(String format) async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -74,22 +66,17 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           );
         }
       }
-
-      // Also request camera permission if converting images from camera
       if (format.contains('Images') && PlatformHelper.isAndroid) {
         await PlatformFileHandler.requestCameraPermission();
       }
-
       final supportedFormats = _getSupportedFormats();
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: supportedFormats[format]!.split(','),
         withData: kIsWeb,
       );
-
       if (result != null && result.files.isNotEmpty) {
         if (kIsWeb) {
-          // On web, use bytes directly
           final fileBytes = result.files.first.bytes;
           final fileName = result.files.first.name;
           if (fileBytes != null) {
@@ -108,9 +95,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         }
       }
     } catch (e) {
-      // ignore: use_build_context_synchronously
+      if (!mounted) return;
       final choice = await showDialog<String>(
-        // ignore: use_build_context_synchronously
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('File picker failed'),
@@ -131,12 +117,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           ],
         ),
       );
-
       if (choice == 'inapp') {
-        // ignore: use_build_context_synchronously
         final supportedFormats = _getSupportedFormats();
+        if (!mounted) return;
         final selected = await showInAppFilePicker(
-          // ignore: use_build_context_synchronously
           context,
           initialDirectory: Directory.current.path,
           allowedExtensions: supportedFormats[format]!.split(','),
@@ -177,7 +161,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         ],
       ),
     );
-
     if (submit == true) {
       final path = controller.text.trim();
       if (path.isEmpty) return;
@@ -203,14 +186,11 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
     String fileName,
   ) async {
     setState(() => _isProcessing = true);
-
     try {
       final ext = fileName.split('.').last.toLowerCase();
-
       if (['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif', 'bmp'].contains(ext)) {
         final image = img.decodeImage(fileBytes);
         if (image == null) throw Exception('Failed to decode image');
-
         final pdf = pw.Document();
         pdf.addPage(
           pw.Page(
@@ -221,7 +201,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
             build: (pw.Context context) => pw.Image(pw.MemoryImage(fileBytes)),
           ),
         );
-
         final pdfBytes = await pdf.save();
         await Printing.sharePdf(
           bytes: Uint8List.fromList(pdfBytes),
@@ -232,7 +211,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         final pdf = pw.Document();
         final lines = content.split('\n');
         const linesPerPage = 50;
-
         for (int i = 0; i < lines.length; i += linesPerPage) {
           final pageLines = lines
               .sublist(i, (i + linesPerPage).clamp(0, lines.length))
@@ -249,7 +227,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
             ),
           );
         }
-
         final pdfBytes = await pdf.save();
         await Printing.sharePdf(
           bytes: Uint8List.fromList(pdfBytes),
@@ -261,7 +238,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           'Please use the desktop app or an online converter.',
         );
       }
-
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(content: Text('PDF created successfully')),
@@ -280,16 +256,13 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
   Future<void> _convertToPdf() async {
     if (_selectedFile == null || _selectedFormat == null) return;
-
     setState(() => _isProcessing = true);
-
     try {
       final fileExtension = path
           .extension(_selectedFile!.path)
           .replaceFirst('.', '')
           .toLowerCase();
       String? outputPath;
-
       if ([
         'jpg',
         'jpeg',
@@ -330,7 +303,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           '$fileExtension, you may need to use an external service or install LibreOffice.',
         );
       }
-
       if (outputPath != null && await File(outputPath).exists()) {
         await _showSuccessDialog(outputPath);
       } else {
@@ -352,7 +324,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       final imageBytes = await imageFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode image');
-
       final pdf = pw.Document();
       pdf.addPage(
         pw.Page(
@@ -363,7 +334,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
         ),
       );
-
       final tempDir = await getTemporaryDirectory();
       final outputPath = path.join(
         tempDir.path,
@@ -382,12 +352,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       final pdf = pw.Document();
       final lines = content.split('\n');
       const linesPerPage = 50;
-
       for (int i = 0; i < lines.length; i += linesPerPage) {
         final pageLines = lines
             .sublist(i, (i + linesPerPage).clamp(0, lines.length))
             .join('\n');
-
         pdf.addPage(
           pw.Page(
             build: (pw.Context context) => pw.Padding(
@@ -400,7 +368,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           ),
         );
       }
-
       final tempDir = await getTemporaryDirectory();
       final outputPath = path.join(
         tempDir.path,
@@ -414,7 +381,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertOfficeFormatToPdf(File sourceFile) async {
-    // Android and iOS don't have LibreOffice available
     if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'Office format conversion is not supported on this platform.\n\n'
@@ -425,13 +391,9 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         'Or convert on desktop (Windows/macOS/Linux) first.',
       );
     }
-
     final tempDir = await getTemporaryDirectory();
     final filename = path.basenameWithoutExtension(sourceFile.path);
-
-    // Build the LibreOffice command based on platform
     final command = PlatformHelper.isWindows ? 'soffice' : 'libreoffice';
-
     try {
       final result = await Process.run(command, [
         '--headless',
@@ -441,12 +403,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         tempDir.path,
         sourceFile.path,
       ]);
-
       if (result.exitCode == 0) {
         final convertedFile = File(path.join(tempDir.path, '$filename.pdf'));
         if (await convertedFile.exists()) return convertedFile.path;
       }
-
       throw Exception(
         'LibreOffice conversion failed.\n\n'
         'For Office formats (DOCX, XLSX, PPTX, etc.), install LibreOffice:\n'
@@ -470,7 +430,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertSvgToPdf(File svgFile) async {
-    // On mobile/web platforms, SVG conversion is not supported
     if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'SVG to PDF conversion is not supported on mobile devices.\n\n'
@@ -481,17 +440,14 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         '• AnyConv.com',
       );
     }
-    // Use LibreOffice for SVG conversion on desktop (supports SVG->PDF)
     return _convertOfficeFormatToPdf(svgFile);
   }
 
   Future<String?> _convertTiffToPdf(File tiffFile) async {
-    // Convert TIFF image to PDF using PDF package
     try {
       final imageBytes = await tiffFile.readAsBytes();
       final image = img.decodeImage(imageBytes);
       if (image == null) throw Exception('Failed to decode TIFF image');
-
       final pdf = pw.Document();
       pdf.addPage(
         pw.Page(
@@ -502,7 +458,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
         ),
       );
-
       final tempDir = await getTemporaryDirectory();
       final outputPath = path.join(
         tempDir.path,
@@ -516,7 +471,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertRtfToPdf(File rtfFile) async {
-    // On mobile/web platforms, RTF conversion is not supported
     if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'RTF to PDF conversion is not supported on mobile devices.\n\n'
@@ -527,12 +481,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         '• AnyConv.com',
       );
     }
-    // Use LibreOffice for RTF conversion on desktop
     return _convertOfficeFormatToPdf(rtfFile);
   }
 
   Future<String?> _convertEpubToPdf(File epubFile) async {
-    // On mobile/web platforms, EPUB conversion uses limited HTML method
     if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'EPUB to PDF conversion is not supported on mobile devices.\n\n'
@@ -543,12 +495,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         '• AnyConv.com',
       );
     }
-    // Use LibreOffice for EPUB conversion on desktop
     return _convertOfficeFormatToPdf(epubFile);
   }
 
   Future<String?> _convertOdgToPdf(File odgFile) async {
-    // On mobile/web platforms, ODG conversion is not supported
     if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'ODG (Drawing) to PDF conversion is not supported on mobile devices.\n\n'
@@ -559,23 +509,19 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         '• AnyConv.com',
       );
     }
-    // Use LibreOffice for ODG (OpenDocument Drawing) conversion on desktop
     return _convertOfficeFormatToPdf(odgFile);
   }
 
   Future<void> _showSuccessDialog(String filePath) async {
     final fileSize = await File(filePath).length();
     final sizeInMB = (fileSize / (1024 * 1024)).toStringAsFixed(2);
-
     if (!mounted) return;
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: Text('✓ ${path.basename(filePath)} ($sizeInMB MB)'),
         duration: const Duration(seconds: 2),
       ),
     );
-
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -583,8 +529,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       ),
     );
   }
-
-  // ── UI ──────────────────────────────────────────────────────────────────────
 
   Color _getCardColor(String format) {
     if (format.contains('Word')) return const Color(0xFF2B7BB9);
@@ -618,7 +562,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final width = MediaQuery.of(context).size.width;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -756,7 +699,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         .take(2)
         .map((e) => e.trim().toUpperCase())
         .join(', ');
-
     return Material(
       color: Colors.transparent,
       borderRadius: BorderRadius.circular(10),

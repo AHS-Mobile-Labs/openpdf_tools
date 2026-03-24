@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Collection of smooth, modern animation utilities
 class AnimationUtils {
-  // Animation durations
   static const Duration fastest = Duration(milliseconds: 150);
   static const Duration fast = Duration(milliseconds: 200);
   static const Duration standard = Duration(milliseconds: 300);
@@ -10,9 +8,7 @@ class AnimationUtils {
   static const Duration slow = Duration(milliseconds: 500);
   static const Duration slower = Duration(milliseconds: 700);
   static const Duration slowest = Duration(milliseconds: 1000);
-
-  // Animation curves
-  static const Curve smoothCurve = Cubic(0.4, 0.0, 0.2, 1.0); // Fluent curve
+  static const Curve smoothCurve = Cubic(0.4, 0.0, 0.2, 1.0);
   static const Curve easeIn = Curves.easeIn;
   static const Curve easeOut = Curves.easeOut;
   static const Curve easeInOut = Curves.easeInOut;
@@ -20,9 +16,7 @@ class AnimationUtils {
   static const Curve easeOutBack = Curves.easeOutBack;
 }
 
-/// Page transition animations
 class PageTransitions {
-  /// Fade transition
   static PageRoute<T> fadeTransition<T>(
     Widget page, {
     Duration duration = const Duration(milliseconds: 300),
@@ -36,7 +30,6 @@ class PageTransitions {
     );
   }
 
-  /// Slide transition (right to left)
   static PageRoute<T> slideTransition<T>(
     Widget page, {
     Duration duration = const Duration(milliseconds: 400),
@@ -63,13 +56,11 @@ class PageTransitions {
         }
         const end = Offset.zero;
         final tween = Tween(begin: begin, end: end);
-
         return SlideTransition(position: animation.drive(tween), child: child);
       },
     );
   }
 
-  /// Scale transition
   static PageRoute<T> scaleTransition<T>(
     Widget page, {
     Duration duration = const Duration(milliseconds: 400),
@@ -91,7 +82,6 @@ class PageTransitions {
     );
   }
 
-  /// Combined slide and fade transition
   static PageRoute<T> slideAndFadeTransition<T>(
     Widget page, {
     Duration duration = const Duration(milliseconds: 400),
@@ -113,7 +103,6 @@ class PageTransitions {
     );
   }
 
-  /// Rotate and fade transition
   static PageRoute<T> rotateAndFadeTransition<T>(
     Widget page, {
     Duration duration = const Duration(milliseconds: 400),
@@ -139,9 +128,7 @@ class PageTransitions {
   }
 }
 
-/// Button interaction animations
 class ButtonAnimations {
-  /// Press animation with scale effect
   static Widget scaleOnPress({
     required Widget child,
     required VoidCallback onPressed,
@@ -154,7 +141,6 @@ class ButtonAnimations {
     );
   }
 
-  /// Ripple effect on tap
   static Widget rippleEffect({
     required Widget child,
     required VoidCallback onPressed,
@@ -171,7 +157,6 @@ class ButtonAnimations {
     );
   }
 
-  /// Elevation change on hover/press
   static Widget elevatedOnPress({
     required Widget child,
     required VoidCallback onPressed,
@@ -187,9 +172,7 @@ class ButtonAnimations {
   }
 }
 
-/// Card animation widgets
 class CardAnimations {
-  /// Elevation on tap effect
   static Widget elevationOnTap({
     required Widget child,
     required VoidCallback onTap,
@@ -197,7 +180,6 @@ class CardAnimations {
     return _TapElevationCard(onTap: onTap, child: child);
   }
 
-  /// Floating animation effect
   static Widget floatingEffect({
     required Widget child,
     double offsetY = 4,
@@ -206,7 +188,6 @@ class CardAnimations {
     return _FloatingCard(offsetY: offsetY, duration: duration, child: child);
   }
 
-  /// Slide-in animation
   static Widget slideInAnimation({
     required Widget child,
     Duration duration = const Duration(milliseconds: 400),
@@ -216,9 +197,7 @@ class CardAnimations {
   }
 }
 
-/// Loading animations
 class LoadingAnimations {
-  /// Shimmer effect for skeleton loaders
   static Widget shimmer({
     required Widget child,
     Duration duration = const Duration(milliseconds: 1500),
@@ -226,7 +205,6 @@ class LoadingAnimations {
     return _ShimmerEffect(duration: duration, child: child);
   }
 
-  /// Pulsing animation
   static Widget pulse({
     required Widget child,
     Duration duration = const Duration(milliseconds: 1500),
@@ -235,9 +213,7 @@ class LoadingAnimations {
   }
 }
 
-/// Scroll animations
 class ScrollAnimations {
-  /// Fade and slide as you scroll
   static Widget fadeAndSlideOnScroll({
     required Widget child,
     required ScrollController scrollController,
@@ -251,19 +227,15 @@ class ScrollAnimations {
   }
 }
 
-// ============= INTERNAL ANIMATION WIDGETS =============
-
 class _PressScaleButton extends StatefulWidget {
   final Widget child;
   final VoidCallback onPressed;
   final Duration duration;
-
   const _PressScaleButton({
     required this.child,
     required this.onPressed,
     required this.duration,
   });
-
   @override
   State<_PressScaleButton> createState() => _PressScaleButtonState();
 }
@@ -272,12 +244,10 @@ class _PressScaleButtonState extends State<_PressScaleButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _scaleAnimation;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this);
-
     _scaleAnimation = Tween<double>(
       begin: 1.0,
       end: 0.95,
@@ -314,14 +284,12 @@ class _PressElevatedButton extends StatefulWidget {
   final VoidCallback onPressed;
   final double baseElevation;
   final double pressedElevation;
-
   const _PressElevatedButton({
     required this.child,
     required this.onPressed,
     required this.baseElevation,
     required this.pressedElevation,
   });
-
   @override
   State<_PressElevatedButton> createState() => _PressElevatedButtonState();
 }
@@ -330,7 +298,6 @@ class _PressElevatedButtonState extends State<_PressElevatedButton>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _elevationAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -338,7 +305,6 @@ class _PressElevatedButtonState extends State<_PressElevatedButton>
       duration: const Duration(milliseconds: 150),
       vsync: this,
     );
-
     _elevationAnimation = Tween<double>(
       begin: widget.baseElevation,
       end: widget.pressedElevation,
@@ -392,9 +358,7 @@ class _PressElevatedButtonState extends State<_PressElevatedButton>
 class _TapElevationCard extends StatefulWidget {
   final Widget child;
   final VoidCallback onTap;
-
   const _TapElevationCard({required this.child, required this.onTap});
-
   @override
   State<_TapElevationCard> createState() => _TapElevationCardState();
 }
@@ -403,7 +367,6 @@ class _TapElevationCardState extends State<_TapElevationCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _elevationAnimation;
-
   @override
   void initState() {
     super.initState();
@@ -411,7 +374,6 @@ class _TapElevationCardState extends State<_TapElevationCard>
       duration: const Duration(milliseconds: 200),
       vsync: this,
     );
-
     _elevationAnimation = Tween<double>(
       begin: 0,
       end: 8,
@@ -459,13 +421,11 @@ class _FloatingCard extends StatefulWidget {
   final Widget child;
   final double offsetY;
   final Duration duration;
-
   const _FloatingCard({
     required this.child,
     required this.offsetY,
     required this.duration,
   });
-
   @override
   State<_FloatingCard> createState() => _FloatingCardState();
 }
@@ -474,13 +434,11 @@ class _FloatingCardState extends State<_FloatingCard>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _offsetAnimation;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this)
       ..repeat(reverse: true);
-
     _offsetAnimation = Tween<double>(
       begin: 0,
       end: widget.offsetY,
@@ -512,13 +470,11 @@ class _SlideInCard extends StatefulWidget {
   final Widget child;
   final Duration duration;
   final Offset offset;
-
   const _SlideInCard({
     required this.child,
     required this.duration,
     required this.offset,
   });
-
   @override
   State<_SlideInCard> createState() => _SlideInCardState();
 }
@@ -528,22 +484,18 @@ class _SlideInCardState extends State<_SlideInCard>
   late AnimationController _controller;
   late Animation<Offset> _slideAnimation;
   late Animation<double> _fadeAnimation;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this);
-
     _slideAnimation = Tween<Offset>(
       begin: widget.offset,
       end: Offset.zero,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
     _fadeAnimation = Tween<double>(
       begin: 0,
       end: 1,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeOut));
-
     _controller.forward();
   }
 
@@ -565,9 +517,7 @@ class _SlideInCardState extends State<_SlideInCard>
 class _ShimmerEffect extends StatefulWidget {
   final Widget child;
   final Duration duration;
-
   const _ShimmerEffect({required this.child, required this.duration});
-
   @override
   State<_ShimmerEffect> createState() => _ShimmerEffectState();
 }
@@ -576,13 +526,11 @@ class _ShimmerEffectState extends State<_ShimmerEffect>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _shimmerAnimation;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this)
       ..repeat();
-
     _shimmerAnimation = Tween<double>(
       begin: -1,
       end: 2,
@@ -628,9 +576,7 @@ class _ShimmerEffectState extends State<_ShimmerEffect>
 class _PulseAnimation extends StatefulWidget {
   final Widget child;
   final Duration duration;
-
   const _PulseAnimation({required this.child, required this.duration});
-
   @override
   State<_PulseAnimation> createState() => _PulseAnimationState();
 }
@@ -639,13 +585,11 @@ class _PulseAnimationState extends State<_PulseAnimation>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
   late Animation<double> _opacityAnimation;
-
   @override
   void initState() {
     super.initState();
     _controller = AnimationController(duration: widget.duration, vsync: this)
       ..repeat(reverse: true);
-
     _opacityAnimation = Tween<double>(
       begin: 0.5,
       end: 1.0,
@@ -668,13 +612,11 @@ class _ScrollFadeSlideAnimation extends StatefulWidget {
   final Widget child;
   final ScrollController scrollController;
   final Duration duration;
-
   const _ScrollFadeSlideAnimation({
     required this.child,
     required this.scrollController,
     required this.duration,
   });
-
   @override
   State<_ScrollFadeSlideAnimation> createState() =>
       _ScrollFadeSlideAnimationState();
@@ -683,7 +625,6 @@ class _ScrollFadeSlideAnimation extends StatefulWidget {
 class _ScrollFadeSlideAnimationState extends State<_ScrollFadeSlideAnimation>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
-
   @override
   void initState() {
     super.initState();

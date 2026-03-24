@@ -1,9 +1,6 @@
 import 'package:flutter/material.dart';
 
-/// Premium luxury color palette for the app
-/// Refined, sophisticated colors with excellent contrast
 class PremiumColors {
-  // Light Theme
   static const Color lightBg = Color(0xFFFAFAFA);
   static const Color lightSurfacePrimary = Color(0xFFFFFFFF);
   static const Color lightSurfaceSecondary = Color(0xFFF5F5F5);
@@ -11,8 +8,6 @@ class PremiumColors {
   static const Color lightTextSecondary = Color(0xFF666666);
   static const Color lightTextTertiary = Color(0xFF999999);
   static const Color lightDivider = Color(0xFFE8E8E8);
-
-  // Dark Theme
   static const Color darkBg = Color(0xFF0F0F0F);
   static const Color darkSurfacePrimary = Color(0xFF1A1A1A);
   static const Color darkSurfaceSecondary = Color(0xFF252525);
@@ -20,102 +15,79 @@ class PremiumColors {
   static const Color darkTextSecondary = Color(0xFFB3B3B3);
   static const Color darkTextTertiary = Color(0xFF808080);
   static const Color darkDivider = Color(0xFF333333);
-
-  // Luxury Accent Colors (Refined)
-  static const Color luxuryRed = Color(0xFFD4465F); // Premium red
-  static const Color luxuryGold = Color(0xFFD4AF37); // Genuine gold
-  static const Color luxuryBlue = Color(0xFF4A7BA7); // Slate blue
-  static const Color luxuryPurple = Color(0xFF6B5B95); // Eggplant
-  static const Color luxuryGreen = Color(0xFF6B8E47); // Sage green
-
-  // Semantic Colors
+  static const Color luxuryRed = Color(0xFFD4465F);
+  static const Color luxuryGold = Color(0xFFD4AF37);
+  static const Color luxuryBlue = Color(0xFF4A7BA7);
+  static const Color luxuryPurple = Color(0xFF6B5B95);
+  static const Color luxuryGreen = Color(0xFF6B8E47);
   static const Color success = Color(0xFF52C41A);
   static const Color warning = Color(0xFFFAA61A);
   static const Color error = Color(0xFFFF4D4F);
   static const Color info = Color(0xFF1890FF);
 }
 
-/// Luxury Typography configuration
 class PremiumTypography {
-  static const String fontFamily = 'Outfit'; // Modern, clean font
-
-  // Font weights
+  static const String fontFamily = 'Outfit';
   static const FontWeight light = FontWeight.w300;
   static const FontWeight regular = FontWeight.w400;
   static const FontWeight medium = FontWeight.w500;
   static const FontWeight semibold = FontWeight.w600;
   static const FontWeight bold = FontWeight.w700;
-
-  // Display styles (Headlines)
   static TextStyle displayLarge = const TextStyle(
     fontSize: 32,
     fontWeight: bold,
     letterSpacing: -0.5,
   );
-
   static TextStyle displayMedium = const TextStyle(
     fontSize: 28,
     fontWeight: bold,
     letterSpacing: -0.3,
   );
-
   static TextStyle displaySmall = const TextStyle(
     fontSize: 24,
     fontWeight: semibold,
     letterSpacing: -0.2,
   );
-
-  // Headline styles
   static TextStyle headlineLarge = const TextStyle(
     fontSize: 20,
     fontWeight: semibold,
     letterSpacing: 0,
   );
-
   static TextStyle headlineMedium = const TextStyle(
     fontSize: 18,
     fontWeight: semibold,
     letterSpacing: 0,
   );
-
   static TextStyle headlineSmall = const TextStyle(
     fontSize: 16,
     fontWeight: semibold,
     letterSpacing: 0.15,
   );
-
-  // Body styles
   static TextStyle bodyLarge = const TextStyle(
     fontSize: 16,
     fontWeight: regular,
     letterSpacing: 0.15,
   );
-
   static TextStyle bodyMedium = const TextStyle(
     fontSize: 14,
     fontWeight: regular,
     letterSpacing: 0.25,
   );
-
   static TextStyle bodySmall = const TextStyle(
     fontSize: 12,
     fontWeight: regular,
     letterSpacing: 0.4,
   );
-
-  // Label styles (for buttons, chips, etc.)
   static TextStyle labelLarge = const TextStyle(
     fontSize: 14,
     fontWeight: semibold,
     letterSpacing: 0.1,
   );
-
   static TextStyle labelMedium = const TextStyle(
     fontSize: 12,
     fontWeight: semibold,
     letterSpacing: 0.5,
   );
-
   static TextStyle labelSmall = const TextStyle(
     fontSize: 11,
     fontWeight: semibold,
@@ -123,9 +95,7 @@ class PremiumTypography {
   );
 }
 
-/// Spacing and sizing constants
 class PremiumSpacing {
-  // Consistent spacing scale (4pt grid)
   static const double xs = 4;
   static const double sm = 8;
   static const double md = 12;
@@ -133,66 +103,51 @@ class PremiumSpacing {
   static const double xl = 24;
   static const double xxl = 32;
   static const double xxxl = 48;
-
-  // Border radius (modern rounded corners)
   static const double radiusSm = 6;
   static const double radiusMd = 12;
   static const double radiusLg = 16;
   static const double radiusXl = 20;
   static const double radiusCircle = 100;
-
-  // Sizes
   static const double iconSmall = 16;
   static const double iconMedium = 24;
   static const double iconLarge = 32;
   static const double iconXLarge = 48;
-
-  // Component heights
   static const double buttonHeight = 48;
   static const double chipHeight = 32;
   static const double cardElevation = 1;
 }
 
-/// Elevation and shadow system
 class PremiumShadows {
-  // Soft shadows for depth
   static const BoxShadow shadowSm = BoxShadow(
     color: Color(0x00000000),
     blurRadius: 2,
     offset: Offset(0, 1),
   );
-
   static const BoxShadow shadowMd = BoxShadow(
     color: Color(0x0D000000),
     blurRadius: 8,
     offset: Offset(0, 2),
   );
-
   static const BoxShadow shadowLg = BoxShadow(
     color: Color(0x14000000),
     blurRadius: 16,
     offset: Offset(0, 4),
   );
-
   static const BoxShadow shadowXl = BoxShadow(
     color: Color(0x1C000000),
     blurRadius: 24,
     offset: Offset(0, 8),
   );
-
   static List<BoxShadow> get shadowList => [shadowMd];
   static List<BoxShadow> get elevatedShadow => [shadowLg];
 }
 
-/// Generate light theme
 ThemeData createLightTheme() {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     primaryColor: PremiumColors.luxuryRed,
     scaffoldBackgroundColor: PremiumColors.lightBg,
-
-    // Color scheme
     colorScheme: const ColorScheme.light(
       primary: PremiumColors.luxuryRed,
       onPrimary: Colors.white,
@@ -204,8 +159,6 @@ ThemeData createLightTheme() {
       onError: Colors.white,
       outline: PremiumColors.lightDivider,
     ),
-
-    // App bar
     appBarTheme: const AppBarTheme(
       backgroundColor: PremiumColors.lightSurfacePrimary,
       foregroundColor: PremiumColors.lightText,
@@ -214,8 +167,6 @@ ThemeData createLightTheme() {
       scrolledUnderElevation: 0.5,
       surfaceTintColor: PremiumColors.lightBg,
     ),
-
-    // Bottom navigation bar
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: PremiumColors.lightSurfacePrimary,
       selectedItemColor: PremiumColors.luxuryRed,
@@ -223,8 +174,6 @@ ThemeData createLightTheme() {
       elevation: 0,
       type: BottomNavigationBarType.fixed,
     ),
-
-    // Elevated button
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: PremiumColors.luxuryRed,
@@ -237,8 +186,6 @@ ThemeData createLightTheme() {
         textStyle: PremiumTypography.labelLarge.copyWith(color: Colors.white),
       ),
     ),
-
-    // Text button
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: PremiumColors.luxuryRed,
@@ -246,8 +193,6 @@ ThemeData createLightTheme() {
         textStyle: PremiumTypography.labelLarge,
       ),
     ),
-
-    // Outlined button
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: PremiumColors.luxuryRed,
@@ -259,8 +204,6 @@ ThemeData createLightTheme() {
         textStyle: PremiumTypography.labelLarge,
       ),
     ),
-
-    // Card
     cardTheme: CardThemeData(
       color: PremiumColors.lightSurfacePrimary,
       elevation: PremiumSpacing.cardElevation,
@@ -270,8 +213,6 @@ ThemeData createLightTheme() {
       shadowColor: Colors.black.withValues(alpha: 0.05),
       margin: EdgeInsets.zero,
     ),
-
-    // Input decoration
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: PremiumColors.lightSurfaceSecondary,
@@ -305,15 +246,11 @@ ThemeData createLightTheme() {
         color: PremiumColors.luxuryRed,
       ),
     ),
-
-    // Divider
     dividerTheme: const DividerThemeData(
       color: PremiumColors.lightDivider,
       thickness: 1,
       space: 0,
     ),
-
-    // Text theme
     textTheme: TextTheme(
       displayLarge: PremiumTypography.displayLarge.copyWith(
         color: PremiumColors.lightText,
@@ -352,8 +289,6 @@ ThemeData createLightTheme() {
         color: PremiumColors.lightTextTertiary,
       ),
     ),
-
-    // Dialogs
     dialogTheme: DialogThemeData(
       backgroundColor: PremiumColors.lightSurfacePrimary,
       elevation: 0,
@@ -365,15 +300,12 @@ ThemeData createLightTheme() {
   );
 }
 
-/// Generate dark theme
 ThemeData createDarkTheme() {
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     primaryColor: PremiumColors.luxuryRed,
     scaffoldBackgroundColor: PremiumColors.darkBg,
-
-    // Color scheme
     colorScheme: const ColorScheme.dark(
       primary: PremiumColors.luxuryRed,
       onPrimary: Colors.white,
@@ -385,8 +317,6 @@ ThemeData createDarkTheme() {
       onError: Colors.white,
       outline: PremiumColors.darkDivider,
     ),
-
-    // App bar
     appBarTheme: const AppBarTheme(
       backgroundColor: PremiumColors.darkSurfacePrimary,
       foregroundColor: PremiumColors.darkText,
@@ -395,8 +325,6 @@ ThemeData createDarkTheme() {
       scrolledUnderElevation: 0.5,
       surfaceTintColor: PremiumColors.darkBg,
     ),
-
-    // Bottom navigation bar
     bottomNavigationBarTheme: const BottomNavigationBarThemeData(
       backgroundColor: PremiumColors.darkSurfacePrimary,
       selectedItemColor: PremiumColors.luxuryRed,
@@ -404,8 +332,6 @@ ThemeData createDarkTheme() {
       elevation: 0,
       type: BottomNavigationBarType.fixed,
     ),
-
-    // Elevated button
     elevatedButtonTheme: ElevatedButtonThemeData(
       style: ElevatedButton.styleFrom(
         backgroundColor: PremiumColors.luxuryRed,
@@ -418,8 +344,6 @@ ThemeData createDarkTheme() {
         textStyle: PremiumTypography.labelLarge.copyWith(color: Colors.white),
       ),
     ),
-
-    // Text button
     textButtonTheme: TextButtonThemeData(
       style: TextButton.styleFrom(
         foregroundColor: PremiumColors.luxuryRed,
@@ -427,8 +351,6 @@ ThemeData createDarkTheme() {
         textStyle: PremiumTypography.labelLarge,
       ),
     ),
-
-    // Outlined button
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: OutlinedButton.styleFrom(
         foregroundColor: PremiumColors.luxuryRed,
@@ -440,8 +362,6 @@ ThemeData createDarkTheme() {
         textStyle: PremiumTypography.labelLarge,
       ),
     ),
-
-    // Card
     cardTheme: CardThemeData(
       color: PremiumColors.darkSurfaceSecondary,
       elevation: PremiumSpacing.cardElevation,
@@ -451,8 +371,6 @@ ThemeData createDarkTheme() {
       shadowColor: Colors.black.withValues(alpha: 0.3),
       margin: EdgeInsets.zero,
     ),
-
-    // Input decoration
     inputDecorationTheme: InputDecorationTheme(
       filled: true,
       fillColor: PremiumColors.darkSurfaceSecondary,
@@ -486,15 +404,11 @@ ThemeData createDarkTheme() {
         color: PremiumColors.luxuryRed,
       ),
     ),
-
-    // Divider
     dividerTheme: const DividerThemeData(
       color: PremiumColors.darkDivider,
       thickness: 1,
       space: 0,
     ),
-
-    // Text theme
     textTheme: TextTheme(
       displayLarge: PremiumTypography.displayLarge.copyWith(
         color: PremiumColors.darkText,
@@ -533,8 +447,6 @@ ThemeData createDarkTheme() {
         color: PremiumColors.darkTextTertiary,
       ),
     ),
-
-    // Dialogs
     dialogTheme: DialogThemeData(
       backgroundColor: PremiumColors.darkSurfacePrimary,
       elevation: 0,

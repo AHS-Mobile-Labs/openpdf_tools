@@ -1,12 +1,9 @@
 import 'package:flutter/material.dart';
-
-/// Modern minimal navigation item
 class ModernNavigationItem {
   final IconData icon;
   final String label;
   final Widget screen;
   final String? badge;
-
   ModernNavigationItem({
     required this.icon,
     required this.label,
@@ -14,15 +11,12 @@ class ModernNavigationItem {
     this.badge,
   });
 }
-
-/// Modern navigation rail for desktop/tablet
 class ModernNavigationRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;
   final List<ModernNavigationItem> items;
   final Widget? header;
   final Widget? footer;
-
   const ModernNavigationRail({
     super.key,
     required this.selectedIndex,
@@ -31,11 +25,9 @@ class ModernNavigationRail extends StatelessWidget {
     this.header,
     this.footer,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       width: 280,
       decoration: BoxDecoration(
@@ -48,7 +40,6 @@ class ModernNavigationRail extends StatelessWidget {
       ),
       child: Column(
         children: [
-          // Header
           if (header != null) ...[
             Padding(padding: const EdgeInsets.all(20), child: header),
             Divider(
@@ -70,7 +61,6 @@ class ModernNavigationRail extends StatelessWidget {
               height: 1,
             ),
           ],
-          // Navigation items
           Expanded(
             child: ListView.builder(
               padding: const EdgeInsets.symmetric(vertical: 8),
@@ -78,7 +68,6 @@ class ModernNavigationRail extends StatelessWidget {
               itemBuilder: (context, index) {
                 final isSelected = selectedIndex == index;
                 final item = items[index];
-
                 return Padding(
                   padding: const EdgeInsets.symmetric(
                     horizontal: 8,
@@ -158,7 +147,6 @@ class ModernNavigationRail extends StatelessWidget {
               },
             ),
           ),
-          // Footer
           if (footer != null) ...[
             Divider(
               color: isDark ? const Color(0xFF404040) : Colors.grey.shade200,
@@ -171,24 +159,19 @@ class ModernNavigationRail extends StatelessWidget {
     );
   }
 }
-
-/// Modern bottom navigation for mobile
 class ModernBottomNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;
   final List<ModernNavigationItem> items;
-
   const ModernBottomNavigation({
     super.key,
     required this.selectedIndex,
     required this.onIndexChanged,
     required this.items,
   });
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return SafeArea(
       bottom: true,
       top: false,
@@ -206,7 +189,6 @@ class ModernBottomNavigation extends StatelessWidget {
           children: List.generate(items.length > 5 ? 5 : items.length, (index) {
             final isSelected = selectedIndex == index;
             final item = items[index];
-
             return Expanded(
               child: Material(
                 color: Colors.transparent,

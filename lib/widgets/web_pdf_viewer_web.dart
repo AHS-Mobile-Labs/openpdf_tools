@@ -1,16 +1,15 @@
-// ignore_for_file: deprecated_member_use, avoid_web_libraries_in_flutter
+// ignore_for_file: avoid_web_libraries_in_flutter
 import 'dart:typed_data';
 import 'dart:convert';
 import 'package:flutter/material.dart';
+// ignore: deprecated_member_use
 import 'dart:html' as html;
 import 'dart:ui_web' as ui;
 
 class WebPdfViewer extends StatefulWidget {
   final Uint8List pdfBytes;
   final String? fileName;
-
   const WebPdfViewer({super.key, required this.pdfBytes, this.fileName});
-
   @override
   State<WebPdfViewer> createState() => _WebPdfViewerState();
 }
@@ -19,7 +18,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
   late String _viewId;
   bool _isLoaded = false;
   String? _blobUrl;
-
   @override
   void initState() {
     super.initState();
@@ -36,10 +34,7 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
   }
 
   void _loadPdf() {
-    // Convert bytes to base64
     final base64String = base64Encode(widget.pdfBytes);
-
-    // Create HTML content with PDF.js viewer
     final htmlContent =
         '''
     <!DOCTYPE html>
@@ -52,19 +47,16 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           padding: 0;
           box-sizing: border-box;
         }
-        
         body {
           font-family: Arial, sans-serif;
           background: #f0f0f0;
         }
-        
         #pdf-container {
           display: flex;
           flex-direction: column;
           height: 100vh;
           width: 100%;
         }
-        
         #toolbar {
           background: #333;
           color: white;
@@ -76,19 +68,16 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           flex-wrap: wrap;
           justify-content: space-between;
         }
-        
         #toolbar-left {
           display: flex;
           align-items: center;
           gap: 10px;
         }
-        
         #toolbar-right {
           display: flex;
           align-items: center;
           gap: 10px;
         }
-        
         .toolbar-btn {
           background: #555;
           border: none;
@@ -99,29 +88,24 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           font-size: 14px;
           transition: background 0.3s;
         }
-        
         .toolbar-btn:hover {
           background: #777;
         }
-        
         .toolbar-btn:disabled {
           background: #888;
           cursor: not-allowed;
           opacity: 0.6;
         }
-        
         .separator {
           width: 1px;
           height: 24px;
           background: #555;
         }
-        
         #page-info {
           color: white;
           font-size: 14px;
           margin-left: 10px;
         }
-        
         #zoom-input {
           width: 70px;
           padding: 6px 8px;
@@ -129,7 +113,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           border-radius: 4px;
           font-size: 14px;
         }
-        
         #canvas-container {
           flex: 1;
           overflow: auto;
@@ -139,13 +122,11 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           padding: 20px;
           background: #f0f0f0;
         }
-        
         #pdf-canvas {
           box-shadow: 0 0 10px rgba(0,0,0,0.2);
           max-width: 100%;
           height: auto;
         }
-        
         #file-name {
           color: white;
           font-size: 14px;
@@ -180,7 +161,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           <canvas id="pdf-canvas"></canvas>
         </div>
       </div>
-
       <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
       <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
@@ -189,8 +169,7 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
         let currentPage = 1;
         let pageCount = 0;
         let scale = 1;
-        let fitMode = 'custom'; // 'custom', 'width', 'page'
-
+        let fitMode = 'custom';
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
         const pageNumSpan = document.getElementById('page-num');
@@ -203,13 +182,9 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
         const zoomInBtn = document.getElementById('zoom-in-btn');
         const fitWidthBtn = document.getElementById('fit-width-btn');
         const canvasContainer = document.getElementById('canvas-container');
-
-        // Back button functionality
         backBtn.addEventListener('click', () => {
           window.history.back();
         });
-
-        // Load PDF from base64
         async function loadPdf() {
           try {
             const binaryString = atob(base64Pdf);
@@ -217,34 +192,26 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
             for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
             }
-            
             pdfDoc = await pdfjsLib.getDocument({ data: bytes }).promise;
             pageCount = pdfDoc.numPages;
             pageCountSpan.textContent = pageCount;
-            
             await renderPage(1);
           } catch (error) {
             console.error('Error loading PDF:', error);
             canvas.parentElement.innerHTML = '<p style="color: red;">Error loading PDF: ' + error.message + '</p>';
           }
         }
-
-        // Render specific page
         async function renderPage(pageNum) {
           try {
             if (pageNum < 1 || pageNum > pageCount) return;
-            
             const page = await pdfDoc.getPage(pageNum);
             const viewport = page.getViewport({ scale: scale });
-            
             canvas.width = viewport.width;
             canvas.height = viewport.height;
-            
             await page.render({
               canvasContext: ctx,
               viewport: viewport
             }).promise;
-            
             currentPage = pageNum;
             pageNumSpan.textContent = currentPage;
             updateButtonStates();
@@ -252,45 +219,37 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
             console.error('Error rendering page:', error);
           }
         }
-
         function updateButtonStates() {
           prevBtn.disabled = currentPage <= 1;
           nextBtn.disabled = currentPage >= pageCount;
         }
-
         function updateZoomInput() {
           zoomInput.value = Math.round(scale * 100);
         }
-
-        // Event listeners
         prevBtn.addEventListener('click', () => {
           if (currentPage > 1) {
             fitMode = 'custom';
             renderPage(currentPage - 1);
           }
         });
-
         nextBtn.addEventListener('click', () => {
           if (currentPage < pageCount) {
             fitMode = 'custom';
             renderPage(currentPage + 1);
           }
         });
-
         zoomOutBtn.addEventListener('click', () => {
           fitMode = 'custom';
           scale = Math.max(0.5, scale - 0.1);
           updateZoomInput();
           renderPage(currentPage);
         });
-
         zoomInBtn.addEventListener('click', () => {
           fitMode = 'custom';
           scale = Math.min(3, scale + 0.1);
           updateZoomInput();
           renderPage(currentPage);
         });
-
         zoomInput.addEventListener('change', () => {
           fitMode = 'custom';
           const newScale = Math.max(0.5, Math.min(3, parseInt(zoomInput.value) / 100));
@@ -299,7 +258,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
             renderPage(currentPage);
           }
         });
-
         fitWidthBtn.addEventListener('click', async () => {
           fitMode = 'width';
           const page = await pdfDoc.getPage(currentPage);
@@ -309,8 +267,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
           updateZoomInput();
           await renderPage(currentPage);
         });
-
-        // Keyboard shortcuts
         document.addEventListener('keydown', (e) => {
           if (e.key === 'ArrowLeft' && currentPage > 1) {
             prevBtn.click();
@@ -322,31 +278,22 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
             zoomOutBtn.click();
           }
         });
-
-        // Initialize
         loadPdf();
       </script>
     </body>
     </html>
     ''';
-
-    // Create blob URL
     final blob = html.Blob([htmlContent], 'text/html');
     _blobUrl = html.Url.createObjectUrlFromBlob(blob);
-
-    // Create iframe element
     final iframeElement = html.IFrameElement()
       ..src = _blobUrl
       ..style.border = 'none'
       ..style.width = '100%'
       ..style.height = '100%';
-
-    // Register view factory
     ui.platformViewRegistry.registerViewFactory(
       _viewId,
       (int viewId) => iframeElement,
     );
-
     if (mounted) {
       setState(() {
         _isLoaded = true;
@@ -359,7 +306,6 @@ class _WebPdfViewerState extends State<WebPdfViewer> {
     if (!_isLoaded) {
       return const Center(child: CircularProgressIndicator());
     }
-
     return HtmlElementView(viewType: _viewId);
   }
 }

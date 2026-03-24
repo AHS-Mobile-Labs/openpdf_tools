@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
-
 import '../services/pdf_manipulation_service.dart';
 import '../config/app_config.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
@@ -12,7 +11,6 @@ import 'pdf_viewer_screen.dart';
 
 class MergePdfScreen extends StatefulWidget {
   const MergePdfScreen({super.key});
-
   @override
   State<MergePdfScreen> createState() => _MergePdfScreenState();
 }
@@ -22,14 +20,12 @@ class _PdfFileInfo {
   final String name;
   final int sizeInBytes;
   final DateTime addedAt;
-
   _PdfFileInfo({
     required this.path,
     required this.name,
     required this.sizeInBytes,
     required this.addedAt,
   });
-
   String get sizeDisplay {
     if (sizeInBytes < 1024) return '$sizeInBytes B';
     if (sizeInBytes < 1024 * 1024) {
@@ -43,12 +39,10 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
   final List<_PdfFileInfo> _selectedPdfs = [];
   bool _isProcessing = false;
   String? _errorMessage;
-  static const int _maxFileSizeBytes = 100 * 1024 * 1024; // 100 MB
-  static const int _maxTotalSizeBytes = 500 * 1024 * 1024; // 500 MB
-
+  static const int _maxFileSizeBytes = 100 * 1024 * 1024;
+  static const int _maxTotalSizeBytes = 500 * 1024 * 1024;
   Future<void> _pickPdf() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -58,15 +52,12 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           );
         }
       }
-
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
         withData: kIsWeb,
       );
-
       if (!mounted) return;
-
       if (res != null && res.files.isNotEmpty) {
         final file = res.files.single;
         if (kIsWeb) {
@@ -83,7 +74,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
 
   Future<void> _pickMultiplePdfs() async {
     try {
-      // Request permissions first
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -93,16 +83,13 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           );
         }
       }
-
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
         allowMultiple: true,
         withData: kIsWeb,
       );
-
       if (!mounted) return;
-
       if (res != null && res.files.isNotEmpty) {
         int added = 0;
         for (final file in res.files) {
@@ -115,7 +102,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
             added++;
           }
         }
-
         if (added > 0) {
           ScaffoldMessenger.of(context).showSnackBar(
             SnackBar(
@@ -140,17 +126,12 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         showSnackBar: showSnackBar,
       );
     }
-
     try {
       final file = File(filePath);
-
-      // Check if file exists
       if (!file.existsSync()) {
         _showErrorMessage('File not found: $filePath');
         return false;
       }
-
-      // Check file size
       final fileSize = file.lengthSync();
       if (fileSize > _maxFileSizeBytes) {
         _showErrorMessage(
@@ -158,8 +139,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         );
         return false;
       }
-
-      // Check total size
       final totalSize =
           _selectedPdfs.fold<int>(0, (sum, pdf) => sum + pdf.sizeInBytes) +
           fileSize;
@@ -167,14 +146,11 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         _showErrorMessage('Total size would exceed 500 MB limit');
         return false;
       }
-
-      // Check for duplicates
       final fileName = file.path.split('/').last;
       if (_selectedPdfs.any((pdf) => pdf.path == file.path)) {
         _showErrorMessage('File already added: $fileName');
         return false;
       }
-
       setState(() {
         _selectedPdfs.add(
           _PdfFileInfo(
@@ -186,7 +162,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         );
         _errorMessage = null;
       });
-
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -196,7 +171,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           ),
         );
       }
-
       return true;
     } catch (e) {
       _showErrorMessage('Error adding file: $e');
@@ -220,16 +194,14 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     int fileSize, {
     bool showSnackBar = true,
   }) {
-    // Check for duplicates
     if (_selectedPdfs.any((pdf) => pdf.name == fileName)) {
       _showErrorMessage('File already added: $fileName');
       return false;
     }
-
     setState(() {
       _selectedPdfs.add(
         _PdfFileInfo(
-          path: fileName, // On web, use name as path placeholder
+          path: fileName,
           name: fileName,
           sizeInBytes: fileSize,
           addedAt: DateTime.now(),
@@ -237,7 +209,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       );
       _errorMessage = null;
     });
-
     if (showSnackBar) {
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
@@ -247,7 +218,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         ),
       );
     }
-
     return true;
   }
 
@@ -256,15 +226,12 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       _showErrorMessage('Please select at least 2 PDF files');
       return;
     }
-
     if (kIsWeb) {
       _showErrorMessage(
         'PDF merging is not available on web. Please use the desktop or mobile app.',
       );
       return;
     }
-
-    // Request permissions before starting merge
     if (PlatformHelper.isAndroid) {
       final hasPermission =
           await PlatformFileHandler.requestStoragePermission();
@@ -277,35 +244,24 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         return;
       }
     }
-
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
     });
-
     try {
       final pdfPaths = <String>[for (final pdf in _selectedPdfs) pdf.path];
-
       final outputPath = await PdfManipulationService.mergePdfs(pdfPaths);
-
       if (!mounted) return;
-
       setState(() {
         _isProcessing = false;
       });
-
-      // Show success dialog
       _showSuccessDialog(outputPath);
     } catch (e) {
       if (!mounted) return;
-
       setState(() {
         _isProcessing = false;
       });
-
       String errorMessage = 'Failed to merge PDFs: $e';
-
-      // Provide more specific error messages
       if (e.toString().contains('MissingPluginException')) {
         errorMessage =
             'PDF merge feature not available on this device. Please try a different method or update the app.';
@@ -316,9 +272,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         errorMessage =
             'One or more PDF files could not be accessed. Please select the files again.';
       }
-
       setState(() => _errorMessage = errorMessage);
-
       _showErrorMessage(errorMessage);
     }
   }
@@ -405,7 +359,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       _selectedPdfs.removeAt(index);
       _errorMessage = null;
     });
-
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
         content: const Text('File removed'),
@@ -465,7 +418,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final isMobile = MediaQuery.of(context).size.width < 600;
-
     return Scaffold(
       appBar: AppBar(
         title: const Text('Merge PDFs'),
@@ -481,7 +433,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              // Header Card
               Container(
                 padding: const EdgeInsets.all(16),
                 decoration: BoxDecoration(
@@ -513,8 +464,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 ),
               ),
               const SizedBox(height: 24),
-
-              // Selected PDFs list with metadata
               if (_selectedPdfs.isNotEmpty) ...[
                 Row(
                   mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -555,7 +504,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                   onReorder: _reorderPdfs,
                   children: List.generate(_selectedPdfs.length, (index) {
                     final pdf = _selectedPdfs[index];
-
                     return Container(
                       key: ValueKey(pdf.path),
                       margin: const EdgeInsets.only(bottom: 10),
@@ -639,7 +587,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 ),
                 const SizedBox(height: 24),
               ] else
-                // Empty State
                 Container(
                   padding: const EdgeInsets.symmetric(vertical: 40),
                   child: Center(
@@ -680,8 +627,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                     ),
                   ),
                 ),
-
-              // Error message
               if (_errorMessage != null) ...[
                 Container(
                   padding: const EdgeInsets.all(12),
@@ -708,8 +653,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-
-              // Progress indicator
               if (_isProcessing) ...[
                 Container(
                   padding: const EdgeInsets.all(16),
@@ -740,8 +683,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 ),
                 const SizedBox(height: 24),
               ],
-
-              // Action buttons
               Column(
                 children: [
                   Row(

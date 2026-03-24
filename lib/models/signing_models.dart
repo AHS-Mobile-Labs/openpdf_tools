@@ -1,4 +1,3 @@
-/// Represents certificate information with validation metadata
 class CertificateInfo {
   final String filePath;
   final String fileName;
@@ -12,7 +11,6 @@ class CertificateInfo {
   final bool isValidated;
   final String? thumbprint;
   final String? signatureAlgorithm;
-
   CertificateInfo({
     required this.filePath,
     required this.fileName,
@@ -27,20 +25,12 @@ class CertificateInfo {
     this.thumbprint,
     this.signatureAlgorithm,
   });
-
-  /// Check if certificate is currently valid
   bool get isCurrentlyValid =>
       !isExpired && DateTime.now().isBefore(validUntil);
-
-  /// Get days until expiration
   int get daysUntilExpiration =>
       validUntil.difference(DateTime.now()).inDays.abs();
-
-  /// Get human-readable validity period
   String get validityPeriod =>
       '${validFrom.year}-${validFrom.month.toString().padLeft(2, '0')}-${validFrom.day.toString().padLeft(2, '0')} to ${validUntil.year}-${validUntil.month.toString().padLeft(2, '0')}-${validUntil.day.toString().padLeft(2, '0')}';
-
-  /// Create copy with modified fields
   CertificateInfo copyWith({
     bool? isExpired,
     bool? isValidated,
@@ -62,8 +52,6 @@ class CertificateInfo {
     );
   }
 }
-
-/// Represents a signing request with all required parameters
 class SigningRequest {
   final String pdfFilePath;
   final String nameOnSignature;
@@ -77,7 +65,6 @@ class SigningRequest {
   final bool includeTimestamp;
   final String outputPath;
   final SignatureLocation location;
-
   SigningRequest({
     required this.pdfFilePath,
     required this.nameOnSignature,
@@ -92,47 +79,32 @@ class SigningRequest {
     this.includeTimestamp = true,
     this.location = SignatureLocation.bottomLeft,
   });
-
-  /// Validate all signing parameters
   ValidationResult validate() {
     final errors = <String>[];
-
-    // Validate PDF path
     if (pdfFilePath.isEmpty) {
       errors.add('PDF file path is required');
     }
-
-    // Validate name
     if (nameOnSignature.isEmpty) {
       errors.add('Name on signature is required');
     }
     if (nameOnSignature.length > 256) {
       errors.add('Name on signature exceeds maximum length');
     }
-
-    // Validate certificate
     if (!certificate.isCurrentlyValid) {
       errors.add('Certificate is expired or not yet valid');
     }
     if (!certificate.isValidated) {
       errors.add('Certificate has not been validated');
     }
-
-    // Validate certificate password
     if (certificatePassword.isEmpty) {
       errors.add('Certificate password is required');
     }
-
-    // Validate output path
     if (outputPath.isEmpty) {
       errors.add('Output path is required');
     }
-
     return ValidationResult(isValid: errors.isEmpty, errors: errors);
   }
 }
-
-/// Represents the result of a signing operation
 class SigningResult {
   final bool success;
   final String? signedFilePath;
@@ -141,7 +113,6 @@ class SigningResult {
   final String? errorMessage;
   final int? fileSize;
   final SigningStatus status;
-
   SigningResult({
     required this.success,
     required this.timestamp,
@@ -151,7 +122,6 @@ class SigningResult {
     this.fileSize,
     this.status = SigningStatus.pending,
   });
-
   factory SigningResult.success({
     required String signedFilePath,
     required String signatureHash,
@@ -166,7 +136,6 @@ class SigningResult {
       status: SigningStatus.completed,
     );
   }
-
   factory SigningResult.failure({required String errorMessage}) {
     return SigningResult(
       success: false,
@@ -175,7 +144,6 @@ class SigningResult {
       status: SigningStatus.failed,
     );
   }
-
   factory SigningResult.cancelled() {
     return SigningResult(
       success: false,
@@ -185,18 +153,12 @@ class SigningResult {
     );
   }
 }
-
-/// Represents validation result with collected errors
 class ValidationResult {
   final bool isValid;
   final List<String> errors;
-
   ValidationResult({required this.isValid, required this.errors});
-
   String get errorMessage => errors.join('\n');
 }
-
-/// Signature placement options
 enum SignatureLocation {
   topLeft,
   topCenter,
@@ -205,11 +167,7 @@ enum SignatureLocation {
   bottomCenter,
   bottomRight,
 }
-
-/// Signing operation status
 enum SigningStatus { pending, inProgress, completed, failed, cancelled }
-
-/// Certificate validation result details
 class CertificateValidationResult {
   final bool isValid;
   final bool isExpired;
@@ -218,7 +176,6 @@ class CertificateValidationResult {
   final List<String> warnings;
   final List<String> errors;
   final String? thumbprint;
-
   CertificateValidationResult({
     required this.isValid,
     required this.isExpired,
@@ -228,12 +185,8 @@ class CertificateValidationResult {
     this.errors = const [],
     this.thumbprint,
   });
-
-  /// Get all validation messages (warnings + errors)
   List<String> get allMessages => [...warnings, ...errors];
 }
-
-/// PDF document metadata
 class PdfMetadata {
   final int pageCount;
   final String title;
@@ -244,7 +197,6 @@ class PdfMetadata {
   final DateTime? modifiedDate;
   final bool isEncrypted;
   final bool hasSignatures;
-
   PdfMetadata({
     required this.pageCount,
     required this.title,
@@ -256,7 +208,6 @@ class PdfMetadata {
     this.isEncrypted = false,
     this.hasSignatures = false,
   });
-
   String get fileSizeDisplay {
     if (fileSizeBytes < 1024) {
       return '$fileSizeBytes B';

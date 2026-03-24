@@ -1,29 +1,23 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/animation_utils.dart';
-
-/// Premium animated bottom navigation bar
 class PremiumBottomNavigation extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
   final List<BottomNavItem> items;
-
   const PremiumBottomNavigation({
     super.key,
     required this.currentIndex,
     required this.onTap,
     required this.items,
   });
-
   @override
   State<PremiumBottomNavigation> createState() =>
       _PremiumBottomNavigationState();
 }
-
 class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     with TickerProviderStateMixin {
   late List<AnimationController> _animationControllers;
-
   @override
   void initState() {
     super.initState();
@@ -34,7 +28,6 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     );
     _animationControllers[widget.currentIndex].forward();
   }
-
   @override
   void didUpdateWidget(PremiumBottomNavigation oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -43,7 +36,6 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
       _animationControllers[widget.currentIndex].forward();
     }
   }
-
   @override
   void dispose() {
     for (final controller in _animationControllers) {
@@ -51,11 +43,9 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     }
     super.dispose();
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       decoration: BoxDecoration(
         color: isDark
@@ -93,35 +83,28 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     );
   }
 }
-
-/// Individual animated navigation item
 class _AnimatedNavItem extends StatefulWidget {
   final BottomNavItem item;
   final bool isActive;
   final AnimationController animationController;
   final VoidCallback onTap;
-
   const _AnimatedNavItem({
     required this.item,
     required this.isActive,
     required this.animationController,
     required this.onTap,
   });
-
   @override
   State<_AnimatedNavItem> createState() => _AnimatedNavItemState();
 }
-
 class _AnimatedNavItemState extends State<_AnimatedNavItem> {
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
-
   @override
   void initState() {
     super.initState();
     _setupAnimations();
   }
-
   void _setupAnimations() {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(
@@ -129,7 +112,6 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
         curve: Curves.easeOutBack,
       ),
     );
-
     _opacityAnimation = Tween<double>(begin: 0.6, end: 1.0).animate(
       CurvedAnimation(
         parent: widget.animationController,
@@ -137,7 +119,6 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
       ),
     );
   }
-
   @override
   void didUpdateWidget(_AnimatedNavItem oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -145,11 +126,9 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
       _setupAnimations();
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return GestureDetector(
       onTap: widget.onTap,
       child: AnimatedBuilder(
@@ -204,23 +183,17 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
     );
   }
 }
-
-/// Bottom navigation item model
 class BottomNavItem {
   final IconData icon;
   final String label;
-
   BottomNavItem({required this.icon, required this.label});
 }
-
-/// Premium top app bar with elevation and blur effects
 class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
   final VoidCallback? onBackPressed;
   final bool showBackButton;
   final bool showElevation;
-
   const PremiumAppBar({
     super.key,
     required this.title,
@@ -229,14 +202,11 @@ class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
     this.showBackButton = true,
     this.showElevation = true,
   });
-
   @override
   Size get preferredSize => const Size.fromHeight(56);
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return Container(
       decoration: BoxDecoration(
         color: isDark
@@ -306,15 +276,12 @@ class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
-
-/// Premium icon button
 class PremiumIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
   final Color? color;
   final double size;
   final bool showBackground;
-
   const PremiumIconButton({
     super.key,
     required this.icon,
@@ -323,16 +290,13 @@ class PremiumIconButton extends StatefulWidget {
     this.size = PremiumSpacing.iconMedium,
     this.showBackground = true,
   });
-
   @override
   State<PremiumIconButton> createState() => _PremiumIconButtonState();
 }
-
 class _PremiumIconButtonState extends State<PremiumIconButton> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
-
     return ButtonAnimations.scaleOnPress(
       onPressed: widget.onPressed,
       child: Container(

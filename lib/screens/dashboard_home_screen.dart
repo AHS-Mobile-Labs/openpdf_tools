@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
-
 import '../config/app_config.dart';
 import 'pdf_viewer_screen.dart';
 import 'compress_pdf_screen.dart';
@@ -14,27 +13,21 @@ import 'merge_pdf_screen.dart';
 import 'split_pdf_screen.dart';
 import 'sign_pdf_screen_refactored.dart';
 import 'repair_pdf_screen.dart';
-
-/// Modern, clean dashboard home screen with improved UX
 class DashboardHomeScreen extends StatefulWidget {
   const DashboardHomeScreen({super.key});
-
   @override
   State<DashboardHomeScreen> createState() => _DashboardHomeScreenState();
 }
-
 class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   Future<void> _launchGitHub() async {
     try {
       final uri = Uri.parse(AppConfig.githubUrl);
       debugPrint('[GitHub] Attempting to launch: ${AppConfig.githubUrl}');
-
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
         debugPrint('[GitHub] URL launched successfully');
       } else {
         debugPrint('[GitHub] Cannot launch URL, no browser app found');
-        // Fallback: Try with default launch mode
         await launchUrl(uri, mode: LaunchMode.platformDefault);
       }
     } catch (e) {
@@ -46,14 +39,12 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       }
     }
   }
-
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final width = MediaQuery.of(context).size.width;
     final isMobile = width < 600;
     final isDesktop = width >= 600;
-
     return Scaffold(
       backgroundColor: isDark
           ? const Color(0xFF0F0F0F)
@@ -61,7 +52,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       body: SafeArea(
         child: Column(
           children: [
-            // scrollable content
             Expanded(
               child: SingleChildScrollView(
                 child: Column(
@@ -85,7 +75,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                 ),
               ),
             ),
-            // pinned bottom
             Padding(
               padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
               child: _buildFooter(isDark),
@@ -95,7 +84,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildHeader(bool isDark, bool isMobile) {
     return Container(
       width: double.infinity,
@@ -110,7 +98,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
       child: Stack(
         children: [
-          // Decorative background circles
           Positioned(
             top: -30,
             right: -20,
@@ -147,7 +134,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               ),
             ),
           ),
-          // Mobile: centered stacked layout
           if (isMobile)
             Positioned.fill(
               child: Column(
@@ -205,14 +191,12 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                 ],
               ),
             ),
-          // Desktop: compact horizontal row
           if (!isMobile)
             Positioned.fill(
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 20),
                 child: Row(
                   children: [
-                    // Logo
                     Container(
                       width: 36,
                       height: 36,
@@ -231,7 +215,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                       ),
                     ),
                     const SizedBox(width: 12),
-                    // Title + tagline
                     Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       mainAxisAlignment: MainAxisAlignment.center,
@@ -266,7 +249,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _versionBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -289,7 +271,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _label(String text, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -317,7 +298,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildQA(
     BuildContext context,
     String label,
@@ -364,7 +344,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildQuickActions(BuildContext context, bool isDark) {
     return Row(
       children: [
@@ -406,7 +385,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ],
     );
   }
-
   Widget _buildFeatures(BuildContext context, bool isDark, bool isDesktop) {
     final features = [
       FeatureItem(
@@ -466,7 +444,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
         screen: const RepairPdfScreen(),
       ),
     ];
-
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
@@ -495,7 +472,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ],
     );
   }
-
   Widget _buildFeatureMobile(
     BuildContext context,
     FeatureItem feature,
@@ -556,7 +532,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildFeatureDesktop(
     BuildContext context,
     FeatureItem feature,
@@ -626,7 +601,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildTips(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -660,7 +634,6 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
-
   Widget _buildFooter(bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -684,14 +657,12 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 }
-
 class FeatureItem {
   final String title;
   final String description;
   final IconData icon;
   final Color color;
   final Widget screen;
-
   FeatureItem({
     required this.title,
     required this.description,
