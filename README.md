@@ -51,7 +51,7 @@ flutter build web --release
 
 ## Star History
 
-<iframe style="width:100%;height:auto;min-width:600px;min-height:400px;" src="https://www.star-history.com/?repos=AHS-Mobile-Labs%2Fopenpdf_tools&type=date&legend=bottom-right" frameBorder="0"></iframe>
+[![Star History Chart](https://api.star-history.com/svg?repos=AHS-Mobile-Labs/openpdf_tools&type=date)](https://star-history.com/?repos=AHS-Mobile-Labs/openpdf_tools&type=date)
 
 ## Contributing
 
