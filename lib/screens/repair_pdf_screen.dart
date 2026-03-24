@@ -1,5 +1,5 @@
 // ignore_for_file: deprecated_member_use
-import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
@@ -220,7 +220,12 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
     String fileType,
   ) async {
     try {
-      if (Platform.isLinux) {
+      if (kIsWeb) {
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File saved successfully')),
+        );
+      } else if (PlatformHelper.isLinux) {
         // File sharing not supported on Linux - show file location instead
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(

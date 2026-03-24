@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:openpdf_tools/config/app_config.dart';
@@ -49,6 +50,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   void _openFile(String filePath) {
+    if (kIsWeb) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File history is not available on web')),
+      );
+      return;
+    }
     final file = File(filePath);
     if (file.existsSync()) {
       Navigator.push(
@@ -196,8 +203,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           itemCount: favorites.length,
           itemBuilder: (context, index) {
             final filePath = favorites[index];
-            final file = File(filePath);
-            final exists = file.existsSync();
+            final exists = kIsWeb ? false : File(filePath).existsSync();
             final fileName = filePath.split('/').last;
 
             return ListTile(

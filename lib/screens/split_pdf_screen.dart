@@ -1,5 +1,6 @@
 // ignore_for_file: deprecated_member_use
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
@@ -100,6 +101,14 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       return;
     }
 
+    if (kIsWeb) {
+      setState(
+        () => _errorMessage =
+            'PDF splitting is not available on web. Please use the desktop or mobile app.',
+      );
+      return;
+    }
+
     // Request permissions before starting split
     if (PlatformHelper.isAndroid) {
       final hasPermission =
@@ -166,13 +175,15 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       );
 
       // Navigate to the first output PDF
-      Navigator.push(
-        context,
-        MaterialPageRoute(
-          builder: (_) =>
-              PdfViewerScreen(externalFile: File(outputPaths.first)),
-        ),
-      );
+      if (!kIsWeb) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) =>
+                PdfViewerScreen(externalFile: File(outputPaths.first)),
+          ),
+        );
+      }
     } catch (e) {
       if (!mounted) return;
 

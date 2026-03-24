@@ -1,9 +1,12 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:pdf/pdf.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:image/image.dart' as img;
+import 'package:printing/printing.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
@@ -28,8 +31,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   /// Mobile (Android/iOS): Only Images, TIFF, Text
   /// Desktop/Web (Windows, macOS, Linux): All formats
   Map<String, String> _getSupportedFormats() {
-    if (Platform.isAndroid || Platform.isIOS) {
-      // Mobile: Only basic supported formats
+    if (kIsWeb || PlatformHelper.isMobile) {
+      // Mobile/Web: Only basic supported formats
       return {
         'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
         'TIFF to PDF': 'tiff,tif',
@@ -81,14 +84,28 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: supportedFormats[format]!.split(','),
+        withData: kIsWeb,
       );
 
       if (result != null && result.files.isNotEmpty) {
-        setState(() {
-          _selectedFormat = format;
-          _selectedFile = File(result.files.first.path!);
-        });
-        await _convertToPdf();
+        if (kIsWeb) {
+          // On web, use bytes directly
+          final fileBytes = result.files.first.bytes;
+          final fileName = result.files.first.name;
+          if (fileBytes != null) {
+            setState(() {
+              _selectedFormat = format;
+              _selectedFile = null;
+            });
+            await _convertToPdfFromBytes(fileBytes, fileName);
+          }
+        } else {
+          setState(() {
+            _selectedFormat = format;
+            _selectedFile = File(result.files.first.path!);
+          });
+          await _convertToPdf();
+        }
       }
     } catch (e) {
       // ignore: use_build_context_synchronously
@@ -178,6 +195,86 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           ).showSnackBar(const SnackBar(content: Text('File not found')));
         }
       }
+    }
+  }
+
+  Future<void> _convertToPdfFromBytes(
+    Uint8List fileBytes,
+    String fileName,
+  ) async {
+    setState(() => _isProcessing = true);
+
+    try {
+      final ext = fileName.split('.').last.toLowerCase();
+
+      if (['jpg', 'jpeg', 'png', 'webp', 'heic', 'gif', 'bmp'].contains(ext)) {
+        final image = img.decodeImage(fileBytes);
+        if (image == null) throw Exception('Failed to decode image');
+
+        final pdf = pw.Document();
+        pdf.addPage(
+          pw.Page(
+            pageFormat: PdfPageFormat(
+              image.width.toDouble(),
+              image.height.toDouble(),
+            ),
+            build: (pw.Context context) => pw.Image(pw.MemoryImage(fileBytes)),
+          ),
+        );
+
+        final pdfBytes = await pdf.save();
+        await Printing.sharePdf(
+          bytes: Uint8List.fromList(pdfBytes),
+          filename: '${fileName.replaceAll(RegExp(r'\.[^.]*$'), '')}.pdf',
+        );
+      } else if (ext == 'txt') {
+        final content = String.fromCharCodes(fileBytes);
+        final pdf = pw.Document();
+        final lines = content.split('\n');
+        const linesPerPage = 50;
+
+        for (int i = 0; i < lines.length; i += linesPerPage) {
+          final pageLines = lines
+              .sublist(i, (i + linesPerPage).clamp(0, lines.length))
+              .join('\n');
+          pdf.addPage(
+            pw.Page(
+              build: (pw.Context context) => pw.Padding(
+                padding: const pw.EdgeInsets.all(20),
+                child: pw.Text(
+                  pageLines,
+                  style: const pw.TextStyle(fontSize: 12),
+                ),
+              ),
+            ),
+          );
+        }
+
+        final pdfBytes = await pdf.save();
+        await Printing.sharePdf(
+          bytes: Uint8List.fromList(pdfBytes),
+          filename: '${fileName.replaceAll(RegExp(r'\.[^.]*$'), '')}.pdf',
+        );
+      } else {
+        throw Exception(
+          'This format is not supported for web conversion.\n'
+          'Please use the desktop app or an online converter.',
+        );
+      }
+
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('PDF created successfully')),
+        );
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error: $e')));
+      }
+    } finally {
+      if (mounted) setState(() => _isProcessing = false);
     }
   }
 
@@ -318,15 +415,14 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
   Future<String?> _convertOfficeFormatToPdf(File sourceFile) async {
     // Android and iOS don't have LibreOffice available
-    if (Platform.isAndroid || Platform.isIOS) {
+    if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
-        'Office format conversion is not supported on mobile devices.\n\n'
-        'On Android/iOS, use the web version at:\n'
+        'Office format conversion is not supported on this platform.\n\n'
+        'Use an online converter:\n'
         '• CloudConvert.com\n'
         '• Zamzar.com\n'
         '• AnyConv.com\n\n'
-        'Or convert on desktop (Windows/macOS/Linux) first, '
-        'then share the PDF.',
+        'Or convert on desktop (Windows/macOS/Linux) first.',
       );
     }
 
@@ -334,7 +430,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
     final filename = path.basenameWithoutExtension(sourceFile.path);
 
     // Build the LibreOffice command based on platform
-    final command = Platform.isWindows ? 'soffice' : 'libreoffice';
+    final command = PlatformHelper.isWindows ? 'soffice' : 'libreoffice';
 
     try {
       final result = await Process.run(command, [
@@ -374,8 +470,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertSvgToPdf(File svgFile) async {
-    // On mobile platforms, SVG conversion is not supported
-    if (Platform.isAndroid || Platform.isIOS) {
+    // On mobile/web platforms, SVG conversion is not supported
+    if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'SVG to PDF conversion is not supported on mobile devices.\n\n'
         'Please use a desktop application or online converter.\n'
@@ -420,8 +516,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertRtfToPdf(File rtfFile) async {
-    // On mobile platforms, RTF conversion is not supported
-    if (Platform.isAndroid || Platform.isIOS) {
+    // On mobile/web platforms, RTF conversion is not supported
+    if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'RTF to PDF conversion is not supported on mobile devices.\n\n'
         'Please use a desktop application or online converter.\n'
@@ -436,8 +532,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertEpubToPdf(File epubFile) async {
-    // On mobile platforms, EPUB conversion uses limited HTML method
-    if (Platform.isAndroid || Platform.isIOS) {
+    // On mobile/web platforms, EPUB conversion uses limited HTML method
+    if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'EPUB to PDF conversion is not supported on mobile devices.\n\n'
         'Please use a desktop application or online converter.\n'
@@ -452,8 +548,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<String?> _convertOdgToPdf(File odgFile) async {
-    // On mobile platforms, ODG conversion is not supported
-    if (Platform.isAndroid || Platform.isIOS) {
+    // On mobile/web platforms, ODG conversion is not supported
+    if (kIsWeb || PlatformHelper.isMobile) {
       throw Exception(
         'ODG (Drawing) to PDF conversion is not supported on mobile devices.\n\n'
         'Please use a desktop application or online converter.\n'

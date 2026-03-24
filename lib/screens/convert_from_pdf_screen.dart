@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
@@ -164,6 +165,8 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   ];
 
   Future<String> _getInitialDirectory() async {
+    if (kIsWeb) return '';
+
     try {
       // Try to use the Downloads directory first
       final downloadsDir = await getDownloadsDirectory();
@@ -174,7 +177,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
 
     try {
       // Fallback to home directory on Linux
-      if (Platform.isLinux || Platform.isMacOS) {
+      if (PlatformHelper.isLinux || PlatformHelper.isMacOS) {
         final homeDir = Platform.environment['HOME'];
         if (homeDir != null && await Directory(homeDir).exists()) {
           return homeDir;
@@ -183,7 +186,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     } catch (_) {}
 
     // Final fallback to current working directory
-    return Directory.current.path;
+    try {
+      return Directory.current.path;
+    } catch (_) {
+      return '';
+    }
   }
 
   Future<void> _pickPdf() async {
@@ -310,6 +317,12 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       _selectedFormat = format.format;
     });
 
+    if (kIsWeb) {
+      _showWebConversionDialog(format);
+      setState(() => _isProcessing = false);
+      return;
+    }
+
     try {
       // Get Downloads directory or fallback to home directory
       Directory outputDir;
@@ -318,7 +331,9 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         outputDir = downloadsDir;
       } else {
         // Fallback to home directory on Linux
-        final homeDir = Platform.environment['HOME'];
+        final homeDir = PlatformHelper.isLinux || PlatformHelper.isMacOS
+            ? Platform.environment['HOME']
+            : null;
         if (homeDir != null) {
           outputDir = Directory(homeDir);
         } else {
@@ -364,7 +379,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                         PdfViewerScreen(externalFile: File(outputPath)),
                   ),
                 );
-              } else if (Platform.isAndroid || Platform.isIOS) {
+              } else if (PlatformHelper.isMobile) {
                 // Mobile: share the file
                 share_plus.SharePlus.instance.share(
                   share_plus.ShareParams(files: [share_plus.XFile(outputPath)]),

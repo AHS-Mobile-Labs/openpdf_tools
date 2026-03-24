@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'isolate_helper.dart';
 import 'pdf_isolate_tasks.dart';
@@ -11,6 +12,13 @@ class PDFRepairService {
   ///
   /// Returns: A map containing analysis results
   static Future<Map<String, dynamic>> analyzePDF(String pdfPath) async {
+    if (kIsWeb) {
+      return {
+        'status': 'error',
+        'message': 'PDF analysis is not available on web',
+        'isCorrupted': false,
+      };
+    }
     try {
       final file = File(pdfPath);
       if (!file.existsSync()) {

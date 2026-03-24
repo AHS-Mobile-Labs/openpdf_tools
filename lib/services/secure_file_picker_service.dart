@@ -14,6 +14,7 @@ class SecureFilePickerService {
 
   /// Picks a PDF file with validation
   static Future<File?> pickPdfFile() async {
+    if (kIsWeb) return null;
     try {
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,

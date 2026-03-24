@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'dart:typed_data';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:pdf/widgets.dart' as pw;
@@ -8,6 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 
 class PdfFromImagesScreen extends StatefulWidget {
   const PdfFromImagesScreen({super.key});
@@ -17,26 +19,46 @@ class PdfFromImagesScreen extends StatefulWidget {
 }
 
 class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
-  final List<File> images = [];
+  final List<Uint8List> _imageBytesList = [];
+  final List<String> _imageNames = [];
   bool _isProcessing = false;
 
   Future<void> pickImages() async {
     // Prefer the platform gallery picker on mobile (handles permissions nicely),
     // otherwise use the in-app multi-file picker.
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (kIsWeb) {
+        // Web: use ImagePicker which supports web
         final picker = ImagePicker();
         final picked = await picker.pickMultiImage();
         if (picked.isNotEmpty) {
-          setState(() {
-            images.addAll(picked.map((e) => File(e.path)));
-          });
+          for (final xfile in picked) {
+            final bytes = await xfile.readAsBytes();
+            setState(() {
+              _imageBytesList.add(bytes);
+              _imageNames.add(xfile.name);
+            });
+          }
+        }
+        return;
+      }
+
+      if (PlatformHelper.isMobile) {
+        final picker = ImagePicker();
+        final picked = await picker.pickMultiImage();
+        if (picked.isNotEmpty) {
+          for (final xfile in picked) {
+            final bytes = await xfile.readAsBytes();
+            setState(() {
+              _imageBytesList.add(bytes);
+              _imageNames.add(xfile.name);
+            });
+          }
           return;
         }
       }
 
-      // Desktop or fallback path
-      // ignore: use_build_context_synchronously
+      // Desktop fallback path
       final selected = await showInAppFilePickerMultiple(
         // ignore: use_build_context_synchronously
         context,
@@ -53,9 +75,13 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
         return;
       }
 
-      setState(() {
-        images.addAll(selected.map((p) => File(p)));
-      });
+      for (final p in selected) {
+        final bytes = await File(p).readAsBytes();
+        setState(() {
+          _imageBytesList.add(bytes);
+          _imageNames.add(p.split('/').last);
+        });
+      }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -70,16 +96,18 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
     try {
       final pdf = pw.Document();
 
-      for (final img in images) {
-        Uint8List bytes = await img.readAsBytes();
+      for (int i = 0; i < _imageBytesList.length; i++) {
+        Uint8List bytes = _imageBytesList[i];
 
-        try {
-          final compressed = await FlutterImageCompress.compressWithFile(
-            img.path,
-            quality: 65,
-          );
-          if (compressed != null) bytes = compressed;
-        } catch (_) {}
+        if (!kIsWeb) {
+          try {
+            final compressed = await FlutterImageCompress.compressWithList(
+              bytes,
+              quality: 65,
+            );
+            bytes = compressed;
+          } catch (_) {}
+        }
 
         pdf.addPage(
           pw.Page(
@@ -117,14 +145,19 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
       );
 
       if (action == 'download') {
-        final dir = await getApplicationDocumentsDirectory();
-        final file = File('${dir.path}/openpdf_images.pdf');
-        await file.writeAsBytes(bytes);
-        if (mounted) {
-          // ignore: use_build_context_synchronously
-          ScaffoldMessenger.of(
-            context,
-          ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+        if (kIsWeb) {
+          // Web: use Printing.sharePdf which handles web downloads
+          await Printing.sharePdf(bytes: bytes, filename: 'openpdf_images.pdf');
+        } else {
+          final dir = await getApplicationDocumentsDirectory();
+          final file = File('${dir.path}/openpdf_images.pdf');
+          await file.writeAsBytes(bytes);
+          if (mounted) {
+            // ignore: use_build_context_synchronously
+            ScaffoldMessenger.of(
+              context,
+            ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+          }
         }
       } else if (action == 'share') {
         await Printing.sharePdf(bytes: bytes, filename: 'openpdf_images.pdf');
@@ -164,7 +197,7 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
       body: Column(
         children: [
           Expanded(
-            child: images.isEmpty
+            child: _imageBytesList.isEmpty
                 ? const Center(child: Text('No images selected'))
                 : ReorderableListView(
                     onReorder: (oldIndex, newIndex) {
@@ -172,32 +205,36 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
                         // ignore: use_build_context_synchronously
 
                         if (newIndex > oldIndex) newIndex -= 1;
-                        final item = images.removeAt(oldIndex);
-                        images.insert(newIndex, item);
+                        final itemBytes = _imageBytesList.removeAt(oldIndex);
+                        _imageBytesList.insert(newIndex, itemBytes);
+                        final itemName = _imageNames.removeAt(oldIndex);
+                        _imageNames.insert(newIndex, itemName);
                       });
                     },
                     padding: const EdgeInsets.only(top: 8),
-                    children: List.generate(images.length, (i) {
-                      final img = images[i];
+                    children: List.generate(_imageBytesList.length, (i) {
                       return ListTile(
-                        key: ValueKey('${img.path}-$i'),
+                        key: ValueKey('image-$i-${_imageNames[i]}'),
                         leading: ClipRRect(
                           borderRadius: BorderRadius.circular(6),
-                          child: Image.file(
-                            img,
+                          child: Image.memory(
+                            _imageBytesList[i],
                             width: 56,
                             height: 56,
                             fit: BoxFit.cover,
                           ),
                         ),
-                        title: Text(img.path.split('/').last),
+                        title: Text(_imageNames[i]),
                         trailing: Row(
                           mainAxisSize: MainAxisSize.min,
                           children: [
                             IconButton(
                               icon: const Icon(Icons.delete_outline),
                               onPressed: () {
-                                setState(() => images.removeAt(i));
+                                setState(() {
+                                  _imageBytesList.removeAt(i);
+                                  _imageNames.removeAt(i);
+                                });
                               },
                             ),
                             const Padding(
@@ -213,7 +250,9 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
           Padding(
             padding: const EdgeInsets.all(16),
             child: ElevatedButton(
-              onPressed: (images.isEmpty || _isProcessing) ? null : createPdf,
+              onPressed: (_imageBytesList.isEmpty || _isProcessing)
+                  ? null
+                  : createPdf,
               child: _isProcessing
                   ? const SizedBox(
                       height: 18,

@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 
@@ -20,6 +20,12 @@ class PdfManipulationService {
     }
 
     try {
+      if (kIsWeb) {
+        throw Exception(
+          'PDF merging is not available on web. Please use the desktop or mobile app.',
+        );
+      }
+
       final tempDir = await getTemporaryDirectory();
 
       // Ensure temp directory exists
@@ -184,6 +190,12 @@ class PdfManipulationService {
     List<int>? pages,
   }) async {
     try {
+      if (kIsWeb) {
+        throw Exception(
+          'PDF splitting is not available on web. Please use the desktop or mobile app.',
+        );
+      }
+
       final file = File(pdfPath);
       if (!await file.exists()) {
         throw Exception('File not found: $pdfPath');

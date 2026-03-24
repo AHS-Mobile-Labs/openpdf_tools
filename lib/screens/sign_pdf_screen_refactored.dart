@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import '../models/signing_models.dart';
 import '../services/certificate_service.dart';
@@ -971,7 +972,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
   }
 
   void _openSignedPdf(String? filePath) {
-    if (filePath != null) {
+    if (filePath != null && !kIsWeb) {
       Navigator.push(
         context,
         MaterialPageRoute(

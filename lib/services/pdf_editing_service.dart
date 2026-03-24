@@ -1,5 +1,5 @@
 import 'dart:io';
-import 'package:flutter/foundation.dart' show debugPrint;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
 import 'dart:async';
@@ -9,12 +9,21 @@ import 'dart:async';
 class PdfEditingService {
   static const _platform = MethodChannel('com.openpdf.tools/pdfManipulation');
 
+  static void _checkWebSupport(String operation) {
+    if (kIsWeb) {
+      throw Exception(
+        '$operation is not available on web. Please use the desktop or mobile app.',
+      );
+    }
+  }
+
   /// Add text to PDF
   static Future<String> addTextToPdf({
     required String inputPath,
     required String text,
     required double fontSize,
   }) async {
+    _checkWebSupport('PDF text editing');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -51,6 +60,7 @@ class PdfEditingService {
     required String inputPath,
     required int angle,
   }) async {
+    _checkWebSupport('PDF rotation');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -97,6 +107,7 @@ class PdfEditingService {
     required String inputPath,
     required List<double> cropBox,
   }) async {
+    _checkWebSupport('PDF cropping');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -133,6 +144,7 @@ class PdfEditingService {
     required double opacity,
     required double fontSize,
   }) async {
+    _checkWebSupport('PDF watermark');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -165,6 +177,7 @@ class PdfEditingService {
     required String inputPath,
     required String hexColor,
   }) async {
+    _checkWebSupport('PDF background color');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -195,6 +208,7 @@ class PdfEditingService {
 
   /// Compress PDF
   static Future<String> compressPdf({required String inputPath}) async {
+    _checkWebSupport('PDF compression');
     try {
       final tempDir = await getTemporaryDirectory();
       if (!await tempDir.exists()) {
@@ -235,6 +249,7 @@ class PdfEditingService {
 
   /// Get PDF page count
   static Future<int> getPageCount({required String inputPath}) async {
+    if (kIsWeb) return 1;
     try {
       if (Platform.isAndroid) {
         final result = await _platform.invokeMethod<int>('getPageCount', {

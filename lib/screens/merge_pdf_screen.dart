@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
@@ -61,12 +62,18 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       final res = await FilePicker.platform.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['pdf'],
+        withData: kIsWeb,
       );
 
       if (!mounted) return;
 
       if (res != null && res.files.isNotEmpty) {
-        _addPdfFile(res.files.single.path!);
+        final file = res.files.single;
+        if (kIsWeb) {
+          _addPdfFileWeb(file.name, file.size);
+        } else {
+          _addPdfFile(file.path!);
+        }
       }
     } catch (e) {
       if (!mounted) return;
@@ -91,6 +98,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         type: FileType.custom,
         allowedExtensions: ['pdf'],
         allowMultiple: true,
+        withData: kIsWeb,
       );
 
       if (!mounted) return;
@@ -98,7 +106,11 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       if (res != null && res.files.isNotEmpty) {
         int added = 0;
         for (final file in res.files) {
-          if (file.path != null &&
+          if (kIsWeb) {
+            if (_addPdfFileWeb(file.name, file.size, showSnackBar: false)) {
+              added++;
+            }
+          } else if (file.path != null &&
               _addPdfFile(file.path!, showSnackBar: false)) {
             added++;
           }
@@ -121,6 +133,14 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
   }
 
   bool _addPdfFile(String filePath, {bool showSnackBar = true}) {
+    if (kIsWeb) {
+      return _addPdfFileWeb(
+        filePath.split('/').last,
+        0,
+        showSnackBar: showSnackBar,
+      );
+    }
+
     try {
       final file = File(filePath);
 
@@ -195,9 +215,52 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     );
   }
 
+  bool _addPdfFileWeb(
+    String fileName,
+    int fileSize, {
+    bool showSnackBar = true,
+  }) {
+    // Check for duplicates
+    if (_selectedPdfs.any((pdf) => pdf.name == fileName)) {
+      _showErrorMessage('File already added: $fileName');
+      return false;
+    }
+
+    setState(() {
+      _selectedPdfs.add(
+        _PdfFileInfo(
+          path: fileName, // On web, use name as path placeholder
+          name: fileName,
+          sizeInBytes: fileSize,
+          addedAt: DateTime.now(),
+        ),
+      );
+      _errorMessage = null;
+    });
+
+    if (showSnackBar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added: $fileName'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+
+    return true;
+  }
+
   Future<void> _mergePdfs() async {
     if (_selectedPdfs.length < 2) {
       _showErrorMessage('Please select at least 2 PDF files');
+      return;
+    }
+
+    if (kIsWeb) {
+      _showErrorMessage(
+        'PDF merging is not available on web. Please use the desktop or mobile app.',
+      );
       return;
     }
 
@@ -315,6 +378,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
   }
 
   void _openMergedPdf(String outputPath) {
+    if (kIsWeb) return;
     Navigator.push(
       context,
       MaterialPageRoute(
