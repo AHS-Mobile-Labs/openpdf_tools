@@ -52,7 +52,7 @@ class PdfManipulationHandler(private val context: Context) {
                 "changeBackgroundColor" -> changeBackgroundColor(call, result)
                 else -> result.notImplemented()
             }
-        } catch (e: Exception) {
+        } catch (e: Throwable) {
             result.error("PDF_ERROR", "PDF operation failed: ${e.message}", e.stackTraceToString())
         }
     }
@@ -154,16 +154,74 @@ class PdfManipulationHandler(private val context: Context) {
             ?: return result.error("INVALID_ARGS", "inputPath is required", null)
         val outputPath = call.argument<String>("outputPath")
             ?: return result.error("INVALID_ARGS", "outputPath is required", null)
+        val quality = call.argument<Int>("quality") ?: 60
 
         Thread {
             try {
-                val doc = Loader.loadPDF(File(inputPath))
+                val inputFile = File(inputPath)
+                if (!inputFile.exists()) {
+                    mainHandler.post { result.error("COMPRESS_FAILED", "Input file not found: $inputPath", null) }
+                    return@Thread
+                }
+
                 ensureParentDir(outputPath)
-                doc.save(outputPath)
-                doc.close()
+
+                // Render each page as a compressed JPEG bitmap, then rebuild a new PDF
+                // using Android-native APIs only (no PDFBox AWT dependencies).
+                val pfd = ParcelFileDescriptor.open(inputFile, ParcelFileDescriptor.MODE_READ_ONLY)
+                val renderer = PdfRenderer(pfd)
+                val pageCount = renderer.pageCount
+
+                val jpegQuality = quality.coerceIn(30, 90)
+                val dpiScale = when {
+                    quality <= 40 -> 1.0f   // screen quality
+                    quality <= 60 -> 1.5f   // ebook quality
+                    else -> 2.0f            // print quality
+                }
+
+                val newPdfDoc = android.graphics.pdf.PdfDocument()
+
+                for (i in 0 until pageCount) {
+                    val page = renderer.openPage(i)
+                    val pageWidth = page.width
+                    val pageHeight = page.height
+                    val renderWidth = (pageWidth * dpiScale).toInt()
+                    val renderHeight = (pageHeight * dpiScale).toInt()
+
+                    // Render page to bitmap
+                    val bitmap = Bitmap.createBitmap(renderWidth, renderHeight, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bitmap)
+                    canvas.drawColor(Color.WHITE)
+                    page.render(bitmap, null, null, PdfRenderer.Page.RENDER_MODE_FOR_PRINT)
+                    page.close()
+
+                    // Compress through JPEG to reduce size
+                    val jpegStream = java.io.ByteArrayOutputStream()
+                    bitmap.compress(Bitmap.CompressFormat.JPEG, jpegQuality, jpegStream)
+                    bitmap.recycle()
+                    val jpegBytes = jpegStream.toByteArray()
+                    val compressedBitmap = android.graphics.BitmapFactory.decodeByteArray(jpegBytes, 0, jpegBytes.size)
+
+                    // Write compressed bitmap to new PDF page
+                    val pageInfo = android.graphics.pdf.PdfDocument.PageInfo.Builder(pageWidth, pageHeight, i + 1).create()
+                    val pdfPage = newPdfDoc.startPage(pageInfo)
+                    val destRect = android.graphics.RectF(0f, 0f, pageWidth.toFloat(), pageHeight.toFloat())
+                    pdfPage.canvas.drawBitmap(compressedBitmap, null, destRect, null)
+                    newPdfDoc.finishPage(pdfPage)
+                    compressedBitmap.recycle()
+                }
+
+                renderer.close()
+                pfd.close()
+
+                FileOutputStream(outputPath).use { fos ->
+                    newPdfDoc.writeTo(fos)
+                }
+                newPdfDoc.close()
+
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
-                mainHandler.post { result.error("COMPRESS_FAILED", e.message, null) }
+            } catch (e: Throwable) {
+                mainHandler.post { result.error("COMPRESS_FAILED", e.message ?: "Unknown error", null) }
             }
         }.start()
     }

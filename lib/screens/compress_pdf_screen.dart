@@ -208,6 +208,7 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
           .invokeMethod<String>('compressPdf', {
             'inputPath': _pdfPath!,
             'outputPath': outputPath,
+            'quality': _quality,
           })
           .timeout(
             const Duration(seconds: 120),
