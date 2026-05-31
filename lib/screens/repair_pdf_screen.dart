@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:share_plus/share_plus.dart' show XFile;
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -52,9 +53,12 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       if (result != null && result.files.isNotEmpty) {
         final filePath = result.files.first.path;
         final fileName = result.files.first.name;
+        if (filePath == null || filePath.isEmpty) return;
+        final realPath = await resolveToRealPath(filePath);
+        if (!mounted) return;
         debugPrint('[RepairPdfScreen] File selected: $fileName at $filePath');
         _safeSetState(() {
-          _selectedFilePath = filePath;
+          _selectedFilePath = realPath;
           _fileName = fileName;
           _analysisResult = null;
           _integrityReport = null;

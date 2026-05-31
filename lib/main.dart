@@ -21,6 +21,7 @@ import 'config/premium_theme.dart';
 import 'utils/platform_helper.dart';
 import 'utils/platform_file_handler.dart';
 import 'utils/responsive_helper.dart';
+import 'utils/uri_to_file.dart';
 import 'services/pdf_opener_service.dart';
 import 'services/theme_service.dart' as theme_service;
 
@@ -40,10 +41,6 @@ Future<void> main() async {
         debugPrint(
           '[main] File permissions denied - app will attempt limited functionality',
         );
-      }
-      if (PlatformHelper.isAndroid) {
-        debugPrint('[main] Requesting camera permission');
-        await PlatformFileHandler.requestCameraPermission();
       }
     } catch (e) {
       debugPrint('[main] Error requesting permissions: $e');
@@ -137,14 +134,19 @@ class _OpenPDFToolsAppState extends State<OpenPDFToolsApp> {
   }
 
   void _handlePdfFileFromSystem(String filePath) {
+    _openPdfFileFromSystem(filePath);
+  }
+
+  Future<void> _openPdfFileFromSystem(String filePath) async {
     debugPrint('PDF file received from system: $filePath');
-    final file = File(filePath);
-    if (file.existsSync() && filePath.toLowerCase().endsWith('.pdf')) {
+    final resolvedPath = await resolveToRealPath(filePath);
+    final file = File(resolvedPath);
+    if (file.existsSync() && resolvedPath.toLowerCase().endsWith('.pdf')) {
       _navigatorKey.currentState?.push(
         MaterialPageRoute(builder: (_) => PdfViewerScreen(externalFile: file)),
       );
     } else {
-      debugPrint('File does not exist or is not a PDF: $filePath');
+      debugPrint('File does not exist or is not a PDF: $resolvedPath');
     }
   }
 
@@ -158,12 +160,7 @@ class _OpenPDFToolsAppState extends State<OpenPDFToolsApp> {
   void _handleIncomingFiles(List<SharedMediaFile> files) {
     if (files.isEmpty) return;
     final file = files.first;
-    if (!file.path.toLowerCase().endsWith('.pdf')) return;
-    _navigatorKey.currentState?.push(
-      MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(externalFile: File(file.path)),
-      ),
-    );
+    _openPdfFileFromSystem(file.path);
   }
 
   @override

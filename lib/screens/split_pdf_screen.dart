@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import '../services/pdf_manipulation_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
@@ -57,7 +58,10 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       );
       if (!mounted) return;
       if (res != null && res.files.isNotEmpty) {
-        final filePath = res.files.single.path!;
+        final pickedPath = res.files.single.path;
+        if (pickedPath == null || pickedPath.isEmpty) return;
+        final filePath = await resolveToRealPath(pickedPath);
+        if (!mounted) return;
         try {
           setState(() {
             _pdfPath = filePath;

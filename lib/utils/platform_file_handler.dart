@@ -5,23 +5,35 @@ import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart' as path_provider;
 import 'package:permission_handler/permission_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 
 class PlatformFileHandler {
+  static int? get _androidSdkInt {
+    final match = RegExp(
+      r'SDK\s+(\d+)',
+    ).firstMatch(Platform.operatingSystemVersion);
+    return match == null ? null : int.tryParse(match.group(1)!);
+  }
+
   static Future<bool> requestStoragePermission() async {
     if (!PlatformHelper.isAndroid) return true;
     try {
-      // Android 13+
-      final photos = await Permission.photos.request();
-      final videos = await Permission.videos.request();
-      if (photos.isGranted || videos.isGranted) return true;
+      final sdkInt = _androidSdkInt;
 
-      // Android 10–12
+      if (sdkInt != null && sdkInt >= 33) {
+        // FilePicker uses SAF on modern Android, so this is only a narrow
+        // media permission request for image-based flows.
+        await Permission.photos.request();
+        return true;
+      }
+
+      if (sdkInt == null) {
+        final photos = await Permission.photos.request();
+        if (photos.isGranted || photos.isLimited) return true;
+      }
+
       final storage = await Permission.storage.request();
-      if (storage.isGranted) return true;
-
-      // Android 11+ scoped storage fallback
-      final manage = await Permission.manageExternalStorage.request();
-      return manage.isGranted;
+      return storage.isGranted;
     } catch (e) {
       debugPrint('Permission error: $e');
       return false;
@@ -32,18 +44,7 @@ class PlatformFileHandler {
     if (!PlatformHelper.isAndroid) return true;
     try {
       final photoResult = await Permission.photos.request();
-      final videoResult = await Permission.videos.request();
-      return photoResult.isGranted || videoResult.isGranted;
-    } catch (e) {
-      return false;
-    }
-  }
-
-  static Future<bool> requestCameraPermission() async {
-    if (!PlatformHelper.isMobile) return true;
-    try {
-      final status = await Permission.camera.request();
-      return status.isGranted;
+      return photoResult.isGranted || photoResult.isLimited;
     } catch (e) {
       return false;
     }
@@ -69,34 +70,11 @@ class PlatformFileHandler {
     }
   }
 
-  static Future<bool> requestManageExternalStoragePermission() async {
-    if (!PlatformHelper.isAndroid) return true;
-    try {
-      debugPrint(
-        '[PlatformFileHandler] Requesting MANAGE_EXTERNAL_STORAGE permission',
-      );
-      final status = await Permission.manageExternalStorage.request();
-      debugPrint(
-        '[PlatformFileHandler] MANAGE_EXTERNAL_STORAGE status: $status',
-      );
-      return status.isGranted;
-    } catch (e) {
-      debugPrint(
-        '[PlatformFileHandler] Error requesting manage external storage: $e',
-      );
-      return false;
-    }
-  }
-
   static Future<bool> requestFilePermissions() async {
     if (!PlatformHelper.isMobile) return true;
     try {
       if (PlatformHelper.isAndroid) {
-        final storageGranted = await requestStoragePermission();
-        await requestMediaPermissions();
-        final manageStorageGranted =
-            await requestManageExternalStoragePermission();
-        return storageGranted || manageStorageGranted;
+        return await requestStoragePermission();
       } else if (PlatformHelper.isIOS) {
         return await requestMediaLibraryAccess();
       }
@@ -163,7 +141,8 @@ class PlatformFileHandler {
       if (result != null && result.files.isNotEmpty) {
         final filePath = result.files.first.path;
         if (filePath != null && filePath.isNotEmpty) {
-          final file = File(filePath);
+          final realPath = await resolveToRealPath(filePath);
+          final file = File(realPath);
           if (await file.exists()) {
             return file;
           }
@@ -193,10 +172,16 @@ class PlatformFileHandler {
           )
           .timeout(const Duration(seconds: 30), onTimeout: () => null);
       if (result != null && result.files.isNotEmpty) {
-        return result.files
-            .map((file) => File(file.path ?? ''))
-            .where((file) => file.path.isNotEmpty)
-            .toList();
+        final files = <File>[];
+        for (final file in result.files) {
+          final filePath = file.path;
+          if (filePath == null || filePath.isEmpty) continue;
+          final realPath = await resolveToRealPath(filePath);
+          if (realPath.isNotEmpty) {
+            files.add(File(realPath));
+          }
+        }
+        return files;
       }
     } on PlatformException catch (e) {
       if (e.code != 'read_external_storage_denied') {}

@@ -175,19 +175,14 @@ class _InAppFilePickerDialogState extends State<_InAppFilePickerDialog> {
 
   Future<void> _useGallery() async {
     try {
-      PermissionStatus cameraStatus = PermissionStatus.denied;
       PermissionStatus photosStatus = PermissionStatus.denied;
       if (PlatformHelper.isAndroid) {
         photosStatus = await Permission.photos.request();
-        if (!mounted) return;
-        if (photosStatus.isGranted) {
-          cameraStatus = await Permission.camera.request();
-        }
       } else if (PlatformHelper.isIOS) {
         photosStatus = await Permission.photos.request();
       }
       if (!mounted) return;
-      if (!photosStatus.isGranted && !cameraStatus.isGranted) {
+      if (!photosStatus.isGranted && !photosStatus.isLimited) {
         ScaffoldMessenger.of(context).showSnackBar(
           const SnackBar(
             content: Text(

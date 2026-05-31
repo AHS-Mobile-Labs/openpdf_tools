@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:path_provider/path_provider.dart';
 import '../models/signing_models.dart';
+import '../utils/uri_to_file.dart';
 
 class SecureFilePickerService {
   static const int maxPdfFileSize = 500 * 1024 * 1024;
@@ -22,7 +23,8 @@ class SecureFilePickerService {
           debugPrint('[SecureFilePickerService] Invalid file path');
           return null;
         }
-        final file = File(filePath);
+        final realPath = await resolveToRealPath(filePath);
+        final file = File(realPath);
         if (!await _validatePdfFile(file)) {
           return null;
         }
@@ -47,7 +49,8 @@ class SecureFilePickerService {
           debugPrint('[SecureFilePickerService] Invalid file path');
           return null;
         }
-        final file = File(filePath);
+        final realPath = await resolveToRealPath(filePath);
+        final file = File(realPath);
         if (!await _validateCertificateFile(file)) {
           return null;
         }
@@ -71,7 +74,8 @@ class SecureFilePickerService {
           debugPrint('[SecureFilePickerService] Invalid file path');
           return null;
         }
-        final file = File(filePath);
+        final realPath = await resolveToRealPath(filePath);
+        final file = File(realPath);
         if (!await _validateImageFile(file)) {
           return null;
         }

@@ -7,6 +7,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
@@ -33,7 +34,11 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       );
       if (!mounted) return;
       if (res == null || res.files.isEmpty) return;
-      setState(() => _pdfPath = res.files.single.path);
+      final pickedPath = res.files.single.path;
+      if (pickedPath == null || pickedPath.isEmpty) return;
+      final realPath = await resolveToRealPath(pickedPath);
+      if (!mounted) return;
+      setState(() => _pdfPath = realPath);
     } catch (e) {
       final choice = await showDialog<String>(
         context: context,
@@ -169,6 +174,15 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
           context,
           MaterialPageRoute(
             builder: (_) => PdfViewerScreen(externalFile: compressedFile),
+          ),
+        );
+      }
+    } on TimeoutException {
+      debugPrint('[CompressPdf] Compression timed out');
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('File too large or complex. Try a smaller file.'),
           ),
         );
       }
@@ -315,7 +329,7 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
                     ),
                     if (_isProcessing) ...[
                       const SizedBox(height: 16),
-                      const CircularProgressIndicator(),
+                      const LinearProgressIndicator(),
                       const SizedBox(height: 8),
                       Center(
                         child: Text(

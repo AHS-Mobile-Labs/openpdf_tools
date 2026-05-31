@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_lib;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
@@ -202,7 +203,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         allowedExtensions: ['pdf'],
       );
       if (result != null && result.files.isNotEmpty) {
-        setState(() => _selectedPdfPath = result.files.first.path!);
+        final pickedPath = result.files.first.path;
+        if (pickedPath == null || pickedPath.isEmpty) return;
+        final realPath = await resolveToRealPath(pickedPath);
+        if (!mounted) return;
+        setState(() => _selectedPdfPath = realPath);
       }
     } catch (e) {
       if (!mounted) return;
@@ -956,11 +961,5 @@ class _ConversionFormatCardState extends State<_ConversionFormatCard>
         ),
       ),
     );
-  }
-}
-
-class Path {
-  static String basename(String path) {
-    return path.split(Platform.pathSeparator).last;
   }
 }

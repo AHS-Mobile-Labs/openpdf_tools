@@ -62,22 +62,9 @@ class MainActivity : FlutterActivity() {
     private fun getFilePathFromUri(uri: Uri): String? {
         return when (uri.scheme) {
             "file" -> uri.path
-            "content" -> getPathFromContentUri(uri)
+            "content" -> uri.toString()
             "openpdf" -> uri.pathSegments.drop(1).joinToString("/")
             else -> uri.toString()
-        }
-    }
-
-    private fun getPathFromContentUri(uri: Uri): String? {
-        return try {
-            val projection = arrayOf(android.provider.MediaStore.MediaColumns.DATA)
-            contentResolver.query(uri, projection, null, null, null)?.use { cursor ->
-                if (cursor.moveToFirst()) {
-                    cursor.getString(cursor.getColumnIndexOrThrow(android.provider.MediaStore.MediaColumns.DATA))
-                } else uri.path
-            }
-        } catch (e: Exception) {
-            uri.path
         }
     }
 

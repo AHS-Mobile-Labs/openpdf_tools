@@ -12,6 +12,7 @@ import 'package:path/path.dart' as path;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:openpdf_tools/config/app_config.dart';
 import 'pdf_viewer_screen.dart';
 
@@ -66,9 +67,6 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           );
         }
       }
-      if (format.contains('Images') && PlatformHelper.isAndroid) {
-        await PlatformFileHandler.requestCameraPermission();
-      }
       final supportedFormats = _getSupportedFormats();
       final result = await FilePicker.platform.pickFiles(
         type: FileType.custom,
@@ -87,9 +85,13 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
             await _convertToPdfFromBytes(fileBytes, fileName);
           }
         } else {
+          final pickedPath = result.files.first.path;
+          if (pickedPath == null || pickedPath.isEmpty) return;
+          final realPath = await resolveToRealPath(pickedPath);
+          if (!mounted) return;
           setState(() {
             _selectedFormat = format;
-            _selectedFile = File(result.files.first.path!);
+            _selectedFile = File(realPath);
           });
           await _convertToPdf();
         }

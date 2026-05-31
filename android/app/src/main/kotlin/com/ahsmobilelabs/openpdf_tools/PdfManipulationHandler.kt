@@ -50,6 +50,7 @@ class PdfManipulationHandler(private val context: Context) {
                 "addWatermark" -> addWatermark(call, result)
                 "cropPdf" -> cropPdf(call, result)
                 "changeBackgroundColor" -> changeBackgroundColor(call, result)
+                "copyUriToCache" -> copyUriToCache(call, result)
                 else -> result.notImplemented()
             }
         } catch (e: Throwable) {
@@ -76,10 +77,8 @@ class PdfManipulationHandler(private val context: Context) {
                     if (!file.exists()) throw Exception("File not found: $path")
                     val doc = Loader.loadPDF(file)
                     sourceDocs.add(doc)
-                    // Use iterator directly — avoid toList() which can lose pages
-                    val pageIter = doc.pages.iterator()
-                    while (pageIter.hasNext()) {
-                        merged.addPage(pageIter.next())
+                    for (i in 0 until doc.numberOfPages) {
+                        merged.importPage(doc.getPage(i))
                     }
                 }
 
@@ -577,6 +576,54 @@ class PdfManipulationHandler(private val context: Context) {
                 mainHandler.post { result.error("BG_COLOR_FAILED", e.message, null) }
             }
         }.start()
+    }
+
+    private fun copyUriToCache(call: MethodCall, result: MethodChannel.Result) {
+        val uriString = call.argument<String>("uri")
+            ?: return result.error("INVALID_ARGS", "uri required", null)
+
+        Thread {
+            try {
+                val uri = android.net.Uri.parse(uriString)
+                val fileName = getFileNameFromUri(uri) ?: "temp_${System.currentTimeMillis()}.pdf"
+                val outFile = File(context.cacheDir, fileName)
+
+                val inputStream = context.contentResolver.openInputStream(uri)
+                    ?: if (uri.scheme == "file" && uri.path != null) {
+                        File(uri.path!!).inputStream()
+                    } else {
+                        null
+                    }
+                    ?: throw Exception("Cannot open URI: $uriString")
+
+                inputStream.use { input ->
+                    outFile.outputStream().use { output -> input.copyTo(output) }
+                }
+
+                mainHandler.post { result.success(outFile.absolutePath) }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("COPY_FAILED", e.message, null) }
+            }
+        }.start()
+    }
+
+    private fun getFileNameFromUri(uri: android.net.Uri): String? {
+        if (uri.scheme == "content") {
+            context.contentResolver.query(
+                uri,
+                arrayOf(android.provider.OpenableColumns.DISPLAY_NAME),
+                null,
+                null,
+                null
+            )?.use { cursor ->
+                if (cursor.moveToFirst()) {
+                    return cursor.getString(
+                        cursor.getColumnIndexOrThrow(android.provider.OpenableColumns.DISPLAY_NAME)
+                    )
+                }
+            }
+        }
+        return uri.lastPathSegment
     }
 
     // ─── HELPER ───────────────────────────────────────────────────────────────

@@ -1,25 +1,12 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android"
     xmlns:tools="http://schemas.android.com/tools">
     
-    <!-- Storage permissions for reading/writing PDFs and images -->
+    <!-- Legacy storage permissions for Android 12 and below. -->
     <uses-permission android:name="android.permission.READ_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     <uses-permission android:name="android.permission.WRITE_EXTERNAL_STORAGE" android:maxSdkVersion="32" />
     
-    <!-- Media permissions for Android 13+ -->
+    <!-- Image access for Android 13+. -->
     <uses-permission android:name="android.permission.READ_MEDIA_IMAGES" />
-    <uses-permission android:name="android.permission.READ_MEDIA_VIDEO" />
-    
-    <!-- MANAGE_EXTERNAL_STORAGE for full file access on Android 11+ (scoped storage) -->
-    <uses-permission android:name="android.permission.MANAGE_EXTERNAL_STORAGE" />
-    
-    <!-- Camera permission for image capture -->
-    <uses-permission android:name="android.permission.CAMERA" />
-    
-    <!-- Internet permission for connectivity checks -->
-    <uses-permission android:name="android.permission.INTERNET" />
-    
-    <!-- Access network state for connectivity -->
-    <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     
     <application
         android:label="OpenPDF Tools"
@@ -105,10 +92,6 @@
         <!-- Open document intent -->
         <intent>
             <action android:name="android.intent.action.OPEN_DOCUMENT"/>
-        </intent>
-        <!-- Camera intent for image capture -->
-        <intent>
-            <action android:name="android.media.action.IMAGE_CAPTURE"/>
         </intent>
         <!-- Share intent for PDF sharing -->
         <intent>

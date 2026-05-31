@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import '../services/pdf_manipulation_service.dart';
 import '../config/app_config.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
@@ -62,8 +63,10 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         final file = res.files.single;
         if (kIsWeb) {
           _addPdfFileWeb(file.name, file.size);
-        } else {
-          _addPdfFile(file.path!);
+        } else if (file.path != null && file.path!.isNotEmpty) {
+          final realPath = await resolveToRealPath(file.path!);
+          if (!mounted) return;
+          _addPdfFile(realPath);
         }
       }
     } catch (e) {
@@ -97,9 +100,12 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
             if (_addPdfFileWeb(file.name, file.size, showSnackBar: false)) {
               added++;
             }
-          } else if (file.path != null &&
-              _addPdfFile(file.path!, showSnackBar: false)) {
-            added++;
+          } else if (file.path != null && file.path!.isNotEmpty) {
+            final realPath = await resolveToRealPath(file.path!);
+            if (!mounted) return;
+            if (_addPdfFile(realPath, showSnackBar: false)) {
+              added++;
+            }
           }
         }
         if (added > 0) {

@@ -9,6 +9,7 @@ import 'package:openpdf_tools/widgets/web_pdf_viewer.dart'
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
@@ -163,8 +164,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             _isLoadingBytes = false;
           });
         } else {
+          final realPath = await resolveToRealPath(result.files.single.path!);
+          if (!mounted) return;
           setState(() {
-            _pdfFile = File(result.files.single.path!);
+            _pdfFile = File(realPath);
             _webFileName = null;
             _webFileSize = null;
             _zoom = 1.0;
