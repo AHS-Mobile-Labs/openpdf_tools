@@ -1,11 +1,10 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
-import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
-import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:path/path.dart' as p;
 import '../services/pdf_manipulation_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
@@ -18,6 +17,9 @@ class SplitPdfScreen extends StatefulWidget {
 
 class _SplitPdfScreenState extends State<SplitPdfScreen> {
   String? _pdfPath;
+  String? _pdfName;
+  int? _pdfSizeInBytes;
+  int? _pageCount;
   bool _isProcessing = false;
   String? _errorMessage;
   bool _extractAllPages = true;
@@ -39,49 +41,35 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      if (PlatformHelper.isAndroid) {
-        final hasPermission =
-            await PlatformFileHandler.requestStoragePermission();
-        if (!hasPermission && mounted) {
-          ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(
-              content: Text(
-                'Storage permission denied. Attempting to proceed...',
-              ),
-              duration: Duration(seconds: 2),
-            ),
-          );
-        }
-      }
-      final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+      final file = await PlatformFileHandler.pickFile(
+        dialogTitle: 'Choose a PDF to split',
       );
       if (!mounted) return;
-      if (res != null && res.files.isNotEmpty) {
-        final pickedPath = res.files.single.path;
-        if (pickedPath == null || pickedPath.isEmpty) return;
-        final filePath = await resolveToRealPath(pickedPath);
-        if (!mounted) return;
-        try {
-          setState(() {
-            _pdfPath = filePath;
-            _errorMessage = null;
-            _startPageController.clear();
-            _endPageController.clear();
-          });
-          if (!mounted) return;
-          ScaffoldMessenger.of(context).showSnackBar(
-            SnackBar(
-              content: Text('Selected: ${res.files.single.name}'),
-              backgroundColor: Colors.green,
-            ),
-          );
-        } catch (e) {
-          if (!mounted) return;
-          setState(() => _errorMessage = 'Error reading PDF: $e');
-        }
+      if (file == null) return;
+      final pageCount = await PdfManipulationService.getPageCount(file.path);
+      if (!mounted) return;
+      if (pageCount <= 0) {
+        setState(() {
+          _errorMessage =
+              'Could not read the PDF page count. Try another file.';
+        });
+        return;
       }
+      setState(() {
+        _pdfPath = file.path;
+        _pdfName = p.basename(file.path);
+        _pdfSizeInBytes = file.lengthSync();
+        _pageCount = pageCount;
+        _errorMessage = null;
+        _startPageController.text = '1';
+        _endPageController.text = pageCount.toString();
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Selected: ${p.basename(file.path)}'),
+          backgroundColor: PremiumColors.success,
+        ),
+      );
     } catch (e) {
       if (!mounted) return;
       setState(() => _errorMessage = 'Error picking file: $e');
@@ -100,7 +88,10 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       );
       return;
     }
-    setState(() => _isProcessing = true);
+    setState(() {
+      _isProcessing = true;
+      _errorMessage = null;
+    });
     try {
       late List<String> outputPaths;
       if (_extractAllPages) {
@@ -119,6 +110,13 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
           setState(() {
             _isProcessing = false;
             _errorMessage = 'Invalid page range. Start must be >= 1 and <= End';
+          });
+          return;
+        }
+        if (_pageCount != null && endPage > _pageCount!) {
+          setState(() {
+            _isProcessing = false;
+            _errorMessage = 'End page must be ${_pageCount!} or less';
           });
           return;
         }
@@ -141,24 +139,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       }
       if (!mounted) return;
       setState(() => _isProcessing = false);
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(
-            'PDF split successfully. Saved ${savedFiles.length} file(s) to ${savedFiles.first.displayPath}',
-          ),
-          backgroundColor: Colors.green,
-        ),
-      );
-      if (!kIsWeb) {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (_) => PdfViewerScreen(
-              externalFile: File(savedFiles.first.workingPath),
-            ),
-          ),
-        );
-      }
+      _showSuccessDialog(savedFiles);
     } catch (e) {
       if (!mounted) return;
       String errorMessage = 'Failed to split PDF: $e';
@@ -185,11 +166,273 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
   void _clearSelection() {
     setState(() {
       _pdfPath = null;
+      _pdfName = null;
+      _pdfSizeInBytes = null;
+      _pageCount = null;
       _errorMessage = null;
       _startPageController.clear();
       _endPageController.clear();
       _extractAllPages = true;
     });
+  }
+
+  void _showSuccessDialog(List<ExportedFile> savedFiles) {
+    final firstFile = savedFiles.first;
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Split Complete'),
+        content: Text(
+          'Created ${savedFiles.length} PDF file(s).\nSaved to: ${firstFile.displayPath}',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: kIsWeb
+                ? null
+                : () {
+                    Navigator.pop(context);
+                    Navigator.push(
+                      context,
+                      MaterialPageRoute(
+                        builder: (_) => PdfViewerScreen(
+                          externalFile: File(firstFile.workingPath),
+                        ),
+                      ),
+                    );
+                  },
+            icon: const Icon(Icons.visibility),
+            label: const Text('View First'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  String _sizeDisplay(int? bytes) {
+    if (bytes == null) return 'Unknown size';
+    return PlatformFileHandler.getHumanReadableFileSize(bytes);
+  }
+
+  Widget _buildErrorBanner(bool isDark) {
+    if (_errorMessage == null) return const SizedBox.shrink();
+    return Container(
+      margin: const EdgeInsets.only(top: 16),
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        color: PremiumColors.error.withValues(alpha: isDark ? 0.16 : 0.08),
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(color: PremiumColors.error.withValues(alpha: 0.28)),
+      ),
+      child: Row(
+        children: [
+          const Icon(Icons.error_outline, color: PremiumColors.error),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              _errorMessage!,
+              style: PremiumTypography.bodySmall.copyWith(
+                color: isDark
+                    ? PremiumColors.darkText
+                    : PremiumColors.lightText,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFileCard(bool isDark) {
+    final hasFile = _pdfPath != null;
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(8),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 52,
+            height: 52,
+            decoration: BoxDecoration(
+              color: PremiumColors.luxuryRed.withValues(alpha: 0.10),
+              borderRadius: BorderRadius.circular(8),
+            ),
+            child: Icon(
+              hasFile ? Icons.picture_as_pdf : Icons.upload_file,
+              color: PremiumColors.luxuryRed,
+              size: 28,
+            ),
+          ),
+          const SizedBox(width: 14),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  hasFile ? _pdfName! : 'No PDF selected',
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PremiumTypography.labelLarge.copyWith(
+                    color: isDark
+                        ? PremiumColors.darkText
+                        : PremiumColors.lightText,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Text(
+                  hasFile
+                      ? '${_pageCount ?? 0} pages - ${_sizeDisplay(_pdfSizeInBytes)}'
+                      : 'Choose one PDF, then split all pages or a page range.',
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: PremiumTypography.bodySmall.copyWith(
+                    color: isDark
+                        ? PremiumColors.darkTextSecondary
+                        : PremiumColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (hasFile)
+            IconButton(
+              onPressed: _isProcessing ? null : _clearSelection,
+              icon: const Icon(Icons.close),
+              tooltip: 'Clear',
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildModeCard({
+    required bool isDark,
+    required bool selected,
+    required IconData icon,
+    required String title,
+    required String subtitle,
+    required VoidCallback onTap,
+  }) {
+    return InkWell(
+      onTap: _isProcessing ? null : onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: Container(
+        padding: const EdgeInsets.all(14),
+        decoration: BoxDecoration(
+          color: selected
+              ? PremiumColors.luxuryRed.withValues(alpha: 0.10)
+              : (isDark
+                    ? PremiumColors.darkSurfacePrimary
+                    : PremiumColors.lightSurfacePrimary),
+          borderRadius: BorderRadius.circular(8),
+          border: Border.all(
+            color: selected
+                ? PremiumColors.luxuryRed
+                : (isDark
+                      ? PremiumColors.darkDivider
+                      : PremiumColors.lightDivider),
+          ),
+        ),
+        child: Row(
+          children: [
+            Icon(icon, color: PremiumColors.luxuryRed),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    title,
+                    style: PremiumTypography.labelLarge.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    subtitle,
+                    style: PremiumTypography.bodySmall.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkTextSecondary
+                          : PremiumColors.lightTextSecondary,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            Icon(
+              selected ? Icons.check_circle : Icons.radio_button_unchecked,
+              color: selected ? PremiumColors.luxuryRed : Colors.grey,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBottomBar(bool isDark) {
+    final canSplit = !_isProcessing && _pdfPath != null;
+    return SafeArea(
+      child: Container(
+        padding: const EdgeInsets.fromLTRB(16, 10, 16, 12),
+        decoration: BoxDecoration(
+          color: isDark
+              ? PremiumColors.darkSurfacePrimary
+              : PremiumColors.lightSurfacePrimary,
+          border: Border(
+            top: BorderSide(
+              color: isDark
+                  ? PremiumColors.darkDivider
+                  : PremiumColors.lightDivider,
+            ),
+          ),
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: OutlinedButton.icon(
+                onPressed: _isProcessing ? null : _pickPdf,
+                icon: const Icon(Icons.upload_file),
+                label: Text(_pdfPath == null ? 'Select PDF' : 'Change'),
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              flex: 2,
+              child: ElevatedButton.icon(
+                onPressed: canSplit ? _splitPdf : null,
+                icon: _isProcessing
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          valueColor: AlwaysStoppedAnimation(Colors.white),
+                        ),
+                      )
+                    : const Icon(Icons.call_split),
+                label: Text(_isProcessing ? 'Splitting...' : 'Split PDF'),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
   }
 
   @override
@@ -200,358 +443,114 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       appBar: AppBar(
         title: const Text('Split PDF'),
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1A1A1A) : Colors.white,
-        foregroundColor: isDark ? Colors.white : Colors.black,
         actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
+      bottomNavigationBar: _buildBottomBar(isDark),
       body: Container(
-        color: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFFAFAFA),
+        color: isDark ? PremiumColors.darkBg : PremiumColors.lightBg,
         child: SingleChildScrollView(
-          padding: EdgeInsets.all(isMobile ? 16 : 24),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(16),
-                decoration: BoxDecoration(
-                  color: isDark
-                      ? const Color(0xFF252525)
-                      : Colors.purple.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: isDark
-                        ? Colors.purple.shade900
-                        : Colors.purple.shade200,
-                  ),
-                ),
-                child: Row(
-                  children: [
-                    Icon(Icons.info_outline, color: Colors.purple.shade600),
-                    const SizedBox(width: 12),
-                    Expanded(
-                      child: Text(
-                        'Extract pages from your PDF. You can extract all pages separately or a specific range.',
-                        style: TextStyle(
-                          color: isDark
-                              ? Colors.white70
-                              : Colors.purple.shade900,
-                          fontSize: 13,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 24),
-              if (_pdfPath != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(16),
-                  decoration: BoxDecoration(
-                    color: isDark ? const Color(0xFF252525) : Colors.white,
-                    borderRadius: BorderRadius.circular(12),
-                    border: Border.all(
+          padding: EdgeInsets.fromLTRB(
+            isMobile ? 16 : 24,
+            16,
+            isMobile ? 16 : 24,
+            24,
+          ),
+          child: Center(
+            child: ConstrainedBox(
+              constraints: const BoxConstraints(maxWidth: 760),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Split PDF',
+                    style: PremiumTypography.headlineLarge.copyWith(
                       color: isDark
-                          ? const Color(0xFF404040)
-                          : Colors.grey.shade200,
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
                     ),
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Row(
-                        children: [
-                          Icon(
-                            Icons.picture_as_pdf,
-                            color: Colors.red,
-                            size: 24,
-                          ),
-                          const SizedBox(width: 12),
-                          Expanded(
-                            child: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  _pdfPath!.split('/').last,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white
-                                        : Colors.black87,
-                                    fontWeight: FontWeight.w600,
-                                  ),
-                                ),
-                                const SizedBox(height: 4),
-                                Text(
-                                  _pdfPath!,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: TextStyle(
-                                    color: isDark
-                                        ? Colors.white54
-                                        : Colors.grey,
-                                    fontSize: 11,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                        children: [
-                          TextButton.icon(
-                            onPressed: _clearSelection,
-                            icon: const Icon(Icons.clear, size: 18),
-                            label: const Text('Clear'),
-                            style: TextButton.styleFrom(
-                              foregroundColor: Colors.red,
-                            ),
-                          ),
-                        ],
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-                Text(
-                  'Split Options',
-                  style: TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () {
-                    setState(() => _extractAllPages = true);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF252525) : Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: _extractAllPages
-                            ? Colors.purple.shade600
-                            : (isDark
-                                  ? const Color(0xFF404040)
-                                  : Colors.grey.shade200),
-                        width: _extractAllPages ? 2 : 1,
-                      ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Extract every page into separate PDFs, or keep one page range as a new PDF.',
+                    style: PremiumTypography.bodyMedium.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkTextSecondary
+                          : PremiumColors.lightTextSecondary,
                     ),
-                    child: Row(
+                  ),
+                  const SizedBox(height: 18),
+                  _buildFileCard(isDark),
+                  _buildErrorBanner(isDark),
+                  if (_isProcessing) ...[
+                    const SizedBox(height: 16),
+                    const LinearProgressIndicator(),
+                  ],
+                  const SizedBox(height: 22),
+                  Text(
+                    'Split Mode',
+                    style: PremiumTypography.headlineSmall.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
+                    ),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildModeCard(
+                    isDark: isDark,
+                    selected: _extractAllPages,
+                    icon: Icons.dashboard_outlined,
+                    title: 'All Pages',
+                    subtitle: _pageCount == null
+                        ? 'Create one PDF per page.'
+                        : 'Create ${_pageCount!} separate PDF file(s).',
+                    onTap: () => setState(() => _extractAllPages = true),
+                  ),
+                  const SizedBox(height: 10),
+                  _buildModeCard(
+                    isDark: isDark,
+                    selected: !_extractAllPages,
+                    icon: Icons.view_agenda_outlined,
+                    title: 'Page Range',
+                    subtitle: 'Create one PDF from a selected range.',
+                    onTap: () => setState(() => _extractAllPages = false),
+                  ),
+                  if (!_extractAllPages) ...[
+                    const SizedBox(height: 14),
+                    Row(
                       children: [
-                        Icon(
-                          _extractAllPages
-                              ? Icons.radio_button_checked
-                              : Icons.radio_button_unchecked,
-                          color: _extractAllPages
-                              ? Colors.purple.shade600
-                              : Colors.grey,
+                        Expanded(
+                          child: TextField(
+                            controller: _startPageController,
+                            decoration: InputDecoration(
+                              labelText: 'Start Page',
+                              helperText: _pageCount == null
+                                  ? null
+                                  : '1-${_pageCount!}',
+                              border: const OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
+                          ),
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                'Extract All Pages Separately',
-                                style: TextStyle(
-                                  color: isDark ? Colors.white : Colors.black87,
-                                  fontWeight: FontWeight.w500,
-                                ),
-                              ),
-                              const SizedBox(height: 4),
-                              Text(
-                                'Each page will be saved as an individual PDF',
-                                style: TextStyle(
-                                  color: isDark
-                                      ? Colors.white54
-                                      : Colors.grey.shade600,
-                                  fontSize: 12,
-                                ),
-                              ),
-                            ],
+                          child: TextField(
+                            controller: _endPageController,
+                            decoration: InputDecoration(
+                              labelText: 'End Page',
+                              helperText: _pageCount == null
+                                  ? null
+                                  : '1-${_pageCount!}',
+                              border: const OutlineInputBorder(),
+                            ),
+                            keyboardType: TextInputType.number,
                           ),
                         ),
                       ],
                     ),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                GestureDetector(
-                  onTap: () {
-                    setState(() => _extractAllPages = false);
-                  },
-                  child: Container(
-                    padding: const EdgeInsets.all(12),
-                    decoration: BoxDecoration(
-                      color: isDark ? const Color(0xFF252525) : Colors.white,
-                      borderRadius: BorderRadius.circular(8),
-                      border: Border.all(
-                        color: !_extractAllPages
-                            ? Colors.purple.shade600
-                            : (isDark
-                                  ? const Color(0xFF404040)
-                                  : Colors.grey.shade200),
-                        width: !_extractAllPages ? 2 : 1,
-                      ),
-                    ),
-                    child: Column(
-                      children: [
-                        Row(
-                          children: [
-                            Icon(
-                              !_extractAllPages
-                                  ? Icons.radio_button_checked
-                                  : Icons.radio_button_unchecked,
-                              color: !_extractAllPages
-                                  ? Colors.purple.shade600
-                                  : Colors.grey,
-                            ),
-                            const SizedBox(width: 12),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text(
-                                    'Extract Page Range',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? Colors.white
-                                          : Colors.black87,
-                                      fontWeight: FontWeight.w500,
-                                    ),
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    'Save a specific range as a single PDF',
-                                    style: TextStyle(
-                                      color: isDark
-                                          ? Colors.white54
-                                          : Colors.grey.shade600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ],
-                        ),
-                        if (!_extractAllPages) ...[
-                          const SizedBox(height: 12),
-                          Row(
-                            children: [
-                              Expanded(
-                                child: TextField(
-                                  controller: _startPageController,
-                                  decoration: InputDecoration(
-                                    labelText: 'Start Page',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    hintText: '1',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                ),
-                              ),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: TextField(
-                                  controller: _endPageController,
-                                  decoration: InputDecoration(
-                                    labelText: 'End Page',
-                                    border: OutlineInputBorder(
-                                      borderRadius: BorderRadius.circular(8),
-                                    ),
-                                    hintText: '1',
-                                  ),
-                                  keyboardType: TextInputType.number,
-                                ),
-                              ),
-                            ],
-                          ),
-                        ],
-                      ],
-                    ),
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              if (_errorMessage != null) ...[
-                Container(
-                  padding: const EdgeInsets.all(12),
-                  decoration: BoxDecoration(
-                    color: Colors.red.shade50,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: Colors.red.shade300),
-                  ),
-                  child: Row(
-                    children: [
-                      Icon(Icons.error_outline, color: Colors.red),
-                      const SizedBox(width: 12),
-                      Expanded(
-                        child: Text(
-                          _errorMessage!,
-                          style: const TextStyle(color: Colors.red),
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-                const SizedBox(height: 24),
-              ],
-              Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _isProcessing ? null : _pickPdf,
-                      icon: const Icon(Icons.upload_file),
-                      label: const Text('Select PDF'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.purple,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.grey,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  SizedBox(
-                    width: double.infinity,
-                    height: 50,
-                    child: ElevatedButton.icon(
-                      onPressed: _isProcessing || _pdfPath == null
-                          ? null
-                          : _splitPdf,
-                      icon: _isProcessing
-                          ? const SizedBox(
-                              width: 20,
-                              height: 20,
-                              child: CircularProgressIndicator(
-                                strokeWidth: 2,
-                                valueColor: AlwaysStoppedAnimation(
-                                  Colors.white,
-                                ),
-                              ),
-                            )
-                          : const Icon(Icons.cut),
-                      label: Text(_isProcessing ? 'Splitting...' : 'Split PDF'),
-                      style: ElevatedButton.styleFrom(
-                        backgroundColor: Colors.deepOrange,
-                        foregroundColor: Colors.white,
-                        disabledBackgroundColor: Colors.deepOrange.withValues(
-                          alpha: 0.5,
-                        ),
-                      ),
-                    ),
-                  ),
+                  ],
                 ],
               ),
-            ],
+            ),
           ),
         ),
       ),

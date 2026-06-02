@@ -90,7 +90,7 @@ class PdfManipulationHandler(private val context: Context) {
                 merged.save(outputPath)
 
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("MERGE_FAILED", e.message, e.stackTraceToString()) }
             } finally {
                 try { merged.close() } catch (_: Exception) {}
@@ -125,7 +125,7 @@ class PdfManipulationHandler(private val context: Context) {
                     }
                 }
                 mainHandler.post { result.success(outputPaths) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("SPLIT_FAILED", e.message, e.stackTraceToString()) }
             }
         }.start()
@@ -155,8 +155,8 @@ class PdfManipulationHandler(private val context: Context) {
                     }
                 }
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
-                mainHandler.post { result.error("SPLIT_RANGE_FAILED", e.message, null) }
+            } catch (e: Throwable) {
+                mainHandler.post { result.error("SPLIT_RANGE_FAILED", e.message, e.stackTraceToString()) }
             }
         }.start()
     }

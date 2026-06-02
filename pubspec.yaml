@@ -24,6 +24,7 @@ dependencies:
 
   # PDF viewer (supports password-protected PDFs)
   syncfusion_flutter_pdfviewer: ^32.2.7
+  syncfusion_flutter_pdf: ^32.2.7
 
   # Pick images & files
   image_picker: ^1.0.7

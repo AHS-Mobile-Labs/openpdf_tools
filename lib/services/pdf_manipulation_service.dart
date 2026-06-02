@@ -1,12 +1,13 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfManipulationService {
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
-  static const _operationTimeout = Duration(minutes: 4);
 
   static Future<String> mergePdfs(List<String> pdfPaths) async {
     if (pdfPaths.isEmpty) {
@@ -42,22 +43,17 @@ class PdfManipulationService {
           throw Exception('File not found: $pdfPath');
         }
       }
+      Object? dartMergeError;
+      try {
+        return await _mergeWithSyncfusion(pdfPaths, outputPath);
+      } catch (e) {
+        dartMergeError = e;
+        debugPrint('[PdfManipulation] Dart merge failed: $e');
+      }
       if (Platform.isAndroid) {
-        try {
-          final result = await platform
-              .invokeMethod<String>('mergePdfs', {
-                'inputPaths': pdfPaths,
-                'outputPath': outputPath,
-              })
-              .timeout(_operationTimeout);
-          if (result != null && result.isNotEmpty) {
-            return result;
-          }
-        } catch (e) {
-          debugPrint('[PdfManipulation] Native merge failed: $e');
-          throw Exception('Failed to merge PDFs: $e');
-        }
-      } else {
+        throw Exception('Unable to merge these PDFs: $dartMergeError');
+      }
+      if (!Platform.isAndroid) {
         final qpdfResult = await _tryMergeWithQpdf(pdfPaths, outputPath);
         if (qpdfResult != null) {
           return qpdfResult;
@@ -70,11 +66,35 @@ class PdfManipulationService {
         if (gsResult != null) {
           return gsResult;
         }
-        throw Exception(_missingToolsMessage('merge PDFs'));
       }
-      throw Exception('Failed to merge PDFs: Unknown error');
+      throw Exception(_missingToolsMessage('merge PDFs'));
     } catch (e) {
       throw Exception('Failed to merge PDFs: $e');
+    }
+  }
+
+  static Future<String> _mergeWithSyncfusion(
+    List<String> pdfPaths,
+    String outputPath,
+  ) async {
+    final output = PdfDocument();
+    final loadedDocuments = <PdfDocument>[];
+    try {
+      for (final pdfPath in pdfPaths) {
+        final inputBytes = await File(pdfPath).readAsBytes();
+        final input = PdfDocument(inputBytes: inputBytes);
+        loadedDocuments.add(input);
+        for (var pageIndex = 0; pageIndex < input.pages.count; pageIndex++) {
+          _copyPage(input.pages[pageIndex], output);
+        }
+      }
+      await _writePdf(output, outputPath);
+      return outputPath;
+    } finally {
+      output.dispose();
+      for (final document in loadedDocuments) {
+        document.dispose();
+      }
     }
   }
 
@@ -164,63 +184,79 @@ class PdfManipulationService {
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
-      if (Platform.isAndroid) {
-        try {
-          final result = await platform
-              .invokeMethod<List<dynamic>>('splitPdf', {
-                'inputPath': pdfPath,
-                'outputDir': tempDir.path,
-              })
-              .timeout(_operationTimeout);
-          if (result != null && result.isNotEmpty) {
-            return result.cast<String>();
-          }
-        } catch (e) {
-          debugPrint('[PdfManipulation] Native split failed: $e');
-          throw Exception('Failed to split PDF: $e');
-        }
-      } else {
-        if (pages != null && pages.isNotEmpty) {
-          final outputPaths = <String>[];
-          for (final pageNum in pages) {
-            final outputPath =
-                '${tempDir.path}/page_${pageNum}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-            final success = await _extractPagesTool(pdfPath, outputPath, [
-              pageNum,
-            ]);
-            if (success) {
-              outputPaths.add(outputPath);
-            }
-          }
-          if (outputPaths.isEmpty) {
-            throw Exception('Failed to extract pages');
-          }
-          return outputPaths;
-        } else {
-          final pageCount = await _getPageCount(pdfPath);
-          if (pageCount <= 0) {
-            throw Exception(
-              'Could not determine PDF page count. Install pdfinfo or qpdf, then try again.',
-            );
-          }
-          final outputPaths = <String>[];
-          for (int i = 1; i <= pageCount; i++) {
-            final outputPath =
-                '${tempDir.path}/page_${i}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-            final success = await _extractPagesTool(pdfPath, outputPath, [i]);
-            if (success) {
-              outputPaths.add(outputPath);
-            }
-          }
-          if (outputPaths.isEmpty) {
-            throw Exception('Failed to extract pages');
-          }
-          return outputPaths;
-        }
+      Object? dartSplitError;
+      try {
+        return await _splitWithSyncfusion(pdfPath, pages: pages);
+      } catch (e) {
+        dartSplitError = e;
+        debugPrint('[PdfManipulation] Dart split failed: $e');
       }
-      throw Exception('Failed to split PDF: Unknown error');
+      if (Platform.isAndroid) {
+        throw Exception('Unable to split this PDF: $dartSplitError');
+      }
+      if (!Platform.isAndroid) {
+        final selectedPages = pages != null && pages.isNotEmpty
+            ? pages
+            : List.generate(await _getPageCount(pdfPath), (i) => i + 1);
+        if (selectedPages.isEmpty) {
+          throw Exception(
+            'Could not determine PDF page count. Install pdfinfo or qpdf, then try again.',
+          );
+        }
+        final outputPaths = <String>[];
+        for (final pageNum in selectedPages) {
+          final outputPath =
+              '${tempDir.path}/page_${pageNum}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+          final success = await _extractPagesTool(pdfPath, outputPath, [
+            pageNum,
+          ]);
+          if (success) {
+            outputPaths.add(outputPath);
+          }
+        }
+        if (outputPaths.isNotEmpty) return outputPaths;
+      }
+      throw Exception('Failed to extract pages');
     } catch (e) {
       throw Exception('Failed to split PDF: $e');
+    }
+  }
+
+  static Future<List<String>> _splitWithSyncfusion(
+    String pdfPath, {
+    List<int>? pages,
+  }) async {
+    final input = PdfDocument(inputBytes: await File(pdfPath).readAsBytes());
+    try {
+      final pageCount = input.pages.count;
+      if (pageCount <= 0) {
+        throw Exception('PDF has no pages');
+      }
+      final selectedPages = pages != null && pages.isNotEmpty
+          ? pages
+          : List.generate(pageCount, (i) => i + 1);
+      final outputPaths = <String>[];
+      for (final pageNumber in selectedPages) {
+        if (pageNumber < 1 || pageNumber > pageCount) {
+          throw Exception('Page $pageNumber is outside 1-$pageCount');
+        }
+        final outputPath = await OutputPathHelper.createWorkingOutputPath(
+          fileName:
+              '${p.basenameWithoutExtension(pdfPath)}_page_$pageNumber.pdf',
+          category: OutputCategory.exports,
+        );
+        final output = PdfDocument();
+        try {
+          _copyPage(input.pages[pageNumber - 1], output);
+          await _writePdf(output, outputPath);
+        } finally {
+          output.dispose();
+        }
+        outputPaths.add(outputPath);
+      }
+      return outputPaths;
+    } finally {
+      input.dispose();
     }
   }
 
@@ -241,24 +277,22 @@ class PdfManipulationService {
         fileName: 'extracted_${DateTime.now().millisecondsSinceEpoch}.pdf',
         category: OutputCategory.exports,
       );
+      Object? dartSplitError;
+      try {
+        return await _splitRangeWithSyncfusion(
+          pdfPath,
+          startPage: startPage,
+          endPage: endPage,
+          outputPath: outputPath,
+        );
+      } catch (e) {
+        dartSplitError = e;
+        debugPrint('[PdfManipulation] Dart split range failed: $e');
+      }
       if (Platform.isAndroid) {
-        try {
-          final result = await platform
-              .invokeMethod<String>('splitPdfRange', {
-                'inputPath': pdfPath,
-                'startPage': startPage,
-                'endPage': endPage,
-                'outputPath': outputPath,
-              })
-              .timeout(_operationTimeout);
-          if (result != null && result.isNotEmpty) {
-            return result;
-          }
-        } catch (e) {
-          debugPrint('[PdfManipulation] Native split range failed: $e');
-          throw Exception('Failed to split PDF range: $e');
-        }
-      } else {
+        throw Exception('Unable to split this PDF range: $dartSplitError');
+      }
+      if (!Platform.isAndroid) {
         final pages = List.generate(
           endPage - startPage + 1,
           (i) => startPage + i,
@@ -269,10 +303,57 @@ class PdfManipulationService {
         }
         return outputPath;
       }
-      throw Exception('Failed to split PDF range: Unknown error');
+      throw Exception('Failed to extract page range');
     } catch (e) {
       throw Exception('Failed to split PDF range: $e');
     }
+  }
+
+  static Future<String> _splitRangeWithSyncfusion(
+    String pdfPath, {
+    required int startPage,
+    required int endPage,
+    required String outputPath,
+  }) async {
+    final input = PdfDocument(inputBytes: await File(pdfPath).readAsBytes());
+    final output = PdfDocument();
+    try {
+      final pageCount = input.pages.count;
+      if (startPage > pageCount) {
+        throw Exception('Start page is outside the PDF page count');
+      }
+      final end = endPage.clamp(1, pageCount).toInt();
+      for (var pageNumber = startPage; pageNumber <= end; pageNumber++) {
+        _copyPage(input.pages[pageNumber - 1], output);
+      }
+      await _writePdf(output, outputPath);
+      return outputPath;
+    } finally {
+      output.dispose();
+      input.dispose();
+    }
+  }
+
+  static void _copyPage(PdfPage sourcePage, PdfDocument outputDocument) {
+    final pageSize = sourcePage.size;
+    final template = sourcePage.createTemplate();
+    final section = outputDocument.sections!.add();
+    section.pageSettings
+      ..size = Size(pageSize.width, pageSize.height)
+      ..setMargins(0);
+    final outputPage = section.pages.add();
+    outputPage.graphics.drawPdfTemplate(
+      template,
+      Offset.zero,
+      Size(pageSize.width, pageSize.height),
+    );
+  }
+
+  static Future<void> _writePdf(PdfDocument document, String outputPath) async {
+    final outputFile = File(outputPath);
+    await outputFile.parent.create(recursive: true);
+    final bytes = await document.save();
+    await outputFile.writeAsBytes(bytes, flush: true);
   }
 
   static Future<bool> _extractPagesTool(
@@ -358,8 +439,22 @@ class PdfManipulationService {
     }
   }
 
+  static Future<int> getPageCount(String pdfPath) => _getPageCount(pdfPath);
+
   static Future<int> _getPageCount(String pdfPath) async {
     try {
+      try {
+        final document = PdfDocument(
+          inputBytes: await File(pdfPath).readAsBytes(),
+        );
+        try {
+          return document.pages.count;
+        } finally {
+          document.dispose();
+        }
+      } catch (e) {
+        debugPrint('[PdfManipulation] Dart page count failed: $e');
+      }
       if (Platform.isAndroid) {
         try {
           final result = await platform.invokeMethod<int>('getPageCount', {
