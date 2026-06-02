@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
@@ -9,6 +10,7 @@ import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:openpdf_tools/services/pdf_editing_service.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:path/path.dart' as p;
 import 'pdf_viewer_screen.dart';
 
 class EditPdfScreen extends StatefulWidget {
@@ -628,92 +630,110 @@ class _EditPdfScreenState extends State<EditPdfScreen>
     }
   }
 
+  _EditOperation get _selectedOperation =>
+      _editOperations.firstWhere((operation) => operation.id == _editType);
+
+  String get _selectedFileName =>
+      _pdfPath == null ? 'No PDF selected' : p.basename(_pdfPath!);
+
+  String get _selectedFileSize {
+    if (_pdfPath == null) return '';
+    try {
+      final file = File(_pdfPath!);
+      if (!file.existsSync()) return 'File path ready';
+      return _formatBytes(file.lengthSync());
+    } catch (_) {
+      return 'File path ready';
+    }
+  }
+
+  String get _previewFileName =>
+      _previewPath == null ? '' : p.basename(_previewPath!);
+
+  String _formatBytes(int bytes) {
+    if (bytes < 1024) return '$bytes B';
+    final kb = bytes / 1024;
+    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
+    final mb = kb / 1024;
+    return '${mb.toStringAsFixed(2)} MB';
+  }
+
+  void _openPreviewFile() {
+    if (_previewPath == null) return;
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (_) => PdfViewerScreen(externalFile: File(_previewPath!)),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
-    final isWide = MediaQuery.of(context).size.width > 900;
+    final size = MediaQuery.of(context).size;
+    final isWide = size.width > 900;
+    final panelWidth = size.width > 1200 ? 480.0 : 420.0;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return Scaffold(
-      backgroundColor: isDark
-          ? const Color(0xFF0F0F0F)
-          : const Color(0xFFFAFAFA),
+      backgroundColor: isDark ? PremiumColors.darkBg : PremiumColors.lightBg,
       appBar: AppBar(
-        title: const Text('Edit PDF'),
-        centerTitle: true,
+        title: const Text('Edit PDF Studio'),
         elevation: 0,
-        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
-        foregroundColor: isDark ? Colors.white : Colors.black87,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
+        backgroundColor: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfacePrimary,
+        foregroundColor: isDark
+            ? PremiumColors.darkText
+            : PremiumColors.lightText,
+        actions: [
+          if (_previewPath != null)
+            IconButton(
+              icon: const Icon(Icons.visibility_outlined),
+              tooltip: 'View output',
+              onPressed: _openPreviewFile,
+            ),
+          ThemeSwitcher(compact: true),
+          const SizedBox(width: 8),
+        ],
       ),
       body: AnimatedBuilder(
         animation: _backgroundColorAnimation,
         builder: (context, child) {
-          return Container(
-            color: isDark
-                ? const Color(0xFF0F0F0F)
-                : (_backgroundColorAnimation.value ?? const Color(0xFFFAFAFA)),
-            child: child,
-          );
+          final baseColor = isDark
+              ? PremiumColors.darkBg
+              : PremiumColors.lightBg;
+          final animatedColor = _backgroundColorAnimation.value;
+          final canvasColor = animatedColor == null || isDark
+              ? baseColor
+              : Color.alphaBlend(
+                  animatedColor.withValues(alpha: 0.08),
+                  baseColor,
+                );
+          return Container(color: canvasColor, child: child);
         },
-        child: isWide
-            ? Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Expanded(flex: 2, child: _buildEditPanel()),
-                  Expanded(
-                    flex: 3,
-                    child: Container(
+        child: SafeArea(
+          child: isWide
+              ? Row(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(width: panelWidth, child: _buildEditPanel()),
+                    Container(
+                      width: 1,
                       color: isDark
-                          ? const Color(0xFF1C1C1C)
-                          : Colors.grey.shade100,
-                      padding: const EdgeInsets.all(16),
-                      child: _previewPath != null
-                          ? SfPdfViewer.file(File(_previewPath!))
-                          : Center(
-                              child: Text(
-                                'Live Preview will appear here',
-                                style: TextStyle(color: Colors.grey[600]),
-                              ),
-                            ),
+                          ? PremiumColors.darkDivider
+                          : PremiumColors.lightDivider,
                     ),
-                  ),
-                ],
-              )
-            : Stack(
-                children: [
-                  _buildEditPanel(),
-                  if (_showPreviewModal && _previewPath != null)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.7),
-                        child: Center(
-                          child: Material(
-                            borderRadius: BorderRadius.circular(16),
-                            child: Container(
-                              width: MediaQuery.of(context).size.width * 0.9,
-                              height: MediaQuery.of(context).size.height * 0.7,
-                              padding: const EdgeInsets.all(16),
-                              child: Stack(
-                                children: [
-                                  SfPdfViewer.file(File(_previewPath!)),
-                                  Positioned(
-                                    top: 8,
-                                    right: 8,
-                                    child: IconButton(
-                                      icon: const Icon(Icons.close),
-                                      onPressed: () => setState(
-                                        () => _showPreviewModal = false,
-                                      ),
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
+                    Expanded(child: _buildPreviewWorkspace(isWide: true)),
+                  ],
+                )
+              : Stack(
+                  children: [
+                    _buildEditPanel(),
+                    if (_showPreviewModal && _previewPath != null)
+                      _buildMobilePreviewOverlay(),
+                  ],
+                ),
+        ),
       ),
     );
   }
@@ -721,172 +741,265 @@ class _EditPdfScreenState extends State<EditPdfScreen>
   Widget _buildEditPanel() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     return SingleChildScrollView(
-      padding: const EdgeInsets.all(16),
+      padding: EdgeInsets.fromLTRB(
+        16,
+        16,
+        16,
+        24 + MediaQuery.of(context).padding.bottom,
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Card(
-            elevation: 2,
-            shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: Padding(
-              padding: const EdgeInsets.all(16),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text(
-                    'Step 1: Select PDF',
-                    style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          _buildEditorHero(isDark),
+          const SizedBox(height: 16),
+          _buildFilePickerCard(isDark),
+          if (_pdfPath != null) ...[
+            const SizedBox(height: 16),
+            _buildOperationSection(isDark),
+            const SizedBox(height: 16),
+            _buildSelectedActionCard(isDark),
+            if (_previewPath != null) ...[
+              const SizedBox(height: 16),
+              _buildPreviewReadyCard(isDark),
+            ],
+          ] else ...[
+            const SizedBox(height: 16),
+            _buildGettingStartedPanel(isDark),
+          ],
+        ],
+      ),
+    );
+  }
+
+  Widget _buildEditorHero(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(20),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfaceSecondary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.06),
+            blurRadius: 18,
+            offset: const Offset(0, 8),
+          ),
+        ],
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Container(
+                width: 48,
+                height: 48,
+                decoration: BoxDecoration(
+                  color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: const Icon(
+                  Icons.edit_document,
+                  color: PremiumColors.luxuryRed,
+                ),
+              ),
+              const SizedBox(width: 14),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      'Edit, polish, export',
+                      style: PremiumTypography.headlineLarge.copyWith(
+                        color: isDark
+                            ? PremiumColors.darkText
+                            : PremiumColors.lightText,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'Choose one focused PDF action and preview the output.',
+                      style: PremiumTypography.bodyMedium.copyWith(
+                        color: isDark
+                            ? PremiumColors.darkTextSecondary
+                            : PremiumColors.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 18),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: const [
+              _FeatureBullet(icon: Icons.text_fields, label: 'Text'),
+              _FeatureBullet(
+                icon: Icons.water_drop_outlined,
+                label: 'Watermark',
+              ),
+              _FeatureBullet(icon: Icons.crop_rotate, label: 'Rotate & crop'),
+              _FeatureBullet(icon: Icons.compress, label: 'Compress'),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFilePickerCard(bool isDark) {
+    final surfaceColor = isDark
+        ? PremiumColors.darkSurfaceSecondary
+        : PremiumColors.lightSurfacePrimary;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: surfaceColor,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: _pdfPath == null
+              ? PremiumColors.luxuryRed.withValues(alpha: 0.28)
+              : (isDark
+                    ? PremiumColors.darkDivider
+                    : PremiumColors.lightDivider),
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Text(
+                'Document',
+                style: PremiumTypography.headlineSmall.copyWith(
+                  color: isDark
+                      ? PremiumColors.darkText
+                      : PremiumColors.lightText,
+                ),
+              ),
+              const Spacer(),
+              if (_pdfPath != null)
+                TextButton.icon(
+                  onPressed: _pickPdf,
+                  icon: const Icon(Icons.swap_horiz, size: 18),
+                  label: const Text('Change'),
+                ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          if (_pdfPath == null)
+            InkWell(
+              onTap: _pickPdf,
+              borderRadius: BorderRadius.circular(14),
+              child: Container(
+                width: double.infinity,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 18,
+                  vertical: 22,
+                ),
+                decoration: BoxDecoration(
+                  color: PremiumColors.luxuryRed.withValues(alpha: 0.06),
+                  borderRadius: BorderRadius.circular(14),
+                  border: Border.all(
+                    color: PremiumColors.luxuryRed.withValues(alpha: 0.22),
                   ),
-                  const SizedBox(height: 12),
-                  if (_pdfPath == null)
+                ),
+                child: Column(
+                  children: [
+                    const Icon(
+                      Icons.upload_file,
+                      color: PremiumColors.luxuryRed,
+                      size: 42,
+                    ),
+                    const SizedBox(height: 12),
+                    Text(
+                      'Select a PDF to start editing',
+                      style: PremiumTypography.labelLarge.copyWith(
+                        color: isDark
+                            ? PremiumColors.darkText
+                            : PremiumColors.lightText,
+                      ),
+                    ),
+                    const SizedBox(height: 6),
+                    Text(
+                      'Your original file stays untouched; exports are saved as new files.',
+                      textAlign: TextAlign.center,
+                      style: PremiumTypography.bodySmall.copyWith(
+                        color: mutedColor,
+                      ),
+                    ),
+                    const SizedBox(height: 16),
                     ElevatedButton.icon(
                       onPressed: _pickPdf,
-                      icon: const Icon(Icons.upload_file),
+                      icon: const Icon(Icons.folder_open),
                       label: const Text('Pick PDF'),
-                    )
-                  else
-                    Column(
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            Container(
+              padding: const EdgeInsets.all(14),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? PremiumColors.darkSurfacePrimary
+                    : PremiumColors.lightSurfaceSecondary,
+                borderRadius: BorderRadius.circular(14),
+              ),
+              child: Row(
+                children: [
+                  Container(
+                    width: 42,
+                    height: 42,
+                    decoration: BoxDecoration(
+                      color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(12),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf,
+                      color: PremiumColors.luxuryRed,
+                    ),
+                  ),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
-                        Container(
-                          padding: const EdgeInsets.all(12),
-                          decoration: BoxDecoration(
+                        Text(
+                          _selectedFileName,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: PremiumTypography.labelLarge.copyWith(
                             color: isDark
-                                ? const Color(0xFF1C1C1C)
-                                : Colors.grey.shade100,
-                            borderRadius: BorderRadius.circular(8),
-                          ),
-                          child: Row(
-                            children: [
-                              const Icon(Icons.article, color: Colors.grey),
-                              const SizedBox(width: 12),
-                              Expanded(
-                                child: Text(
-                                  _pdfPath!.split('/').last,
-                                  overflow: TextOverflow.ellipsis,
-                                  style: const TextStyle(fontSize: 14),
-                                ),
-                              ),
-                            ],
+                                ? PremiumColors.darkText
+                                : PremiumColors.lightText,
                           ),
                         ),
-                        const SizedBox(height: 12),
-                        TextButton.icon(
-                          onPressed: _pickPdf,
-                          icon: const Icon(Icons.change_circle),
-                          label: const Text('Choose Different File'),
+                        const SizedBox(height: 3),
+                        Text(
+                          _selectedFileSize,
+                          style: PremiumTypography.bodySmall.copyWith(
+                            color: mutedColor,
+                          ),
                         ),
                       ],
                     ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(height: 20),
-          if (_pdfPath != null) ...[
-            const Text(
-              'Step 2: Choose Edit Option',
-              style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Add Text',
-              description: 'Add custom text to your PDF',
-              icon: Icons.text_fields,
-              isSelected: _editType == 'addText',
-              onTap: () => setState(() => _editType = 'addText'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Add Watermark',
-              description: 'Add watermark with placement control',
-              icon: Icons.water_drop,
-              isSelected: _editType == 'watermark',
-              onTap: () => setState(() => _editType = 'watermark'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Rotate Pages',
-              description: 'Rotate PDF pages (90°, 180°, 270°)',
-              icon: Icons.rotate_right,
-              isSelected: _editType == 'rotate',
-              onTap: () => setState(() => _editType = 'rotate'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Crop PDF',
-              description: 'Crop PDF to custom dimensions',
-              icon: Icons.crop,
-              isSelected: _editType == 'crop',
-              onTap: () => setState(() => _editType = 'crop'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Background Color',
-              description: 'Change background color with animation',
-              icon: Icons.palette,
-              isSelected: _editType == 'bgColor',
-              onTap: () => setState(() => _editType = 'bgColor'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 12),
-            _EditOptionCard(
-              title: 'Compress',
-              description: 'Compress PDF to reduce file size',
-              icon: Icons.compress,
-              isSelected: _editType == 'compress',
-              onTap: () => setState(() => _editType = 'compress'),
-              isDark: isDark,
-            ),
-            const SizedBox(height: 20),
-            ElevatedButton.icon(
-              onPressed: _isProcessing ? null : _performEdit,
-              icon: _isProcessing
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.edit),
-              label: Text(_isProcessing ? 'Processing...' : 'Apply Edit'),
-            ),
-            if (_previewPath != null &&
-                MediaQuery.of(context).size.width <= 900)
-              Padding(
-                padding: const EdgeInsets.only(top: 16),
-                child: ElevatedButton.icon(
-                  icon: const Icon(Icons.visibility),
-                  label: const Text('Show Live Preview'),
-                  onPressed: () => setState(() => _showPreviewModal = true),
-                ),
-              ),
-          ],
-          if (_pdfPath == null)
-            Padding(
-              padding: const EdgeInsets.symmetric(vertical: 40),
-              child: Column(
-                children: [
-                  Icon(
-                    Icons.description_outlined,
-                    size: 80,
-                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
                   ),
-                  const SizedBox(height: 16),
-                  Text(
-                    'Select a PDF to get started',
-                    style: TextStyle(
-                      fontSize: 16,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade600,
-                    ),
-                    textAlign: TextAlign.center,
+                  Icon(
+                    Icons.check_circle,
+                    color: PremiumColors.success.withValues(alpha: 0.9),
                   ),
                 ],
               ),
@@ -895,77 +1008,852 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       ),
     );
   }
-}
 
-class _EditOptionCard extends StatelessWidget {
-  final String title;
-  final String description;
-  final IconData icon;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final bool isDark;
-  const _EditOptionCard({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.isSelected,
-    required this.onTap,
-    required this.isDark,
-  });
-  @override
-  Widget build(BuildContext context) {
-    return Card(
-      elevation: isSelected ? 4 : 1,
-      shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(12),
-        side: BorderSide(
-          color: isSelected
-              ? const Color(0xFFC6302C)
-              : (isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade300),
-          width: isSelected ? 2 : 1,
+  Widget _buildOperationSection(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfaceSecondary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
         ),
       ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(12),
-        child: Padding(
-          padding: const EdgeInsets.all(16),
-          child: Row(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
             children: [
-              Icon(
-                icon,
-                size: 32,
-                color: isSelected
-                    ? const Color(0xFFC6302C)
-                    : (isDark ? Colors.grey.shade400 : Colors.grey),
+              Text(
+                'Editing tools',
+                style: PremiumTypography.headlineSmall.copyWith(
+                  color: isDark
+                      ? PremiumColors.darkText
+                      : PremiumColors.lightText,
+                ),
               ),
-              const SizedBox(width: 16),
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 10,
+                  vertical: 5,
+                ),
+                decoration: BoxDecoration(
+                  color: PremiumColors.luxuryBlue.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '${_editOperations.length} tools',
+                  style: PremiumTypography.labelSmall.copyWith(
+                    color: PremiumColors.luxuryBlue,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Pick an action. Each one opens the right settings only when needed.',
+            style: PremiumTypography.bodySmall.copyWith(
+              color: isDark
+                  ? PremiumColors.darkTextSecondary
+                  : PremiumColors.lightTextSecondary,
+            ),
+          ),
+          const SizedBox(height: 14),
+          LayoutBuilder(
+            builder: (context, constraints) {
+              final columns = constraints.maxWidth >= 620 ? 2 : 1;
+              final gap = 12.0;
+              final itemWidth =
+                  (constraints.maxWidth - (gap * (columns - 1))) / columns;
+              return Wrap(
+                spacing: gap,
+                runSpacing: gap,
+                children: _editOperations
+                    .map(
+                      (operation) => SizedBox(
+                        width: itemWidth,
+                        child: _EditOptionCard(
+                          operation: operation,
+                          isSelected: _editType == operation.id,
+                          isDark: isDark,
+                          onTap: () => setState(() => _editType = operation.id),
+                        ),
+                      ),
+                    )
+                    .toList(),
+              );
+            },
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSelectedActionCard(bool isDark) {
+    final operation = _selectedOperation;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: operation.accent.withValues(alpha: isDark ? 0.18 : 0.08),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: operation.accent.withValues(alpha: 0.28)),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 46,
+                height: 46,
+                decoration: BoxDecoration(
+                  color: operation.accent.withValues(alpha: 0.16),
+                  borderRadius: BorderRadius.circular(14),
+                ),
+                child: Icon(operation.icon, color: operation.accent),
+              ),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
                     Text(
-                      title,
-                      style: const TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.bold,
+                      operation.title,
+                      style: PremiumTypography.headlineSmall.copyWith(
+                        color: isDark
+                            ? PremiumColors.darkText
+                            : PremiumColors.lightText,
                       ),
                     ),
                     const SizedBox(height: 4),
                     Text(
-                      description,
-                      style: TextStyle(
-                        fontSize: 12,
+                      operation.detail,
+                      style: PremiumTypography.bodySmall.copyWith(
                         color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                            ? PremiumColors.darkTextSecondary
+                            : PremiumColors.lightTextSecondary,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 16),
+          Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              _MiniSpecChip(label: 'Offline', isDark: isDark),
+              _MiniSpecChip(label: 'Creates a copy', isDark: isDark),
+              _MiniSpecChip(label: operation.outcome, isDark: isDark),
+            ],
+          ),
+          if (_isProcessing) ...[
+            const SizedBox(height: 16),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(999),
+              child: LinearProgressIndicator(
+                minHeight: 6,
+                color: operation.accent,
+                backgroundColor: operation.accent.withValues(alpha: 0.18),
+              ),
+            ),
+          ],
+          const SizedBox(height: 18),
+          ElevatedButton.icon(
+            onPressed: _isProcessing ? null : _performEdit,
+            icon: _isProcessing
+                ? const SizedBox(
+                    width: 18,
+                    height: 18,
+                    child: CircularProgressIndicator(
+                      strokeWidth: 2,
+                      color: Colors.white,
+                    ),
+                  )
+                : Icon(operation.icon),
+            label: Text(_isProcessing ? 'Processing...' : operation.ctaLabel),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: operation.accent,
+              foregroundColor: Colors.white,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewReadyCard(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfaceSecondary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: PremiumColors.success.withValues(alpha: 0.35),
+        ),
+      ),
+      child: Row(
+        children: [
+          Container(
+            width: 42,
+            height: 42,
+            decoration: BoxDecoration(
+              color: PremiumColors.success.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
+            ),
+            child: const Icon(Icons.done, color: PremiumColors.success),
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Output ready',
+                  style: PremiumTypography.labelLarge.copyWith(
+                    color: isDark
+                        ? PremiumColors.darkText
+                        : PremiumColors.lightText,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  _previewFileName,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: PremiumTypography.bodySmall.copyWith(
+                    color: isDark
+                        ? PremiumColors.darkTextSecondary
+                        : PremiumColors.lightTextSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (MediaQuery.of(context).size.width <= 900)
+            IconButton(
+              icon: const Icon(Icons.preview),
+              tooltip: 'Preview',
+              onPressed: () => setState(() => _showPreviewModal = true),
+            )
+          else
+            TextButton.icon(
+              onPressed: _openPreviewFile,
+              icon: const Icon(Icons.open_in_new, size: 18),
+              label: const Text('Open'),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildGettingStartedPanel(bool isDark) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return Container(
+      padding: const EdgeInsets.all(18),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfaceSecondary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'A cleaner editing flow',
+            style: PremiumTypography.headlineSmall.copyWith(color: textColor),
+          ),
+          const SizedBox(height: 12),
+          _WorkflowRow(
+            number: '1',
+            title: 'Open a PDF',
+            description: 'Select a file from device storage.',
+            isDark: isDark,
+          ),
+          _WorkflowRow(
+            number: '2',
+            title: 'Pick one tool',
+            description:
+                'Use text, watermark, rotation, crop, color, or compression.',
+            isDark: isDark,
+          ),
+          _WorkflowRow(
+            number: '3',
+            title: 'Preview and export',
+            description: 'Review the generated copy before sharing or saving.',
+            isDark: isDark,
+            isLast: true,
+          ),
+          const SizedBox(height: 12),
+          Text(
+            'Tip: edits are exported as new files, so the source PDF remains available.',
+            style: PremiumTypography.bodySmall.copyWith(color: mutedColor),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPreviewWorkspace({required bool isWide}) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    final background = isDark
+        ? PremiumColors.darkSurfacePrimary
+        : PremiumColors.lightSurfaceSecondary;
+    return Container(
+      color: background,
+      padding: EdgeInsets.all(isWide ? 18 : 0),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Container(
+            padding: const EdgeInsets.all(14),
+            decoration: BoxDecoration(
+              color: isDark
+                  ? PremiumColors.darkSurfaceSecondary
+                  : PremiumColors.lightSurfacePrimary,
+              borderRadius: BorderRadius.circular(16),
+              border: Border.all(
+                color: isDark
+                    ? PremiumColors.darkDivider
+                    : PremiumColors.lightDivider,
+              ),
+            ),
+            child: Row(
+              children: [
+                Container(
+                  width: 40,
+                  height: 40,
+                  decoration: BoxDecoration(
+                    color: PremiumColors.luxuryBlue.withValues(alpha: 0.12),
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                  child: const Icon(
+                    Icons.visibility_outlined,
+                    color: PremiumColors.luxuryBlue,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Live preview',
+                        style: PremiumTypography.labelLarge.copyWith(
+                          color: isDark
+                              ? PremiumColors.darkText
+                              : PremiumColors.lightText,
+                        ),
+                      ),
+                      const SizedBox(height: 3),
+                      Text(
+                        _previewPath == null
+                            ? 'Apply an edit to generate a preview.'
+                            : _previewFileName,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: PremiumTypography.bodySmall.copyWith(
+                          color: isDark
+                              ? PremiumColors.darkTextSecondary
+                              : PremiumColors.lightTextSecondary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                if (_previewPath != null)
+                  TextButton.icon(
+                    onPressed: _openPreviewFile,
+                    icon: const Icon(Icons.open_in_new, size: 18),
+                    label: const Text('Full view'),
+                  ),
+              ],
+            ),
+          ),
+          const SizedBox(height: 14),
+          Expanded(
+            child: Container(
+              decoration: BoxDecoration(
+                color: isDark ? const Color(0xFF111111) : Colors.white,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : PremiumColors.lightDivider,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              clipBehavior: Clip.antiAlias,
+              child: _previewPath != null
+                  ? SfPdfViewer.file(File(_previewPath!))
+                  : _PreviewEmptyState(
+                      hasPdf: _pdfPath != null,
+                      operation: _selectedOperation,
+                      isDark: isDark,
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildMobilePreviewOverlay() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.72),
+        padding: const EdgeInsets.all(16),
+        child: Center(
+          child: Material(
+            color: isDark
+                ? PremiumColors.darkSurfacePrimary
+                : PremiumColors.lightSurfacePrimary,
+            borderRadius: BorderRadius.circular(18),
+            child: SizedBox(
+              width: double.infinity,
+              height: MediaQuery.of(context).size.height * 0.74,
+              child: Column(
+                children: [
+                  Padding(
+                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
+                    child: Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            _previewFileName,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: PremiumTypography.labelLarge.copyWith(
+                              color: isDark
+                                  ? PremiumColors.darkText
+                                  : PremiumColors.lightText,
+                            ),
+                          ),
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.open_in_new),
+                          tooltip: 'Full view',
+                          onPressed: _openPreviewFile,
+                        ),
+                        IconButton(
+                          icon: const Icon(Icons.close),
+                          tooltip: 'Close',
+                          onPressed: () =>
+                              setState(() => _showPreviewModal = false),
+                        ),
+                      ],
+                    ),
+                  ),
+                  Divider(
+                    height: 1,
+                    color: isDark
+                        ? PremiumColors.darkDivider
+                        : PremiumColors.lightDivider,
+                  ),
+                  Expanded(child: SfPdfViewer.file(File(_previewPath!))),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+const List<_EditOperation> _editOperations = [
+  _EditOperation(
+    id: 'addText',
+    title: 'Add Text',
+    description: 'Place custom text on the document.',
+    detail:
+        'Add labels, notes, or quick corrections using your chosen text size.',
+    outcome: 'Text layer',
+    ctaLabel: 'Add Text',
+    icon: Icons.text_fields,
+    accent: PremiumColors.luxuryRed,
+  ),
+  _EditOperation(
+    id: 'watermark',
+    title: 'Watermark',
+    description: 'Add branded or confidential marks.',
+    detail: 'Control placement and opacity for subtle stamps across the PDF.',
+    outcome: 'Placement',
+    ctaLabel: 'Add Watermark',
+    icon: Icons.water_drop_outlined,
+    accent: PremiumColors.luxuryBlue,
+  ),
+  _EditOperation(
+    id: 'rotate',
+    title: 'Rotate Pages',
+    description: 'Fix page orientation quickly.',
+    detail:
+        'Rotate pages by 90, 180, or 270 degrees and export a corrected copy.',
+    outcome: 'Orientation',
+    ctaLabel: 'Rotate Pages',
+    icon: Icons.rotate_right,
+    accent: PremiumColors.warning,
+  ),
+  _EditOperation(
+    id: 'crop',
+    title: 'Crop PDF',
+    description: 'Trim page bounds with point values.',
+    detail:
+        'Enter page crop dimensions when you need precise printable margins.',
+    outcome: 'Margins',
+    ctaLabel: 'Crop PDF',
+    icon: Icons.crop,
+    accent: PremiumColors.luxuryGreen,
+  ),
+  _EditOperation(
+    id: 'bgColor',
+    title: 'Background Color',
+    description: 'Apply a new PDF background color.',
+    detail: 'Pick a color visually and generate a fresh document background.',
+    outcome: 'Color',
+    ctaLabel: 'Change Color',
+    icon: Icons.palette_outlined,
+    accent: PremiumColors.info,
+  ),
+  _EditOperation(
+    id: 'compress',
+    title: 'Compress',
+    description: 'Reduce file size for sharing.',
+    detail: 'Create a smaller copy that is easier to send or store.',
+    outcome: 'Smaller file',
+    ctaLabel: 'Compress PDF',
+    icon: Icons.compress,
+    accent: PremiumColors.luxuryRed,
+  ),
+];
+
+class _EditOperation {
+  final String id;
+  final String title;
+  final String description;
+  final String detail;
+  final String outcome;
+  final String ctaLabel;
+  final IconData icon;
+  final Color accent;
+  const _EditOperation({
+    required this.id,
+    required this.title,
+    required this.description,
+    required this.detail,
+    required this.outcome,
+    required this.ctaLabel,
+    required this.icon,
+    required this.accent,
+  });
+}
+
+class _EditOptionCard extends StatelessWidget {
+  final _EditOperation operation;
+  final bool isSelected;
+  final VoidCallback onTap;
+  final bool isDark;
+  const _EditOptionCard({
+    required this.operation,
+    required this.isSelected,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 180),
+      decoration: BoxDecoration(
+        color: isSelected
+            ? operation.accent.withValues(alpha: isDark ? 0.18 : 0.08)
+            : (isDark
+                  ? PremiumColors.darkSurfacePrimary
+                  : PremiumColors.lightSurfaceSecondary),
+        borderRadius: BorderRadius.circular(14),
+        border: Border.all(
+          color: isSelected
+              ? operation.accent.withValues(alpha: 0.62)
+              : (isDark
+                    ? PremiumColors.darkDivider
+                    : PremiumColors.lightDivider),
+          width: isSelected ? 1.5 : 1,
+        ),
+      ),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Padding(
+          padding: const EdgeInsets.all(14),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: operation.accent.withValues(alpha: 0.13),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(operation.icon, size: 21, color: operation.accent),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      operation.title,
+                      style: PremiumTypography.labelLarge.copyWith(
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      operation.description,
+                      style: PremiumTypography.bodySmall.copyWith(
+                        color: mutedColor,
                       ),
                     ),
                   ],
                 ),
               ),
               if (isSelected)
-                const Icon(Icons.check_circle, color: Color(0xFFC6302C)),
+                Icon(Icons.check_circle, color: operation.accent, size: 20),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _FeatureBullet extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _FeatureBullet({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfaceSecondary,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 15, color: PremiumColors.luxuryRed),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: PremiumTypography.labelSmall.copyWith(
+              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _MiniSpecChip extends StatelessWidget {
+  final String label;
+  final bool isDark;
+  const _MiniSpecChip({required this.label, required this.isDark});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.08)
+            : Colors.white.withValues(alpha: 0.76),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: PremiumTypography.labelSmall.copyWith(
+          color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+        ),
+      ),
+    );
+  }
+}
+
+class _WorkflowRow extends StatelessWidget {
+  final String number;
+  final String title;
+  final String description;
+  final bool isDark;
+  final bool isLast;
+  const _WorkflowRow({
+    required this.number,
+    required this.title,
+    required this.description,
+    required this.isDark,
+    this.isLast = false,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return Padding(
+      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Column(
+            children: [
+              Container(
+                width: 28,
+                height: 28,
+                alignment: Alignment.center,
+                decoration: BoxDecoration(
+                  color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(10),
+                ),
+                child: Text(
+                  number,
+                  style: PremiumTypography.labelSmall.copyWith(
+                    color: PremiumColors.luxuryRed,
+                  ),
+                ),
+              ),
+              if (!isLast)
+                Container(
+                  width: 1,
+                  height: 26,
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : PremiumColors.lightDivider,
+                ),
+            ],
+          ),
+          const SizedBox(width: 12),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  title,
+                  style: PremiumTypography.labelLarge.copyWith(
+                    color: textColor,
+                  ),
+                ),
+                const SizedBox(height: 3),
+                Text(
+                  description,
+                  style: PremiumTypography.bodySmall.copyWith(
+                    color: mutedColor,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _PreviewEmptyState extends StatelessWidget {
+  final bool hasPdf;
+  final _EditOperation operation;
+  final bool isDark;
+  const _PreviewEmptyState({
+    required this.hasPdf,
+    required this.operation,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return Center(
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(maxWidth: 360),
+        child: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(
+                width: 74,
+                height: 74,
+                decoration: BoxDecoration(
+                  color: operation.accent.withValues(alpha: 0.1),
+                  borderRadius: BorderRadius.circular(22),
+                ),
+                child: Icon(
+                  hasPdf ? operation.icon : Icons.picture_as_pdf_outlined,
+                  color: operation.accent,
+                  size: 34,
+                ),
+              ),
+              const SizedBox(height: 18),
+              Text(
+                hasPdf ? 'Preview after ${operation.title}' : 'No preview yet',
+                textAlign: TextAlign.center,
+                style: PremiumTypography.headlineSmall.copyWith(
+                  color: textColor,
+                ),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                hasPdf
+                    ? 'Apply the selected edit to generate a reviewable output file.'
+                    : 'Choose a PDF, pick an editing tool, and the generated file appears here.',
+                textAlign: TextAlign.center,
+                style: PremiumTypography.bodyMedium.copyWith(color: mutedColor),
+              ),
             ],
           ),
         ),

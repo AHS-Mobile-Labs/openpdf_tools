@@ -3,6 +3,7 @@ import 'dart:typed_data';
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:file_picker/file_picker.dart';
+import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/widgets/web_pdf_viewer.dart'
     if (dart.library.html) 'package:openpdf_tools/widgets/web_pdf_viewer_web.dart';
@@ -23,6 +24,347 @@ class PdfViewerScreen extends StatefulWidget {
   const PdfViewerScreen({super.key, this.externalFile});
   @override
   State<PdfViewerScreen> createState() => _PdfViewerScreenState();
+}
+
+class _SheetHeader extends StatelessWidget {
+  final String title;
+  final String subtitle;
+  final bool isDark;
+  const _SheetHeader({
+    required this.title,
+    required this.subtitle,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Align(
+      alignment: Alignment.centerLeft,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            title,
+            style: PremiumTypography.headlineMedium.copyWith(
+              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+            ),
+          ),
+          const SizedBox(height: 4),
+          Text(
+            subtitle,
+            style: PremiumTypography.bodySmall.copyWith(
+              color: isDark
+                  ? PremiumColors.darkTextSecondary
+                  : PremiumColors.lightTextSecondary,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ViewModeTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final bool selected;
+  final VoidCallback onTap;
+  const _ViewModeTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.selected,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return _ActionTileBase(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      trailing: selected
+          ? const Icon(Icons.check_circle, color: PremiumColors.luxuryRed)
+          : null,
+      selected: selected,
+      onTap: onTap,
+      isDark: isDark,
+    );
+  }
+}
+
+class _ActionSheetTile extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final VoidCallback onTap;
+  const _ActionSheetTile({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return _ActionTileBase(
+      icon: icon,
+      title: title,
+      subtitle: subtitle,
+      trailing: const Icon(Icons.chevron_right),
+      selected: false,
+      onTap: onTap,
+      isDark: isDark,
+    );
+  }
+}
+
+class _ActionTileBase extends StatelessWidget {
+  final IconData icon;
+  final String title;
+  final String subtitle;
+  final Widget? trailing;
+  final bool selected;
+  final VoidCallback onTap;
+  final bool isDark;
+  const _ActionTileBase({
+    required this.icon,
+    required this.title,
+    required this.subtitle,
+    required this.trailing,
+    required this.selected,
+    required this.onTap,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 8),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            color: selected
+                ? PremiumColors.luxuryRed.withValues(alpha: 0.10)
+                : (isDark
+                      ? PremiumColors.darkSurfaceSecondary
+                      : PremiumColors.lightSurfaceSecondary),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(
+              color: selected
+                  ? PremiumColors.luxuryRed.withValues(alpha: 0.32)
+                  : (isDark
+                        ? PremiumColors.darkDivider
+                        : PremiumColors.lightDivider),
+            ),
+          ),
+          child: Row(
+            children: [
+              Container(
+                width: 38,
+                height: 38,
+                decoration: BoxDecoration(
+                  color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(icon, color: PremiumColors.luxuryRed, size: 21),
+              ),
+              const SizedBox(width: 12),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text(
+                      title,
+                      style: PremiumTypography.labelLarge.copyWith(
+                        color: textColor,
+                      ),
+                    ),
+                    const SizedBox(height: 3),
+                    Text(
+                      subtitle,
+                      style: PremiumTypography.bodySmall.copyWith(
+                        color: mutedColor,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              if (trailing != null) ...[const SizedBox(width: 8), trailing!],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+class _ReaderStatusChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final bool isDark;
+  const _ReaderStatusChip({
+    required this.icon,
+    required this.label,
+    required this.isDark,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      decoration: BoxDecoration(
+        color: isDark
+            ? Colors.white.withValues(alpha: 0.10)
+            : PremiumColors.lightSurfaceSecondary,
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(
+            icon,
+            color: isDark ? Colors.white70 : PremiumColors.lightTextSecondary,
+            size: 15,
+          ),
+          const SizedBox(width: 5),
+          Text(
+            label,
+            style: PremiumTypography.labelSmall.copyWith(
+              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReaderToolButton extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final VoidCallback onPressed;
+  const _ReaderToolButton({
+    required this.icon,
+    required this.label,
+    required this.onPressed,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Tooltip(
+      message: label,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          foregroundColor: Colors.white,
+          minimumSize: const Size(54, 46),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(12),
+          ),
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon, size: 20, color: Colors.white),
+            const SizedBox(height: 2),
+            Text(
+              label,
+              maxLines: 1,
+              overflow: TextOverflow.ellipsis,
+              style: PremiumTypography.labelSmall.copyWith(
+                color: Colors.white70,
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _ZoomReadout extends StatelessWidget {
+  final String label;
+  const _ZoomReadout({required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      margin: const EdgeInsets.symmetric(horizontal: 4),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(999),
+      ),
+      child: Text(
+        label,
+        style: PremiumTypography.labelSmall.copyWith(color: Colors.white),
+      ),
+    );
+  }
+}
+
+class _ToolbarDivider extends StatelessWidget {
+  const _ToolbarDivider();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 1,
+      height: 34,
+      margin: const EdgeInsets.symmetric(horizontal: 6),
+      color: Colors.white.withValues(alpha: 0.14),
+    );
+  }
+}
+
+class _ViewerFeatureTile extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  const _ViewerFeatureTile({required this.icon, required this.label});
+
+  @override
+  Widget build(BuildContext context) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfaceSecondary,
+        borderRadius: BorderRadius.circular(999),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Icon(icon, size: 16, color: PremiumColors.luxuryRed),
+          const SizedBox(width: 6),
+          Text(
+            label,
+            style: PremiumTypography.labelSmall.copyWith(
+              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
@@ -603,103 +945,129 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _showViewModeMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            const Padding(
-              padding: EdgeInsets.all(16),
-              child: Text(
-                'View Mode',
-                style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+      showDragHandle: true,
+      backgroundColor: isDark
+          ? PremiumColors.darkSurfacePrimary
+          : PremiumColors.lightSurfacePrimary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SheetHeader(
+                title: 'View Mode',
+                subtitle: 'Choose the page scale that feels best for reading.',
+                isDark: isDark,
               ),
-            ),
-            ListTile(
-              leading: const Icon(Icons.image),
-              title: const Text('Fit Page'),
-              trailing: _viewMode == 'fit'
-                  ? const Icon(Icons.check, color: Colors.blue)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                _setViewMode('fit');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.aspect_ratio),
-              title: const Text('Fit Width'),
-              trailing: _viewMode == 'width'
-                  ? const Icon(Icons.check, color: Colors.blue)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                _setViewMode('width');
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.height),
-              title: const Text('Fit Height'),
-              trailing: _viewMode == 'height'
-                  ? const Icon(Icons.check, color: Colors.blue)
-                  : null,
-              onTap: () {
-                Navigator.pop(context);
-                _setViewMode('height');
-              },
-            ),
-          ],
+              const SizedBox(height: 10),
+              _ViewModeTile(
+                icon: Icons.image_outlined,
+                title: 'Fit Page',
+                subtitle: 'Show the full page in the viewport.',
+                selected: _viewMode == 'fit',
+                onTap: () {
+                  Navigator.pop(context);
+                  _setViewMode('fit');
+                },
+              ),
+              _ViewModeTile(
+                icon: Icons.aspect_ratio,
+                title: 'Fit Width',
+                subtitle: 'Make text wider and easier to scan.',
+                selected: _viewMode == 'width',
+                onTap: () {
+                  Navigator.pop(context);
+                  _setViewMode('width');
+                },
+              ),
+              _ViewModeTile(
+                icon: Icons.height,
+                title: 'Fit Height',
+                subtitle: 'Keep page height visible when reviewing layouts.',
+                selected: _viewMode == 'height',
+                onTap: () {
+                  Navigator.pop(context);
+                  _setViewMode('height');
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
   }
 
   void _showMoreMenu() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     showModalBottomSheet(
       context: context,
-      builder: (_) => Container(
-        padding: const EdgeInsets.symmetric(vertical: 16),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              leading: const Icon(Icons.history),
-              title: const Text('History & Favorites'),
-              onTap: () {
-                Navigator.pop(context);
-                Navigator.push(
-                  context,
-                  MaterialPageRoute(builder: (_) => const HistoryScreen()),
-                );
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.folder_open),
-              title: const Text('Open Folder'),
-              onTap: () {
-                Navigator.pop(context);
-                _sharePdf();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.download),
-              title: const Text('Download'),
-              onTap: () {
-                Navigator.pop(context);
-                _downloadPdf();
-              },
-            ),
-            ListTile(
-              leading: const Icon(Icons.drive_file_rename_outline),
-              title: const Text('Rename'),
-              onTap: () {
-                Navigator.pop(context);
-                _renamePdf();
-              },
-            ),
-          ],
+      showDragHandle: true,
+      backgroundColor: isDark
+          ? PremiumColors.darkSurfacePrimary
+          : PremiumColors.lightSurfacePrimary,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (_) => SafeArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              _SheetHeader(
+                title: 'Document Actions',
+                subtitle: 'Manage the current PDF without leaving the reader.',
+                isDark: isDark,
+              ),
+              const SizedBox(height: 10),
+              _ActionSheetTile(
+                icon: Icons.history,
+                title: 'History & Favorites',
+                subtitle: 'Open recent files and starred documents.',
+                onTap: () {
+                  Navigator.pop(context);
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(builder: (_) => const HistoryScreen()),
+                  );
+                },
+              ),
+              _ActionSheetTile(
+                icon: Icons.folder_open,
+                title: 'Open Folder',
+                subtitle: 'Reveal the file location on this device.',
+                onTap: () {
+                  Navigator.pop(context);
+                  _sharePdf();
+                },
+              ),
+              _ActionSheetTile(
+                icon: Icons.download,
+                title: 'Save a Copy',
+                subtitle: 'Export this PDF into the downloads location.',
+                onTap: () {
+                  Navigator.pop(context);
+                  _downloadPdf();
+                },
+              ),
+              _ActionSheetTile(
+                icon: Icons.drive_file_rename_outline,
+                title: 'Rename',
+                subtitle: 'Update the file name and history record.',
+                onTap: () {
+                  Navigator.pop(context);
+                  _renamePdf();
+                },
+              ),
+            ],
+          ),
         ),
       ),
     );
@@ -729,6 +1097,559 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
   }
 
+  bool get _hasDocument => _pdfFile != null || _pdfBytes != null;
+
+  String get _viewModeLabel {
+    switch (_viewMode) {
+      case 'width':
+        return 'Fit width';
+      case 'height':
+        return 'Fit height';
+      default:
+        return 'Fit page';
+    }
+  }
+
+  String get _pageLabel {
+    final pageCount = _pdfViewerController.pageCount;
+    if (pageCount <= 0) return 'Loading';
+    final pageNumber = _pdfViewerController.pageNumber <= 0
+        ? 1
+        : _pdfViewerController.pageNumber;
+    return '$pageNumber / $pageCount';
+  }
+
+  Widget _buildPdfContent() {
+    if (kIsWeb) {
+      if (_isLoadingBytes) {
+        return const Center(child: CircularProgressIndicator());
+      }
+      if (_pdfBytes != null) {
+        return WebPdfViewer(pdfBytes: _pdfBytes!, fileName: _webFileName);
+      }
+      return const Center(child: Text('Unable to load PDF'));
+    }
+
+    if (_pdfFile == null) {
+      return const Center(child: Text('Unable to load PDF'));
+    }
+
+    if (_password != null) {
+      return SfPdfViewer.file(
+        _pdfFile!,
+        controller: _pdfViewerController,
+        password: _password!,
+        initialZoomLevel: _zoom,
+        enableTextSelection: true,
+        onHyperlinkClicked: _handleHyperlinkClicked,
+        onDocumentLoaded: _handleDocumentLoaded,
+        onDocumentLoadFailed: _handleDocumentLoadFailed,
+        currentSearchTextHighlightColor: Colors.amber,
+        otherSearchTextHighlightColor: Colors.yellowAccent,
+      );
+    }
+
+    return SfPdfViewer.file(
+      _pdfFile!,
+      controller: _pdfViewerController,
+      initialZoomLevel: _zoom,
+      enableTextSelection: true,
+      onHyperlinkClicked: _handleHyperlinkClicked,
+      onDocumentLoaded: _handleDocumentLoaded,
+      onDocumentLoadFailed: _handleDocumentLoadFailed,
+      currentSearchTextHighlightColor: Colors.amber,
+      otherSearchTextHighlightColor: Colors.yellowAccent,
+    );
+  }
+
+  Widget _buildViewerWorkspace({
+    required bool isDark,
+    required String fileName,
+    required String fileSize,
+  }) {
+    final surfaceColor = _isNightMode
+        ? const Color(0xFF050505)
+        : (isDark ? PremiumColors.darkBg : const Color(0xFFEFF1F5));
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: () => setState(() => _showControls = !_showControls),
+      child: Stack(
+        children: [
+          Positioned.fill(
+            child: Container(
+              color: surfaceColor,
+              child: ColorFiltered(
+                colorFilter: ColorFilter.matrix(<double>[
+                  _brightness,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  _brightness,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  _brightness,
+                  0,
+                  0,
+                  0,
+                  0,
+                  0,
+                  1,
+                  0,
+                ]),
+                child: Transform.rotate(
+                  angle: (_rotationAngle * 3.14159) / 180,
+                  child: _buildPdfContent(),
+                ),
+              ),
+            ),
+          ),
+          if (_viewerError != null) _buildViewerErrorOverlay(),
+          if (_showControls)
+            Positioned(
+              top: 12,
+              left: 12,
+              right: 12,
+              child: _buildViewerStatusBar(
+                isDark: isDark,
+                fileName: fileName,
+                fileSize: fileSize,
+              ),
+            ),
+          if (_showControls)
+            Positioned(
+              left: 0,
+              right: 0,
+              bottom: 0,
+              child: _buildReaderControls(isDark),
+            ),
+          if (!_showControls)
+            Positioned(
+              bottom: 18 + MediaQuery.of(context).padding.bottom,
+              left: 0,
+              right: 0,
+              child: Center(
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 9,
+                  ),
+                  decoration: BoxDecoration(
+                    color: Colors.black.withValues(alpha: 0.62),
+                    borderRadius: BorderRadius.circular(999),
+                  ),
+                  child: const Text(
+                    'Tap to show controls',
+                    style: TextStyle(color: Colors.white, fontSize: 13),
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildViewerStatusBar({
+    required bool isDark,
+    required String fileName,
+    required String fileSize,
+  }) {
+    final pageCount = _pdfViewerController.pageCount;
+    final textColor = isDark || _isNightMode
+        ? PremiumColors.darkText
+        : PremiumColors.lightText;
+    final mutedColor = isDark || _isNightMode
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return GestureDetector(
+      onTap: () {},
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: _isNightMode || isDark
+              ? Colors.black.withValues(alpha: 0.78)
+              : Colors.white.withValues(alpha: 0.94),
+          borderRadius: BorderRadius.circular(16),
+          border: Border.all(
+            color: _isNightMode || isDark
+                ? Colors.white.withValues(alpha: 0.10)
+                : PremiumColors.lightDivider,
+          ),
+          boxShadow: [
+            BoxShadow(
+              color: Colors.black.withValues(alpha: isDark ? 0.26 : 0.10),
+              blurRadius: 18,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
+        child: Row(
+          children: [
+            Container(
+              width: 38,
+              height: 38,
+              decoration: BoxDecoration(
+                color: PremiumColors.luxuryRed.withValues(alpha: 0.14),
+                borderRadius: BorderRadius.circular(12),
+              ),
+              child: const Icon(
+                Icons.picture_as_pdf,
+                color: PremiumColors.luxuryRed,
+                size: 22,
+              ),
+            ),
+            const SizedBox(width: 10),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Text(
+                    fileName,
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PremiumTypography.labelLarge.copyWith(
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    pageCount > 0
+                        ? '$fileSize MB - $pageCount pages'
+                        : '$fileSize MB',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: PremiumTypography.bodySmall.copyWith(
+                      color: mutedColor,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(width: 8),
+            _ReaderStatusChip(
+              icon: Icons.description_outlined,
+              label: _pageLabel,
+              isDark: isDark || _isNightMode,
+            ),
+            if (_searchResult.hasResult) ...[
+              const SizedBox(width: 6),
+              _ReaderStatusChip(
+                icon: Icons.search,
+                label: 'Search',
+                isDark: isDark || _isNightMode,
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildReaderControls(bool isDark) {
+    return GestureDetector(
+      onTap: () {},
+      child: Padding(
+        padding: EdgeInsets.fromLTRB(
+          12,
+          0,
+          12,
+          12 + MediaQuery.of(context).padding.bottom,
+        ),
+        child: Align(
+          alignment: Alignment.bottomCenter,
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 760),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                _buildBrightnessControl(isDark),
+                const SizedBox(height: 10),
+                _buildReaderToolbar(isDark),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildBrightnessControl(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: _isNightMode ? 0.86 : 0.72),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+      ),
+      child: Row(
+        children: [
+          Icon(
+            _isNightMode ? Icons.dark_mode_outlined : Icons.light_mode_outlined,
+            color: Colors.white70,
+            size: 19,
+          ),
+          const SizedBox(width: 8),
+          Expanded(
+            child: SliderTheme(
+              data: SliderTheme.of(context).copyWith(
+                activeTrackColor: PremiumColors.luxuryRed,
+                inactiveTrackColor: Colors.white24,
+                thumbColor: Colors.white,
+                overlayColor: PremiumColors.luxuryRed.withValues(alpha: 0.14),
+                trackHeight: 3,
+              ),
+              child: Slider(
+                value: _brightness,
+                min: 0.3,
+                max: 1.5,
+                divisions: 24,
+                onChanged: (value) => setState(() => _brightness = value),
+              ),
+            ),
+          ),
+          SizedBox(
+            width: 42,
+            child: Text(
+              '${(_brightness * 100).toInt()}%',
+              textAlign: TextAlign.right,
+              style: PremiumTypography.labelSmall.copyWith(
+                color: Colors.white70,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildReaderToolbar(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      decoration: BoxDecoration(
+        color: Colors.black.withValues(alpha: _isNightMode ? 0.92 : 0.82),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: Colors.white.withValues(alpha: 0.10)),
+        boxShadow: [
+          BoxShadow(
+            color: Colors.black.withValues(alpha: 0.28),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
+      child: SingleChildScrollView(
+        scrollDirection: Axis.horizontal,
+        child: Row(
+          children: [
+            _ReaderToolButton(
+              icon: Icons.zoom_out,
+              label: 'Out',
+              onPressed: _zoomOut,
+            ),
+            _ZoomReadout(label: '${(_zoom * 100).toStringAsFixed(0)}%'),
+            _ReaderToolButton(
+              icon: Icons.zoom_in,
+              label: 'In',
+              onPressed: _zoomIn,
+            ),
+            const _ToolbarDivider(),
+            _ReaderToolButton(
+              icon: Icons.fit_screen,
+              label: _viewModeLabel,
+              onPressed: _showViewModeMenu,
+            ),
+            _ReaderToolButton(
+              icon: _isNightMode ? Icons.light_mode : Icons.dark_mode,
+              label: _isNightMode ? 'Day' : 'Night',
+              onPressed: _toggleNightMode,
+            ),
+            _ReaderToolButton(
+              icon: Icons.rotate_right,
+              label: _rotationAngle == 0 ? 'Rotate' : '$_rotationAngle deg',
+              onPressed: _rotateClockwise,
+            ),
+            _ReaderToolButton(
+              icon: Icons.find_in_page_outlined,
+              label: 'Page',
+              onPressed: _jumpToPage,
+            ),
+            _ReaderToolButton(
+              icon: Icons.refresh,
+              label: 'Reset',
+              onPressed: _resetZoom,
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewerErrorOverlay() {
+    return Positioned.fill(
+      child: Container(
+        color: Colors.black.withValues(alpha: 0.74),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Icon(Icons.error_outline, color: Colors.white, size: 44),
+                const SizedBox(height: 16),
+                Text(
+                  _viewerError!,
+                  textAlign: TextAlign.center,
+                  style: const TextStyle(color: Colors.white, fontSize: 15),
+                ),
+                const SizedBox(height: 16),
+                OutlinedButton.icon(
+                  onPressed: _pickPdf,
+                  icon: const Icon(Icons.folder_open),
+                  label: const Text('Open Another PDF'),
+                  style: OutlinedButton.styleFrom(
+                    foregroundColor: Colors.white,
+                    side: const BorderSide(color: Colors.white),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildViewerEmptyState(bool isDark) {
+    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
+    final mutedColor = isDark
+        ? PremiumColors.darkTextSecondary
+        : PremiumColors.lightTextSecondary;
+    return SafeArea(
+      child: Center(
+        child: SingleChildScrollView(
+          padding: const EdgeInsets.all(24),
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 560),
+            child: Container(
+              padding: const EdgeInsets.all(22),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? PremiumColors.darkSurfaceSecondary
+                    : PremiumColors.lightSurfacePrimary,
+                borderRadius: BorderRadius.circular(18),
+                border: Border.all(
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : PremiumColors.lightDivider,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.24 : 0.07),
+                    blurRadius: 22,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  if (kIsWeb)
+                    Align(
+                      alignment: Alignment.centerRight,
+                      child: ThemeSwitcher(compact: true),
+                    ),
+                  Container(
+                    width: 82,
+                    height: 82,
+                    decoration: BoxDecoration(
+                      color: PremiumColors.luxuryRed.withValues(alpha: 0.10),
+                      borderRadius: BorderRadius.circular(24),
+                    ),
+                    child: const Icon(
+                      Icons.picture_as_pdf_outlined,
+                      size: 42,
+                      color: PremiumColors.luxuryRed,
+                    ),
+                  ),
+                  const SizedBox(height: 20),
+                  Text(
+                    'Open a PDF to read',
+                    textAlign: TextAlign.center,
+                    style: PremiumTypography.headlineLarge.copyWith(
+                      color: textColor,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'Search text, adjust brightness, rotate pages, jump around, and save or share from one focused reader.',
+                    textAlign: TextAlign.center,
+                    style: PremiumTypography.bodyMedium.copyWith(
+                      color: mutedColor,
+                    ),
+                  ),
+                  const SizedBox(height: 22),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 10,
+                    runSpacing: 10,
+                    children: const [
+                      _ViewerFeatureTile(icon: Icons.search, label: 'Search'),
+                      _ViewerFeatureTile(
+                        icon: Icons.dark_mode_outlined,
+                        label: 'Night mode',
+                      ),
+                      _ViewerFeatureTile(
+                        icon: Icons.fit_screen,
+                        label: 'Fit modes',
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 24),
+                  Wrap(
+                    alignment: WrapAlignment.center,
+                    spacing: 12,
+                    runSpacing: 12,
+                    children: [
+                      ElevatedButton.icon(
+                        onPressed: _pickPdf,
+                        icon: const Icon(Icons.folder_open),
+                        label: const Text('Select PDF'),
+                        style: ElevatedButton.styleFrom(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 24,
+                            vertical: 14,
+                          ),
+                        ),
+                      ),
+                      if (!kIsWeb)
+                        OutlinedButton.icon(
+                          onPressed: () => Navigator.push(
+                            context,
+                            MaterialPageRoute(
+                              builder: (_) => const HistoryScreen(),
+                            ),
+                          ),
+                          icon: const Icon(Icons.history),
+                          label: const Text('History'),
+                        ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -743,33 +1664,40 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return Scaffold(
       backgroundColor: _isNightMode
           ? const Color(0xFF0A0A0A)
-          : (isDark ? const Color(0xFF0F0F0F) : const Color(0xFFFAFAFA)),
+          : (isDark ? PremiumColors.darkBg : PremiumColors.lightBg),
       appBar: kIsWeb
           ? null
           : AppBar(
               backgroundColor: _isNightMode
                   ? const Color(0xFF121212)
-                  : (isDark ? const Color(0xFF1C1C1C) : Colors.white),
-              foregroundColor: isDark ? Colors.white : Colors.black87,
+                  : (isDark
+                        ? PremiumColors.darkSurfacePrimary
+                        : PremiumColors.lightSurfacePrimary),
+              foregroundColor: isDark
+                  ? PremiumColors.darkText
+                  : PremiumColors.lightText,
               title: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
                   Text(
                     fileName,
-                    style: const TextStyle(
-                      fontSize: 16,
-                      fontWeight: FontWeight.w600,
+                    style: PremiumTypography.labelLarge.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
                     ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (_pdfFile != null)
+                  if (_hasDocument)
                     Text(
-                      '$fileSize MB${_pdfViewerController.pageCount > 0 ? ' • ${_pdfViewerController.pageCount} pages' : ''}',
-                      style: TextStyle(
-                        fontSize: 12,
-                        fontWeight: FontWeight.w400,
-                        color: isDark ? Colors.white70 : Colors.black54,
+                      _pdfViewerController.pageCount > 0
+                          ? '$fileSize MB - ${_pdfViewerController.pageCount} pages'
+                          : '$fileSize MB',
+                      style: PremiumTypography.bodySmall.copyWith(
+                        color: isDark
+                            ? PremiumColors.darkTextSecondary
+                            : PremiumColors.lightTextSecondary,
                       ),
                     ),
                 ],
@@ -781,9 +1709,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 IconButton(
                   icon: const Icon(Icons.search),
                   tooltip: 'Search',
-                  onPressed: (_pdfFile == null && _pdfBytes == null)
-                      ? null
-                      : _showSearchDialog,
+                  onPressed: _hasDocument ? _showSearchDialog : null,
                 ),
                 if (_searchResult.hasResult) ...[
                   IconButton(
@@ -810,9 +1736,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   tooltip: _isFavorite
                       ? 'Remove from Favorites'
                       : 'Add to Favorites',
-                  onPressed: (_pdfFile == null && _pdfBytes == null)
-                      ? null
-                      : () async {
+                  onPressed: _hasDocument
+                      ? () async {
                           if (kIsWeb) {
                             if (!mounted) return;
                             ScaffoldMessenger.of(context).showSnackBar(
@@ -828,16 +1753,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           setState(() {
                             _isFavorite = !_isFavorite;
                           });
-                        },
+                        }
+                      : null,
                 ),
-                if (_pdfFile != null)
-                  IconButton(
-                    icon: Icon(
-                      _isNightMode ? Icons.brightness_5 : Icons.brightness_7,
-                    ),
-                    tooltip: _isNightMode ? 'Day Mode' : 'Night Mode',
-                    onPressed: _toggleNightMode,
-                  ),
                 IconButton(
                   icon: const Icon(Icons.folder_open),
                   tooltip: 'Open PDF',
@@ -845,441 +1763,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 ),
                 IconButton(
                   icon: const Icon(Icons.more_vert),
-                  onPressed: (_pdfFile == null && _pdfBytes == null)
-                      ? null
-                      : _showMoreMenu,
+                  onPressed: _hasDocument ? _showMoreMenu : null,
                 ),
               ],
             ),
-      body: (_pdfFile == null && _pdfBytes == null)
-          ? Center(
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(
-                    Icons.picture_as_pdf,
-                    size: 80,
-                    color: isDark ? Colors.grey.shade700 : Colors.grey.shade300,
-                  ),
-                  const SizedBox(height: 24),
-                  Text(
-                    'No PDF selected',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w600,
-                      color: isDark
-                          ? Colors.grey.shade400
-                          : Colors.grey.shade700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Tap the folder icon to select a PDF',
-                    style: TextStyle(fontSize: 14, color: Colors.grey.shade500),
-                  ),
-                  const SizedBox(height: 32),
-                  ElevatedButton.icon(
-                    onPressed: _pickPdf,
-                    icon: const Icon(Icons.folder_open),
-                    label: const Text('Select PDF'),
-                    style: ElevatedButton.styleFrom(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 32,
-                        vertical: 16,
-                      ),
-                    ),
-                  ),
-                ],
+      body: _hasDocument
+          ? SafeArea(
+              top: kIsWeb,
+              bottom: false,
+              child: _buildViewerWorkspace(
+                isDark: isDark,
+                fileName: fileName,
+                fileSize: fileSize,
               ),
             )
-          : GestureDetector(
-              onTap: () {
-                setState(() {
-                  _showControls = !_showControls;
-                });
-              },
-              child: Stack(
-                children: [
-                  ColorFiltered(
-                    colorFilter: ColorFilter.matrix(<double>[
-                      _brightness,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      _brightness,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      _brightness,
-                      0,
-                      0,
-                      0,
-                      0,
-                      0,
-                      1,
-                      0,
-                    ]),
-                    child: Transform.rotate(
-                      angle: (_rotationAngle * 3.14159) / 180,
-                      child: kIsWeb
-                          ? _isLoadingBytes
-                                ? const Center(
-                                    child: CircularProgressIndicator(),
-                                  )
-                                : (_pdfBytes != null
-                                      ? WebPdfViewer(
-                                          pdfBytes: _pdfBytes!,
-                                          fileName: _webFileName,
-                                        )
-                                      : const Center(
-                                          child: Text('Unable to load PDF'),
-                                        ))
-                          : _password != null
-                          ? SfPdfViewer.file(
-                              _pdfFile!,
-                              controller: _pdfViewerController,
-                              password: _password!,
-                              initialZoomLevel: _zoom,
-                              enableTextSelection: true,
-                              onHyperlinkClicked: _handleHyperlinkClicked,
-                              onDocumentLoaded: _handleDocumentLoaded,
-                              onDocumentLoadFailed: _handleDocumentLoadFailed,
-                              currentSearchTextHighlightColor: Colors.amber,
-                              otherSearchTextHighlightColor:
-                                  Colors.yellowAccent,
-                            )
-                          : SfPdfViewer.file(
-                              _pdfFile!,
-                              controller: _pdfViewerController,
-                              initialZoomLevel: _zoom,
-                              enableTextSelection: true,
-                              onHyperlinkClicked: _handleHyperlinkClicked,
-                              onDocumentLoaded: _handleDocumentLoaded,
-                              onDocumentLoadFailed: _handleDocumentLoadFailed,
-                              currentSearchTextHighlightColor: Colors.amber,
-                              otherSearchTextHighlightColor:
-                                  Colors.yellowAccent,
-                            ),
-                    ),
-                  ),
-                  if (_viewerError != null)
-                    Positioned.fill(
-                      child: Container(
-                        color: Colors.black.withValues(alpha: 0.72),
-                        padding: const EdgeInsets.all(24),
-                        child: Center(
-                          child: ConstrainedBox(
-                            constraints: const BoxConstraints(maxWidth: 420),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              children: [
-                                const Icon(
-                                  Icons.error_outline,
-                                  color: Colors.white,
-                                  size: 44,
-                                ),
-                                const SizedBox(height: 16),
-                                Text(
-                                  _viewerError!,
-                                  textAlign: TextAlign.center,
-                                  style: const TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 15,
-                                  ),
-                                ),
-                                const SizedBox(height: 16),
-                                OutlinedButton.icon(
-                                  onPressed: _pickPdf,
-                                  icon: const Icon(Icons.folder_open),
-                                  label: const Text('Open Another PDF'),
-                                  style: OutlinedButton.styleFrom(
-                                    foregroundColor: Colors.white,
-                                    side: const BorderSide(color: Colors.white),
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_showControls)
-                    Positioned(
-                      bottom: MediaQuery.of(context).padding.bottom,
-                      left: 0,
-                      right: 0,
-                      child: Column(
-                        children: [
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black54,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
-                            padding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 8,
-                            ),
-                            child: Row(
-                              children: [
-                                Icon(
-                                  _isNightMode
-                                      ? Icons.brightness_low
-                                      : Icons.brightness_high,
-                                  color: Colors.white70,
-                                  size: 18,
-                                ),
-                                const SizedBox(width: 8),
-                                Expanded(
-                                  child: Slider(
-                                    value: _brightness,
-                                    min: 0.3,
-                                    max: 1.5,
-                                    onChanged: (value) {
-                                      setState(() {
-                                        _brightness = value;
-                                      });
-                                    },
-                                    divisions: 24,
-                                  ),
-                                ),
-                                Text(
-                                  '${(_brightness * 100).toInt()}%',
-                                  style: const TextStyle(
-                                    color: Colors.white70,
-                                    fontSize: 12,
-                                  ),
-                                ),
-                              ],
-                            ),
-                          ),
-                          Container(
-                            decoration: BoxDecoration(
-                              color: Colors.black87,
-                              boxShadow: [
-                                BoxShadow(
-                                  color: Colors.black.withValues(alpha: 0.3),
-                                  blurRadius: 8,
-                                  offset: const Offset(0, -2),
-                                ),
-                              ],
-                            ),
-                            padding: EdgeInsets.only(
-                              left: 12,
-                              right: 12,
-                              top: 8,
-                              bottom: 8 + MediaQuery.of(context).padding.bottom,
-                            ),
-                            child: Row(
-                              mainAxisAlignment: MainAxisAlignment.spaceEvenly,
-                              children: [
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.zoom_out,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _zoomOut,
-                                  iconSize: 20,
-                                  tooltip: 'Zoom Out',
-                                ),
-                                Container(
-                                  padding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 6,
-                                  ),
-                                  decoration: BoxDecoration(
-                                    color: Colors.white12,
-                                    borderRadius: BorderRadius.circular(6),
-                                  ),
-                                  child: Text(
-                                    '${(_zoom * 100).toStringAsFixed(0)}%',
-                                    style: const TextStyle(
-                                      color: Colors.white,
-                                      fontWeight: FontWeight.w600,
-                                      fontSize: 12,
-                                    ),
-                                  ),
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.zoom_in,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _zoomIn,
-                                  iconSize: 20,
-                                  tooltip: 'Zoom In',
-                                ),
-                                const Spacer(),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.image,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _showViewModeMenu,
-                                  tooltip: 'View Mode',
-                                  iconSize: 20,
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.rotate_right,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _rotateClockwise,
-                                  tooltip: 'Rotate',
-                                  iconSize: 20,
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.skip_next,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _jumpToPage,
-                                  tooltip: 'Jump to Page',
-                                  iconSize: 20,
-                                ),
-                                IconButton(
-                                  icon: const Icon(
-                                    Icons.refresh,
-                                    color: Colors.white,
-                                  ),
-                                  onPressed: _resetZoom,
-                                  tooltip: 'Reset View',
-                                  iconSize: 20,
-                                ),
-                              ],
-                            ),
-                          ),
-                        ],
-                      ),
-                    ),
-                  if (_showControls && _pdfViewerController.pageCount > 0)
-                    Positioned(
-                      top: 16,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 14,
-                          vertical: 8,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.black87,
-                          borderRadius: BorderRadius.circular(20),
-                          boxShadow: [
-                            BoxShadow(
-                              color: Colors.black.withValues(alpha: 0.3),
-                              blurRadius: 6,
-                            ),
-                          ],
-                        ),
-                        child: Row(
-                          mainAxisSize: MainAxisSize.min,
-                          children: [
-                            const Icon(
-                              Icons.description,
-                              color: Colors.white70,
-                              size: 16,
-                            ),
-                            const SizedBox(width: 6),
-                            Text(
-                              '${_pdfViewerController.pageNumber} / ${_pdfViewerController.pageCount}',
-                              style: const TextStyle(
-                                color: Colors.white,
-                                fontSize: 13,
-                                fontWeight: FontWeight.w600,
-                              ),
-                            ),
-                          ],
-                        ),
-                      ),
-                    ),
-                  if (_showControls && _rotationAngle != 0)
-                    Positioned(
-                      top: 16,
-                      left: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 12,
-                          vertical: 6,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.blue,
-                          borderRadius: BorderRadius.circular(20),
-                        ),
-                        child: Text(
-                          '$_rotationAngle°',
-                          style: const TextStyle(
-                            color: Colors.white,
-                            fontSize: 12,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (!_showControls)
-                    Positioned(
-                      bottom: 16,
-                      left: 0,
-                      right: 0,
-                      child: Center(
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 18,
-                            vertical: 10,
-                          ),
-                          decoration: BoxDecoration(
-                            color: Colors.black54,
-                            borderRadius: BorderRadius.circular(20),
-                            boxShadow: [
-                              BoxShadow(
-                                color: Colors.black.withValues(alpha: 0.3),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                          child: const Text(
-                            'Tap to show controls',
-                            style: TextStyle(
-                              color: Colors.white70,
-                              fontSize: 13,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  if (_showControls && _viewMode != 'fit')
-                    Positioned(
-                      top: 56,
-                      right: 16,
-                      child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: 10,
-                          vertical: 4,
-                        ),
-                        decoration: BoxDecoration(
-                          color: Colors.greenAccent,
-                          borderRadius: BorderRadius.circular(12),
-                        ),
-                        child: Text(
-                          _viewMode == 'width' ? 'Fit Width' : 'Fit Height',
-                          style: const TextStyle(
-                            color: Colors.black,
-                            fontSize: 10,
-                            fontWeight: FontWeight.w600,
-                          ),
-                        ),
-                      ),
-                    ),
-                ],
-              ),
-            ),
+          : _buildViewerEmptyState(isDark),
     );
   }
 }
