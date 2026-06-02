@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:flutter_colorpicker/flutter_colorpicker.dart';
 import 'package:openpdf_tools/services/pdf_editing_service.dart';
@@ -139,11 +140,17 @@ class _EditPdfScreenState extends State<EditPdfScreen>
     }
   }
 
-  void _showEditResult(String message, String outputPath) {
-    setState(() => _previewPath = outputPath);
+  Future<void> _showEditResult(String message, String outputPath) async {
+    final savedFile = await OutputPathHelper.exportGeneratedFile(
+      sourcePath: outputPath,
+      fileName: outputPath.split(Platform.pathSeparator).last,
+      category: OutputCategory.exports,
+    );
+    if (!mounted) return;
+    setState(() => _previewPath = savedFile.workingPath);
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text(message),
+        content: Text('$message Saved to ${savedFile.displayPath}'),
         action: SnackBarAction(
           label: 'View',
           onPressed: () {
@@ -151,7 +158,8 @@ class _EditPdfScreenState extends State<EditPdfScreen>
             Navigator.push(
               context,
               MaterialPageRoute(
-                builder: (_) => PdfViewerScreen(externalFile: File(outputPath)),
+                builder: (_) =>
+                    PdfViewerScreen(externalFile: File(savedFile.workingPath)),
               ),
             );
           },
@@ -202,10 +210,13 @@ class _EditPdfScreenState extends State<EditPdfScreen>
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop({
-              'text': textController.text,
-              'fontSize': double.parse(fontSizeController.text),
-            }),
+            onPressed: () {
+              final fontSize = double.tryParse(fontSizeController.text);
+              if (fontSize == null || fontSize <= 0) return;
+              Navigator.of(
+                ctx,
+              ).pop({'text': textController.text, 'fontSize': fontSize});
+            },
             child: const Text('Add'),
           ),
         ],
@@ -220,7 +231,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         fontSize: result['fontSize'],
       );
       if (!mounted) return;
-      _showEditResult(
+      await _showEditResult(
         'Text added: ${File(outputPath).path.split('/').last}',
         outputPath,
       );
@@ -272,7 +283,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         angle: angle,
       );
       if (!mounted) return;
-      _showEditResult(
+      await _showEditResult(
         'Rotated by $angle°: ${File(outputPath).path.split('/').last}',
         outputPath,
       );
@@ -353,11 +364,15 @@ class _EditPdfScreenState extends State<EditPdfScreen>
               child: const Text('Cancel'),
             ),
             TextButton(
-              onPressed: () => Navigator.of(ctx).pop({
-                'watermark': watermarkController.text,
-                'placement': _watermarkPlacement,
-                'opacity': double.parse(opacityController.text),
-              }),
+              onPressed: () {
+                final opacity = double.tryParse(opacityController.text);
+                if (opacity == null || opacity < 0 || opacity > 1) return;
+                Navigator.of(ctx).pop({
+                  'watermark': watermarkController.text,
+                  'placement': _watermarkPlacement,
+                  'opacity': opacity,
+                });
+              },
               child: const Text('Add'),
             ),
           ],
@@ -375,7 +390,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         fontSize: 20,
       );
       if (!mounted) return;
-      _showEditResult(
+      await _showEditResult(
         'Watermark added: ${File(outputPath).path.split('/').last}',
         outputPath,
       );
@@ -450,12 +465,21 @@ class _EditPdfScreenState extends State<EditPdfScreen>
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop([
-              double.parse(_cropLeftController.text),
-              double.parse(_cropBottomController.text),
-              double.parse(_cropRightController.text),
-              double.parse(_cropTopController.text),
-            ]),
+            onPressed: () {
+              final left = double.tryParse(_cropLeftController.text);
+              final bottom = double.tryParse(_cropBottomController.text);
+              final right = double.tryParse(_cropRightController.text);
+              final top = double.tryParse(_cropTopController.text);
+              if (left == null ||
+                  bottom == null ||
+                  right == null ||
+                  top == null ||
+                  right <= left ||
+                  top <= bottom) {
+                return;
+              }
+              Navigator.of(ctx).pop([left, bottom, right, top]);
+            },
             child: const Text('Crop'),
           ),
         ],
@@ -469,7 +493,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         cropBox: result,
       );
       if (!mounted) return;
-      _showEditResult(
+      await _showEditResult(
         'PDF cropped: ${File(outputPath).path.split('/').last}',
         outputPath,
       );
@@ -540,7 +564,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       if (!mounted) return;
       setState(() => _selectedBackgroundColor = pickedColor);
-      _showEditResult(
+      await _showEditResult(
         'Background color changed: ${File(outputPath).path.split('/').last}',
         outputPath,
       );
@@ -567,7 +591,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         inputPath: _pdfPath!,
       );
       if (!mounted) return;
-      _showEditResult(
+      await _showEditResult(
         'PDF compressed: ${File(outputPath).path.split('/').last}',
         outputPath,
       );

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 class ModernNavigationItem {
   final IconData icon;
   final String label;
@@ -11,6 +12,7 @@ class ModernNavigationItem {
     this.badge,
   });
 }
+
 class ModernNavigationRail extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;
@@ -159,6 +161,7 @@ class ModernNavigationRail extends StatelessWidget {
     );
   }
 }
+
 class ModernBottomNavigation extends StatelessWidget {
   final int selectedIndex;
   final ValueChanged<int> onIndexChanged;

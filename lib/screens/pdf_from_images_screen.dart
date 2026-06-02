@@ -6,9 +6,9 @@ import 'package:image_picker/image_picker.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'package:printing/printing.dart';
 import 'package:flutter_image_compress/flutter_image_compress.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 
 class PdfFromImagesScreen extends StatefulWidget {
@@ -51,6 +51,7 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
           return;
         }
       }
+      if (!mounted) return;
       final selected = await showInAppFilePickerMultiple(
         context,
         initialDirectory: Directory.current.path,
@@ -131,13 +132,21 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
         if (kIsWeb) {
           await Printing.sharePdf(bytes: bytes, filename: 'openpdf_images.pdf');
         } else {
-          final dir = await getApplicationDocumentsDirectory();
-          final file = File('${dir.path}/openpdf_images.pdf');
+          final outputPath = await OutputPathHelper.createWorkingOutputPath(
+            fileName: 'openpdf_images.pdf',
+            category: OutputCategory.exports,
+          );
+          final file = File(outputPath);
           await file.writeAsBytes(bytes);
+          final savedFile = await OutputPathHelper.exportGeneratedFile(
+            sourcePath: file.path,
+            fileName: 'openpdf_images.pdf',
+            category: OutputCategory.exports,
+          );
           if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text('Saved to ${file.path}')));
+            ScaffoldMessenger.of(context).showSnackBar(
+              SnackBar(content: Text('Saved to ${savedFile.displayPath}')),
+            );
           }
         }
       } else if (action == 'share') {

@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:path/path.dart' as p;
 import 'package:openpdf_tools/utils/platform_helper.dart';
+
 class AndroidPathHelper {
   static String normalizePath(String path) {
     if (path.isEmpty) return '';
@@ -11,6 +12,7 @@ class AndroidPathHelper {
     }
     return normalized;
   }
+
   static String sanitizeFilename(String filename) {
     if (filename.isEmpty) return 'file';
     String sanitized = filename
@@ -23,6 +25,7 @@ class AndroidPathHelper {
     }
     return sanitized.isEmpty ? 'file' : sanitized;
   }
+
   static String getFileExtension(String path) {
     try {
       final ext = p.extension(path);
@@ -31,6 +34,7 @@ class AndroidPathHelper {
       return '';
     }
   }
+
   static String getFilenamFromPath(String path) {
     try {
       return p.basename(path);
@@ -38,6 +42,7 @@ class AndroidPathHelper {
       return path.split('/').last;
     }
   }
+
   static String joinPathSegments(List<String> segments) {
     if (segments.isEmpty) return '';
     try {
@@ -46,6 +51,7 @@ class AndroidPathHelper {
       return segments.join('/');
     }
   }
+
   static Future<bool> isPathValidAndAccessible(String path) async {
     try {
       if (path.isEmpty) return false;
@@ -58,6 +64,7 @@ class AndroidPathHelper {
       return false;
     }
   }
+
   static String formatFileSize(int bytes) {
     const suffixes = ['B', 'KB', 'MB', 'GB', 'TB'];
     double size = bytes.toDouble();
@@ -68,6 +75,7 @@ class AndroidPathHelper {
     }
     return '${size.toStringAsFixed(2)} ${suffixes[suffixIndex]}';
   }
+
   static Future<int> getFileSize(String path) async {
     try {
       final file = File(path);
@@ -77,6 +85,7 @@ class AndroidPathHelper {
       return 0;
     }
   }
+
   static Future<File?> createTempFile({
     required String directory,
     required String prefix,
@@ -100,6 +109,7 @@ class AndroidPathHelper {
       return null;
     }
   }
+
   static Future<Directory?> createDirectoryIfNotExists(String path) async {
     try {
       final dir = Directory(path);
@@ -111,6 +121,7 @@ class AndroidPathHelper {
       return null;
     }
   }
+
   static Future<List<FileSystemEntity>> listDirectoryContents(
     String path, {
     bool recursive = false,
@@ -123,6 +134,7 @@ class AndroidPathHelper {
       return [];
     }
   }
+
   static Future<bool> safeCopyFile({
     required String sourcePath,
     required String destinationPath,
@@ -140,6 +152,7 @@ class AndroidPathHelper {
       return false;
     }
   }
+
   static Future<bool> safeDeleteFile(String path) async {
     try {
       final file = File(path);
@@ -150,6 +163,7 @@ class AndroidPathHelper {
       return false;
     }
   }
+
   static Future<bool> safeRenameFile({
     required String oldPath,
     required String newPath,
@@ -172,6 +186,7 @@ class AndroidPathHelper {
       return false;
     }
   }
+
   static Future<DateTime?> getFileModificationTime(String path) async {
     try {
       final file = File(path);
@@ -182,12 +197,16 @@ class AndroidPathHelper {
       return null;
     }
   }
+
   static bool isInAppSpecificDirectory(String path) {
     if (!PlatformHelper.isAndroid) return true;
     final appSpecificPatterns = [
-      '/data/data/',       '/data/data/',
-      '/cache/',       '/cache/',
-      '/files/',       '/files/',
+      '/data/data/',
+      '/data/data/',
+      '/cache/',
+      '/cache/',
+      '/files/',
+      '/files/',
     ];
     return appSpecificPatterns.any((pattern) => path.contains(pattern));
   }

@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
@@ -12,6 +13,7 @@ import 'package:path/path.dart' as path;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:openpdf_tools/config/app_config.dart';
 import 'pdf_viewer_screen.dart';
@@ -31,7 +33,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       return {
         'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
         'TIFF to PDF': 'tiff,tif',
-        'Text to PDF': 'txt',
+        'Text & Data to PDF': 'txt,html,htm,md,markdown,csv,xml,json,log',
       };
     }
     return {
@@ -39,6 +41,10 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
       'PowerPoint to PDF': 'pptx,ppt',
       'Excel to PDF': 'xlsx,xls',
       'Images to PDF': 'jpg,jpeg,png,webp,heic,gif,bmp',
+      'HTML to PDF': 'html,htm',
+      'Markdown to PDF': 'md,markdown',
+      'CSV to PDF': 'csv',
+      'JSON/XML/Log to PDF': 'json,xml,log',
       'SVG to PDF': 'svg',
       'TIFF to PDF': 'tiff,tif',
       'Text to PDF': 'txt',
@@ -208,8 +214,8 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           bytes: Uint8List.fromList(pdfBytes),
           filename: '${fileName.replaceAll(RegExp(r'\.[^.]*$'), '')}.pdf',
         );
-      } else if (ext == 'txt') {
-        final content = String.fromCharCodes(fileBytes);
+      } else if (_isTextLikeExtension(ext)) {
+        final content = _prepareTextContent(fileBytes, ext);
         final pdf = pw.Document();
         final lines = content.split('\n');
         const linesPerPage = 50;
@@ -275,7 +281,7 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         'bmp',
       ].contains(fileExtension)) {
         outputPath = await _convertImageToPdf(_selectedFile!);
-      } else if (fileExtension == 'txt') {
+      } else if (_isTextLikeExtension(fileExtension)) {
         outputPath = await _convertTextToPdf(_selectedFile!);
       } else if (fileExtension == 'svg') {
         outputPath = await _convertSvgToPdf(_selectedFile!);
@@ -336,10 +342,13 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
         ),
       );
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = path.join(
-        tempDir.path,
-        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: OutputPathHelper.outputFileName(
+          sourcePath: imageFile.path,
+          suffix: 'converted',
+          extension: 'pdf',
+        ),
+        category: OutputCategory.exports,
       );
       await File(outputPath).writeAsBytes(await pdf.save());
       return outputPath;
@@ -350,7 +359,11 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
 
   Future<String?> _convertTextToPdf(File textFile) async {
     try {
-      final content = await textFile.readAsString();
+      final extension = path.extension(textFile.path).replaceFirst('.', '');
+      final content = _prepareTextContent(
+        await textFile.readAsBytes(),
+        extension,
+      );
       final pdf = pw.Document();
       final lines = content.split('\n');
       const linesPerPage = 50;
@@ -370,10 +383,13 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           ),
         );
       }
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = path.join(
-        tempDir.path,
-        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: OutputPathHelper.outputFileName(
+          sourcePath: textFile.path,
+          suffix: 'converted',
+          extension: 'pdf',
+        ),
+        category: OutputCategory.exports,
       );
       await File(outputPath).writeAsBytes(await pdf.save());
       return outputPath;
@@ -460,10 +476,13 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
           build: (pw.Context context) => pw.Image(pw.MemoryImage(imageBytes)),
         ),
       );
-      final tempDir = await getTemporaryDirectory();
-      final outputPath = path.join(
-        tempDir.path,
-        'converted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: OutputPathHelper.outputFileName(
+          sourcePath: tiffFile.path,
+          suffix: 'converted',
+          extension: 'pdf',
+        ),
+        category: OutputCategory.exports,
       );
       await File(outputPath).writeAsBytes(await pdf.save());
       return outputPath;
@@ -515,21 +534,67 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
   }
 
   Future<void> _showSuccessDialog(String filePath) async {
-    final fileSize = await File(filePath).length();
+    final savedFile = await OutputPathHelper.exportGeneratedFile(
+      sourcePath: filePath,
+      fileName: path.basename(filePath),
+      category: OutputCategory.exports,
+    );
+    final fileSize = await File(savedFile.workingPath).length();
     final sizeInMB = (fileSize / (1024 * 1024)).toStringAsFixed(2);
     if (!mounted) return;
     ScaffoldMessenger.of(context).showSnackBar(
       SnackBar(
-        content: Text('✓ ${path.basename(filePath)} ($sizeInMB MB)'),
+        content: Text(
+          '${savedFile.fileName} ($sizeInMB MB) saved to ${savedFile.displayPath}',
+        ),
         duration: const Duration(seconds: 2),
       ),
     );
     Navigator.push(
       context,
       MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(externalFile: File(filePath)),
+        builder: (_) =>
+            PdfViewerScreen(externalFile: File(savedFile.workingPath)),
       ),
     );
+  }
+
+  bool _isTextLikeExtension(String extension) {
+    return {
+      'txt',
+      'html',
+      'htm',
+      'md',
+      'markdown',
+      'csv',
+      'xml',
+      'json',
+      'log',
+    }.contains(extension.toLowerCase());
+  }
+
+  String _prepareTextContent(Uint8List bytes, String extension) {
+    final raw = utf8.decode(bytes, allowMalformed: true);
+    final ext = extension.toLowerCase();
+    if (ext == 'json') {
+      try {
+        return const JsonEncoder.withIndent('  ').convert(jsonDecode(raw));
+      } catch (_) {
+        return raw;
+      }
+    }
+    if (ext == 'html' || ext == 'htm') {
+      return raw
+          .replaceAll(
+            RegExp(r'<(script|style)[^>]*>.*?</\1>', dotAll: true),
+            '',
+          )
+          .replaceAll(RegExp(r'<[^>]+>'), ' ')
+          .replaceAll(RegExp(r'\s+\n'), '\n')
+          .replaceAll(RegExp(r'[ \t]+'), ' ')
+          .trim();
+    }
+    return raw;
   }
 
   Color _getCardColor(String format) {

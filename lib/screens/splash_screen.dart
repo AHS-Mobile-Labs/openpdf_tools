@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 class SplashScreen extends StatelessWidget {
   const SplashScreen({super.key});
   @override
@@ -13,10 +14,7 @@ class SplashScreen extends StatelessWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [
-              const Color(0xFFC6302C),
-              const Color(0xFF9A0000),
-            ],
+            colors: [const Color(0xFFC6302C), const Color(0xFF9A0000)],
           ),
         ),
         child: Center(
@@ -67,8 +65,10 @@ class SplashScreen extends StatelessWidget {
                 ),
                 const SizedBox(height: 8),
                 Container(
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 8,
+                  ),
                   decoration: BoxDecoration(
                     color: Colors.white.withValues(alpha: 0.2),
                     border: Border.all(

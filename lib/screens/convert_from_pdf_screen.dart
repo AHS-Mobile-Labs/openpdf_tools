@@ -5,6 +5,7 @@ import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_lib;
@@ -304,34 +305,30 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       return;
     }
     try {
-      Directory outputDir;
-      final downloadsDir = await getDownloadsDirectory();
-      if (downloadsDir != null) {
-        outputDir = downloadsDir;
-      } else {
-        final homeDir = PlatformHelper.isLinux || PlatformHelper.isMacOS
-            ? Platform.environment['HOME']
-            : null;
-        if (homeDir != null) {
-          outputDir = Directory(homeDir);
-        } else {
-          outputDir = await getApplicationDocumentsDirectory();
-        }
-      }
-      if (!await outputDir.exists()) {
-        await outputDir.create(recursive: true);
-      }
-      final fileName =
-          '${path_lib.basename(_selectedPdfPath!).replaceAll('.pdf', '')}_converted.${format.fileExtension}';
-      final outputPath = '${outputDir.path}/$fileName';
+      final fileName = OutputPathHelper.outputFileName(
+        sourcePath: _selectedPdfPath!,
+        suffix: 'converted',
+        extension: format.fileExtension,
+      );
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: fileName,
+        category: OutputCategory.exports,
+      );
       await _performConversion(format, outputPath);
       if (!mounted) return;
-      if (!await File(outputPath).exists()) return;
+      if (!await File(outputPath).exists()) {
+        throw Exception('Conversion did not create an output file.');
+      }
+      final savedFile = await OutputPathHelper.exportGeneratedFile(
+        sourcePath: outputPath,
+        fileName: fileName,
+        category: OutputCategory.exports,
+      );
       if (!mounted) return;
       final isPdfOutput = format.fileExtension == 'pdf';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('✓ Saved: $fileName'),
+          content: Text('Saved: ${savedFile.displayPath}'),
           duration: const Duration(seconds: 3),
           action: SnackBarAction(
             label: 'Open',
@@ -340,16 +337,23 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                 Navigator.push(
                   context,
                   MaterialPageRoute(
-                    builder: (_) =>
-                        PdfViewerScreen(externalFile: File(outputPath)),
+                    builder: (_) => PdfViewerScreen(
+                      externalFile: File(savedFile.workingPath),
+                    ),
                   ),
                 );
               } else if (PlatformHelper.isMobile) {
                 share_plus.SharePlus.instance.share(
-                  share_plus.ShareParams(files: [share_plus.XFile(outputPath)]),
+                  share_plus.ShareParams(
+                    files: [share_plus.XFile(savedFile.workingPath)],
+                  ),
                 );
+              } else if (PlatformHelper.isMacOS) {
+                Process.run('open', [savedFile.workingPath]);
+              } else if (PlatformHelper.isWindows) {
+                Process.run('explorer', [savedFile.workingPath]);
               } else {
-                Process.run('xdg-open', [outputPath]);
+                Process.run('xdg-open', [savedFile.workingPath]);
               }
             },
           ),
@@ -360,7 +364,8 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PdfViewerScreen(externalFile: File(outputPath)),
+            builder: (_) =>
+                PdfViewerScreen(externalFile: File(savedFile.workingPath)),
           ),
         );
       }
@@ -387,8 +392,10 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       case 'Images':
       case 'JPG':
       case 'PNG':
-      case 'SVG':
         await _convertToImages(format, outputPath);
+        break;
+      case 'SVG':
+        await _convertToSvg(outputPath);
         break;
       case 'Word':
       case 'DOCX':
@@ -416,21 +423,13 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   }
 
   Future<void> _convertToText(String outputPath) async {
-    // On Android, always write to app documents directory
-    String safeOutputPath = outputPath;
-    if (Platform.isAndroid) {
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName = path_lib.basename(outputPath);
-      safeOutputPath = '${dir.path}/$fileName';
-    }
-
-    final outDir = File(safeOutputPath).parent;
+    final outDir = File(outputPath).parent;
     if (!await outDir.exists()) await outDir.create(recursive: true);
 
     if (Platform.isAndroid) {
       final result = await platform.invokeMethod<String>('extractText', {
         'inputPath': _selectedPdfPath!,
-        'outputPath': safeOutputPath,
+        'outputPath': outputPath,
       });
       if (result == null || result.isEmpty) {
         throw Exception('Text extraction failed');
@@ -438,7 +437,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     } else {
       final result = await Process.run('pdftotext', [
         _selectedPdfPath!,
-        safeOutputPath,
+        outputPath,
       ]);
       if (result.exitCode != 0) {
         throw Exception('Text conversion failed: ${result.stderr}');
@@ -537,8 +536,10 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     String outputPath,
   ) async {
     if (Platform.isAndroid) {
-      _showWebConversionDialog(format);
-      return;
+      throw Exception(
+        'PDF to ${format.format} requires LibreOffice or another desktop conversion engine. '
+        'This format is not available on Android yet.',
+      );
     }
     final outDir = Directory(outputPath).parent.path;
     if (!await Directory(outDir).exists()) {
@@ -585,6 +586,28 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         }
       } catch (_) {}
       rethrow;
+    }
+  }
+
+  Future<void> _convertToSvg(String outputPath) async {
+    if (Platform.isAndroid || Platform.isIOS) {
+      throw Exception(
+        'PDF to SVG requires a desktop tool such as poppler/pdftocairo.',
+      );
+    }
+    final outDir = File(outputPath).parent;
+    if (!await outDir.exists()) {
+      await outDir.create(recursive: true);
+    }
+    final result = await Process.run('pdftocairo', [
+      '-svg',
+      _selectedPdfPath!,
+      outputPath,
+    ]);
+    if (result.exitCode != 0) {
+      throw Exception(
+        'SVG conversion failed. Install poppler-utils/pdftocairo and try again. ${result.stderr}',
+      );
     }
   }
 

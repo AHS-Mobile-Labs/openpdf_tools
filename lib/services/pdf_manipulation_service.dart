@@ -2,9 +2,12 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
 import 'package:path_provider/path_provider.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 
 class PdfManipulationService {
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
+  static const _operationTimeout = Duration(minutes: 4);
+
   static Future<String> mergePdfs(List<String> pdfPaths) async {
     if (pdfPaths.isEmpty) {
       throw Exception('No PDF files provided for merging');
@@ -22,8 +25,14 @@ class PdfManipulationService {
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
-      final outputPath =
-          '${tempDir.path}/merged_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: OutputPathHelper.outputFileName(
+          sourcePath: pdfPaths.first,
+          suffix: 'merged',
+          extension: 'pdf',
+        ),
+        category: OutputCategory.exports,
+      );
       debugPrint(
         '[PdfManipulation] Merging ${pdfPaths.length} PDFs to: $outputPath',
       );
@@ -35,10 +44,12 @@ class PdfManipulationService {
       }
       if (Platform.isAndroid) {
         try {
-          final result = await platform.invokeMethod<String>('mergePdfs', {
-            'inputPaths': pdfPaths,
-            'outputPath': outputPath,
-          });
+          final result = await platform
+              .invokeMethod<String>('mergePdfs', {
+                'inputPaths': pdfPaths,
+                'outputPath': outputPath,
+              })
+              .timeout(_operationTimeout);
           if (result != null && result.isNotEmpty) {
             return result;
           }
@@ -59,10 +70,7 @@ class PdfManipulationService {
         if (gsResult != null) {
           return gsResult;
         }
-        throw Exception(
-          'No PDF manipulation tools found. '
-          'Please install qpdf, pdftk, or ghostscript.',
-        );
+        throw Exception(_missingToolsMessage('merge PDFs'));
       }
       throw Exception('Failed to merge PDFs: Unknown error');
     } catch (e) {
@@ -75,9 +83,9 @@ class PdfManipulationService {
     String outputPath,
   ) async {
     try {
-      final args = ['--empty'];
+      final args = ['--empty', '--pages'];
       for (final pdfPath in pdfPaths) {
-        args.addAll(['--pages', pdfPath, '1-z']);
+        args.addAll([pdfPath, '1-z']);
       }
       args.addAll(['--', outputPath]);
       final result = await Process.run('qpdf', args);
@@ -158,10 +166,12 @@ class PdfManipulationService {
       }
       if (Platform.isAndroid) {
         try {
-          final result = await platform.invokeMethod<List<dynamic>>(
-            'splitPdf',
-            {'inputPath': pdfPath, 'outputDir': tempDir.path},
-          );
+          final result = await platform
+              .invokeMethod<List<dynamic>>('splitPdf', {
+                'inputPath': pdfPath,
+                'outputDir': tempDir.path,
+              })
+              .timeout(_operationTimeout);
           if (result != null && result.isNotEmpty) {
             return result.cast<String>();
           }
@@ -189,7 +199,9 @@ class PdfManipulationService {
         } else {
           final pageCount = await _getPageCount(pdfPath);
           if (pageCount <= 0) {
-            throw Exception('Could not determine PDF page count');
+            throw Exception(
+              'Could not determine PDF page count. Install pdfinfo or qpdf, then try again.',
+            );
           }
           final outputPaths = <String>[];
           for (int i = 1; i <= pageCount; i++) {
@@ -225,20 +237,20 @@ class PdfManipulationService {
       if (startPage < 1 || endPage < 1 || startPage > endPage) {
         throw Exception('Invalid page range: $startPage to $endPage');
       }
-      final tempDir = await getTemporaryDirectory();
-      if (!await tempDir.exists()) {
-        await tempDir.create(recursive: true);
-      }
-      final outputPath =
-          '${tempDir.path}/extracted_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: 'extracted_${DateTime.now().millisecondsSinceEpoch}.pdf',
+        category: OutputCategory.exports,
+      );
       if (Platform.isAndroid) {
         try {
-          final result = await platform.invokeMethod<String>('splitPdfRange', {
-            'inputPath': pdfPath,
-            'startPage': startPage,
-            'endPage': endPage,
-            'outputPath': outputPath,
-          });
+          final result = await platform
+              .invokeMethod<String>('splitPdfRange', {
+                'inputPath': pdfPath,
+                'startPage': startPage,
+                'endPage': endPage,
+                'outputPath': outputPath,
+              })
+              .timeout(_operationTimeout);
           if (result != null && result.isNotEmpty) {
             return result;
           }
@@ -305,8 +317,13 @@ class PdfManipulationService {
     List<int> pages,
   ) async {
     try {
-      final pageSpec = pages.join(' ');
-      final args = [inputPath, 'cat', pageSpec, 'output', outputPath];
+      final args = [
+        inputPath,
+        'cat',
+        ...pages.map((page) => page.toString()),
+        'output',
+        outputPath,
+      ];
       final result = await Process.run('pdftk', args);
       return result.exitCode == 0;
     } catch (e) {
@@ -383,9 +400,14 @@ class PdfManipulationService {
           }
         }
       }
-      return 1;
+      return 0;
     } catch (e) {
-      return 1;
+      return 0;
     }
+  }
+
+  static String _missingToolsMessage(String operation) {
+    return 'No PDF manipulation tools found to $operation. Install one of: '
+        'qpdf, pdftk, or ghostscript.';
   }
 }

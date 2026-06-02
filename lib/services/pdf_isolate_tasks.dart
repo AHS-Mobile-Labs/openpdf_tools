@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:pdf/widgets.dart' as pw;
 import 'isolate_helper.dart';
+
 Future<Map<String, dynamic>> analyzePDFIsolateTask(PDFAnalysisData data) async {
   try {
     final bytes = data.fileBytes;
@@ -50,9 +51,11 @@ Future<Map<String, dynamic>> analyzePDFIsolateTask(PDFAnalysisData data) async {
     };
   }
 }
+
 String _addMinimalTrailer(String pdf) {
   return '$pdf\ntrailer\n<< /Size 1 >>\nstartxref\n0\n%%EOF\n';
 }
+
 Future<List<int>?> _attemptStructuralRepair(List<int> bytes) async {
   try {
     final decoded = String.fromCharCodes(bytes);
@@ -69,6 +72,7 @@ Future<List<int>?> _attemptStructuralRepair(List<int> bytes) async {
     return null;
   }
 }
+
 Future<List<int>?> _attemptObjectRecovery(List<int> bytes) async {
   try {
     final decoded = String.fromCharCodes(bytes);
@@ -99,6 +103,7 @@ Future<List<int>?> _attemptObjectRecovery(List<int> bytes) async {
     return null;
   }
 }
+
 Future<List<int>?> _attemptContentRecovery(List<int> bytes) async {
   try {
     final pdf = pw.Document();
@@ -131,6 +136,7 @@ Future<List<int>?> _attemptContentRecovery(List<int> bytes) async {
     return null;
   }
 }
+
 Future<List<int>?> repairPDFIsolateTask(PDFRepairData data) async {
   try {
     final bytes = data.fileBytes;
@@ -157,6 +163,7 @@ Future<List<int>?> repairPDFIsolateTask(PDFRepairData data) async {
     return null;
   }
 }
+
 List<String> _extractReadableStrings(String decoded) {
   final strings = <String>[];
   final stringPattern = RegExp(r'\((.*?)\)');
@@ -169,6 +176,7 @@ List<String> _extractReadableStrings(String decoded) {
   }
   return strings;
 }
+
 Future<List<String>> recoverTextIsolateTask(PDFTextRecoveryData data) async {
   try {
     final bytes = data.fileBytes;

@@ -6,11 +6,13 @@ import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
+
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
   @override
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
+
 class _HistoryScreenState extends State<HistoryScreen> {
   late Future<List<HistoryItem>> _historyFuture;
   Set<String> _favorites = {};
@@ -20,6 +22,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
     _historyFuture = FileHistoryService.getHistory();
     _loadData();
   }
+
   void _loadData() async {
     final favorites = await FileHistoryService.getFavorites();
     setState(() {
@@ -27,6 +30,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _historyFuture = FileHistoryService.getHistory();
     });
   }
+
   void _toggleFavorite(String filePath) async {
     final isFav = await FileHistoryService.toggleFavorite(filePath);
     setState(() {
@@ -37,10 +41,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
       }
     });
   }
+
   void _removeFromHistory(String filePath) async {
     await FileHistoryService.removeFromHistory(filePath);
     _loadData();
   }
+
   void _openFile(String filePath) {
     if (kIsWeb) {
       ScaffoldMessenger.of(context).showSnackBar(
@@ -61,6 +67,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       _removeFromHistory(filePath);
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -89,6 +96,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       ),
     );
   }
+
   Widget _buildHistoryTab() {
     return FutureBuilder<List<HistoryItem>>(
       future: _historyFuture,
@@ -162,6 +170,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
       },
     );
   }
+
   Widget _buildFavoritesTab() {
     return FutureBuilder<List<String>>(
       future: FileHistoryService.getFavorites(),

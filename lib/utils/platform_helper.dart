@@ -1,5 +1,6 @@
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'dart:io' as io show Platform;
+
 class PlatformHelper {
   static bool get isAndroid => !kIsWeb && io.Platform.isAndroid;
   static bool get isIOS => !kIsWeb && io.Platform.isIOS;
@@ -18,6 +19,7 @@ class PlatformHelper {
     if (isLinux) return 'Linux';
     return 'Unknown';
   }
+
   static bool get requiresFilePermissions => isMobile;
   static (int, int) get recommendedWindowSize {
     if (isWindows) return (1200, 800);
@@ -25,10 +27,12 @@ class PlatformHelper {
     if (isLinux) return (1100, 750);
     return (1200, 800);
   }
+
   static bool get usesSystemFileDialog => isDesktop || isWeb;
   static bool get supportsNativeShare => true;
   static NavigationStyle get preferredNavigationStyle {
     return isMobile ? NavigationStyle.bottomBar : NavigationStyle.sideBar;
   }
 }
+
 enum NavigationStyle { bottomBar, sideBar, tabs }

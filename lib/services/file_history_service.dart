@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:shared_preferences/shared_preferences.dart';
+
 class FileHistoryService {
   static const String _historyKey = 'file_history';
   static const String _favoritesKey = 'file_favorites';
@@ -23,6 +24,7 @@ class FileHistoryService {
       developer.log('Error adding to history', error: e);
     }
   }
+
   static Future<List<HistoryItem>> getHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -45,6 +47,7 @@ class FileHistoryService {
       return [];
     }
   }
+
   static Future<bool> toggleFavorite(String filePath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -61,6 +64,7 @@ class FileHistoryService {
       return false;
     }
   }
+
   static Future<bool> isFavorite(String filePath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -71,6 +75,7 @@ class FileHistoryService {
       return false;
     }
   }
+
   static Future<List<String>> getFavorites() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -80,6 +85,7 @@ class FileHistoryService {
       return [];
     }
   }
+
   static Future<void> clearHistory() async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -88,6 +94,7 @@ class FileHistoryService {
       developer.log('Error clearing history', error: e);
     }
   }
+
   static Future<void> removeFromHistory(String filePath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -98,6 +105,7 @@ class FileHistoryService {
       developer.log('Error removing from history', error: e);
     }
   }
+
   static Future<void> removeFavorite(String filePath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -108,6 +116,7 @@ class FileHistoryService {
       developer.log('Error removing favorite', error: e);
     }
   }
+
   static Future<void> updateHistoryPath(String oldPath, String newPath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -115,7 +124,8 @@ class FileHistoryService {
       for (int i = 0; i < history.length; i++) {
         final parts = history[i].split(_delimiter);
         if (parts.isNotEmpty && parts[0] == oldPath) {
-          history[i] = '$newPath$_delimiter${parts.length > 1 ? parts[1] : DateTime.now().millisecondsSinceEpoch}';
+          history[i] =
+              '$newPath$_delimiter${parts.length > 1 ? parts[1] : DateTime.now().millisecondsSinceEpoch}';
         }
       }
       await prefs.setStringList(_historyKey, history);
@@ -123,6 +133,7 @@ class FileHistoryService {
       developer.log('Error updating history path', error: e);
     }
   }
+
   static Future<void> updateFavoritePath(String oldPath, String newPath) async {
     try {
       final prefs = await SharedPreferences.getInstance();
@@ -137,13 +148,11 @@ class FileHistoryService {
     }
   }
 }
+
 class HistoryItem {
   final String filePath;
   final int timestamp;
-  HistoryItem({
-    required this.filePath,
-    required this.timestamp,
-  });
+  HistoryItem({required this.filePath, required this.timestamp});
   String get fileName => filePath.split('/').last;
   DateTime get date => DateTime.fromMillisecondsSinceEpoch(timestamp);
   bool get fileExists => File(filePath).existsSync();

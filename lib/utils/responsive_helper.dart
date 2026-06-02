@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+
 class ResponsiveHelper {
   final BuildContext context;
   ResponsiveHelper(this.context);
@@ -20,10 +21,12 @@ class ResponsiveHelper {
     if (screenWidth < 1200) return DeviceSize.largeTablet;
     return DeviceSize.desktop;
   }
+
   double responsiveFontSize(double baseSize) {
     final scale = screenWidth / 400;
     return baseSize * scale.clamp(0.8, 1.3);
   }
+
   EdgeInsets responsivePadding({
     double mobile = 12,
     double tablet = 20,
@@ -32,14 +35,17 @@ class ResponsiveHelper {
     final padding = isMobile ? mobile : (isTablet ? tablet : desktop);
     return EdgeInsets.all(padding);
   }
+
   int get gridColumns {
     if (isMobile) return 2;
     if (isTablet) return 3;
     return 4;
   }
+
   double getItemWidth(double containerWidth, {int cols = 2}) {
     return (containerWidth - (cols - 1) * 12) / cols;
   }
+
   double get keyboardHeight => viewInsets.bottom;
   bool get isKeyboardVisible => keyboardHeight > 0;
   EdgeInsets get safeAreaPadding => padding;
@@ -55,13 +61,21 @@ class ResponsiveHelper {
         return padding.right;
     }
   }
-  double scale(double size, {double mobileMultiplier = 1, double desktopMultiplier = 1.2}) {
+
+  double scale(
+    double size, {
+    double mobileMultiplier = 1,
+    double desktopMultiplier = 1.2,
+  }) {
     if (isMobile) return size * mobileMultiplier;
     return size * desktopMultiplier;
   }
 }
+
 enum DeviceSize { small, mobile, tablet, largeTablet, desktop }
+
 enum BoxSide { top, bottom, left, right }
+
 extension ResponsiveContext on BuildContext {
   ResponsiveHelper get responsive => ResponsiveHelper(this);
   bool get isMobile => ResponsiveHelper(this).isMobile;

@@ -1,8 +1,8 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
-import 'package:path_provider/path_provider.dart';
 import 'dart:async';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 
 class PdfEditingService {
   static const _platform = MethodChannel('com.openpdf.tools/pdfManipulation');
@@ -15,9 +15,10 @@ class PdfEditingService {
   }
 
   static Future<String> _ensureOutputPath(String prefix) async {
-    final tempDir = await getTemporaryDirectory();
-    await tempDir.create(recursive: true);
-    return '${tempDir.path}/${prefix}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+    return OutputPathHelper.createWorkingOutputPath(
+      fileName: '${prefix}_${DateTime.now().millisecondsSinceEpoch}.pdf',
+      category: OutputCategory.exports,
+    );
   }
 
   static Future<String> addTextToPdf({
@@ -40,10 +41,8 @@ class PdfEditingService {
         });
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native addTextToPdf returned null');
-      } else {
-        await File(inputPath).copy(outputPath);
-        return outputPath;
       }
+      throw Exception(_desktopUnsupportedMessage('add text to PDFs'));
     } catch (e) {
       throw Exception('Failed to add text: $e');
     }
@@ -73,14 +72,15 @@ class PdfEditingService {
               : '+270';
           final result = await Process.run('qpdf', [
             inputPath,
-            '--rotate=$rotArg',
+            '--rotate=$rotArg:1-z',
             '--',
             outputPath,
           ]);
           if (result.exitCode == 0) return outputPath;
         } catch (_) {}
-        await File(inputPath).copy(outputPath);
-        return outputPath;
+        throw Exception(
+          'Rotation requires qpdf on desktop. Install qpdf and try again.',
+        );
       }
     } catch (e) {
       throw Exception('Failed to rotate PDF: $e');
@@ -105,10 +105,8 @@ class PdfEditingService {
         });
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native cropPdf returned null');
-      } else {
-        await File(inputPath).copy(outputPath);
-        return outputPath;
       }
+      throw Exception(_desktopUnsupportedMessage('crop PDFs'));
     } catch (e) {
       throw Exception('Failed to crop PDF: $e');
     }
@@ -134,10 +132,8 @@ class PdfEditingService {
         });
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native addWatermark returned null');
-      } else {
-        await File(inputPath).copy(outputPath);
-        return outputPath;
       }
+      throw Exception(_desktopUnsupportedMessage('add watermarks'));
     } catch (e) {
       throw Exception('Failed to add watermark: $e');
     }
@@ -161,10 +157,8 @@ class PdfEditingService {
         );
         if (result != null && result.isNotEmpty) return result;
         throw Exception('Native changeBackgroundColor returned null');
-      } else {
-        await File(inputPath).copy(outputPath);
-        return outputPath;
       }
+      throw Exception(_desktopUnsupportedMessage('change PDF backgrounds'));
     } catch (e) {
       throw Exception('Failed to change background color: $e');
     }
@@ -195,8 +189,9 @@ class PdfEditingService {
           ]);
           if (result.exitCode == 0) return outputPath;
         } catch (_) {}
-        await File(inputPath).copy(outputPath);
-        return outputPath;
+        throw Exception(
+          'Compression requires Ghostscript on desktop. Install ghostscript and try again.',
+        );
       }
     } catch (e) {
       throw Exception('Failed to compress PDF: $e');
@@ -210,11 +205,28 @@ class PdfEditingService {
         final result = await _platform.invokeMethod<int>('getPageCount', {
           'inputPath': inputPath,
         });
-        return result ?? 1;
+        return result ?? 0;
       }
-      return 1;
+      final pdfInfo = await Process.run('pdfinfo', [inputPath]);
+      if (pdfInfo.exitCode == 0) {
+        for (final line in pdfInfo.stdout.toString().split('\n')) {
+          if (line.startsWith('Pages:')) {
+            return int.tryParse(line.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
+          }
+        }
+      }
+      final qpdf = await Process.run('qpdf', ['--show-npages', inputPath]);
+      if (qpdf.exitCode == 0) {
+        return int.tryParse(qpdf.stdout.toString().trim()) ?? 0;
+      }
+      return 0;
     } catch (e) {
-      return 1;
+      return 0;
     }
+  }
+
+  static String _desktopUnsupportedMessage(String operation) {
+    return 'This platform cannot currently $operation without a native PDF '
+        'editing backend. No unchanged copy was saved.';
   }
 }

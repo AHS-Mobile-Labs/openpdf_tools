@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:crypto/crypto.dart';
 import 'package:flutter/foundation.dart';
 import '../models/signing_models.dart';
+
 class ProductionPdfSigningService {
   static const int signatureFieldWidth = 200;
   static const int signatureFieldHeight = 50;
@@ -65,6 +66,7 @@ class ProductionPdfSigningService {
       return SigningResult.failure(errorMessage: 'PDF signing failed: $e');
     }
   }
+
   static Future<String> _generateSignatureHash(
     Uint8List pdfBytes,
     String signerName,
@@ -87,6 +89,7 @@ class ProductionPdfSigningService {
       rethrow;
     }
   }
+
   static Future<Uint8List> _createSignedPdf(
     Uint8List pdfBytes,
     SigningRequest request,
@@ -101,6 +104,7 @@ class ProductionPdfSigningService {
       rethrow;
     }
   }
+
   static String _buildSignatureDictionary(
     SigningRequest request,
     String signatureHash,
@@ -123,6 +127,7 @@ class ProductionPdfSigningService {
 ''';
     return dict;
   }
+
   static Future<bool> verifySignature(File signedPdfFile) async {
     try {
       if (!signedPdfFile.existsSync()) {
@@ -153,6 +158,7 @@ class ProductionPdfSigningService {
       return false;
     }
   }
+
   static Future<Map<String, dynamic>?> getSignatureInfo(
     File signedPdfFile,
   ) async {
@@ -186,6 +192,7 @@ class ProductionPdfSigningService {
       return null;
     }
   }
+
   static Future<bool> hasPreviousSignatures(File pdfFile) async {
     try {
       if (!pdfFile.existsSync()) {
@@ -200,10 +207,12 @@ class ProductionPdfSigningService {
       return false;
     }
   }
+
   static double calculateProgress(int currentStep, int totalSteps) {
     if (totalSteps == 0) return 0.0;
     return (currentStep / totalSteps).clamp(0.0, 1.0);
   }
+
   static String formatSignatureTimestamp(String isoTimestamp) {
     try {
       final dateTime = DateTime.parse(isoTimestamp);
@@ -212,6 +221,7 @@ class ProductionPdfSigningService {
       return isoTimestamp;
     }
   }
+
   static void clearSensitiveData({
     String? password,
     Uint8List? certificateBytes,
@@ -223,6 +233,7 @@ class ProductionPdfSigningService {
       _secureBytesClear(certificateBytes);
     }
   }
+
   static void _secureStringClear(String str) {
     try {
       final bytes = str.codeUnits;
@@ -233,6 +244,7 @@ class ProductionPdfSigningService {
       debugPrint('[ProductionPdfSigningService] Memory clearing failed');
     }
   }
+
   static void _secureBytesClear(Uint8List bytes) {
     try {
       for (int i = 0; i < bytes.length; i++) {

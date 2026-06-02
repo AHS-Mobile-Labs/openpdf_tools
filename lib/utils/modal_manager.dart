@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/widgets/premium_components.dart';
+
 class PremiumModalManager {
   static Future<T?> showPremiumDialog<T>(
     BuildContext context, {
@@ -15,6 +16,7 @@ class PremiumModalManager {
       builder: (context) => child,
     );
   }
+
   static Future<T?> showPremiumBottomSheet<T>(
     BuildContext context, {
     required Widget Function(BuildContext) builder,
@@ -30,6 +32,7 @@ class PremiumModalManager {
       barrierColor: Colors.black.withValues(alpha: 0.4),
     );
   }
+
   static void showPremiumSnackBar(
     BuildContext context, {
     required String message,
@@ -87,7 +90,9 @@ class PremiumModalManager {
     onDismiss?.call();
   }
 }
+
 enum SnackBarType { success, error, warning, info }
+
 class PremiumAlertDialog extends StatelessWidget {
   final String title;
   final String message;
@@ -180,6 +185,7 @@ class PremiumAlertDialog extends StatelessWidget {
     );
   }
 }
+
 class PremiumBottomSheet extends StatelessWidget {
   final String? title;
   final Widget child;
@@ -295,6 +301,7 @@ class PremiumBottomSheet extends StatelessWidget {
     );
   }
 }
+
 class PremiumLoadingDialog extends StatelessWidget {
   final String? message;
   const PremiumLoadingDialog({super.key, this.message});

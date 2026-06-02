@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import '../services/pdf_manipulation_service.dart';
 import '../config/app_config.dart';
@@ -238,18 +239,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       );
       return;
     }
-    if (PlatformHelper.isAndroid) {
-      final hasPermission =
-          await PlatformFileHandler.requestStoragePermission();
-      if (!hasPermission) {
-        if (mounted) {
-          _showErrorMessage(
-            'Storage permission is required to merge PDFs. Please grant permission and try again.',
-          );
-        }
-        return;
-      }
-    }
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
@@ -257,11 +246,16 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     try {
       final pdfPaths = <String>[for (final pdf in _selectedPdfs) pdf.path];
       final outputPath = await PdfManipulationService.mergePdfs(pdfPaths);
+      final savedFile = await OutputPathHelper.exportGeneratedFile(
+        sourcePath: outputPath,
+        fileName: outputPath.split(Platform.pathSeparator).last,
+        category: OutputCategory.exports,
+      );
       if (!mounted) return;
       setState(() {
         _isProcessing = false;
       });
-      _showSuccessDialog(outputPath);
+      _showSuccessDialog(savedFile);
     } catch (e) {
       if (!mounted) return;
       setState(() {
@@ -283,7 +277,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     }
   }
 
-  void _showSuccessDialog(String outputPath) {
+  void _showSuccessDialog(ExportedFile savedFile) {
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -312,7 +306,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                'Total size: ${_getTotalSizeDisplay()}',
+                'Saved to: ${savedFile.displayPath}\nTotal size: ${_getTotalSizeDisplay()}',
                 style: TextStyle(color: Colors.blue.shade900, fontSize: 12),
               ),
             ),
@@ -326,7 +320,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              _openMergedPdf(outputPath);
+              _openMergedPdf(savedFile.workingPath);
             },
             icon: const Icon(Icons.visibility),
             label: const Text('View'),

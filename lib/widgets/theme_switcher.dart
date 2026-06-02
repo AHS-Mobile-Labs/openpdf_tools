@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:openpdf_tools/services/theme_service.dart' as theme_service;
+
 class ThemeSwitcher extends StatelessWidget {
   final bool compact;
   final VoidCallback? onChanged;
@@ -19,6 +20,7 @@ class ThemeSwitcher extends StatelessWidget {
       },
     );
   }
+
   Widget _buildCompactButton(
     BuildContext context,
     theme_service.ThemeService themeService,
@@ -35,6 +37,7 @@ class ThemeSwitcher extends StatelessWidget {
       },
     );
   }
+
   Widget _buildFullButton(
     BuildContext context,
     theme_service.ThemeService themeService,
@@ -70,6 +73,7 @@ class ThemeSwitcher extends StatelessWidget {
     );
   }
 }
+
 class ThemeModeSelector extends StatelessWidget {
   final Function(theme_service.ThemeMode)? onChanged;
   const ThemeModeSelector({super.key, this.onChanged});
@@ -107,6 +111,7 @@ class ThemeModeSelector extends StatelessWidget {
       },
     );
   }
+
   IconData _getThemeModeIcon(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:
@@ -117,6 +122,7 @@ class ThemeModeSelector extends StatelessWidget {
         return Icons.brightness_auto;
     }
   }
+
   String _getThemeModeName(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:
@@ -128,6 +134,7 @@ class ThemeModeSelector extends StatelessWidget {
     }
   }
 }
+
 class ThemeModeTile extends StatelessWidget {
   const ThemeModeTile({super.key});
   @override
@@ -161,6 +168,7 @@ class ThemeModeTile extends StatelessWidget {
       },
     );
   }
+
   String _getThemeModeName(theme_service.ThemeMode mode) {
     switch (mode) {
       case theme_service.ThemeMode.light:

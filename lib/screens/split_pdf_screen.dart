@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import '../services/pdf_manipulation_service.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
@@ -99,19 +100,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       );
       return;
     }
-    if (PlatformHelper.isAndroid) {
-      final hasPermission =
-          await PlatformFileHandler.requestStoragePermission();
-      if (!hasPermission) {
-        if (mounted) {
-          setState(
-            () => _errorMessage =
-                'Storage permission is required to split PDFs. Please grant permission and try again.',
-          );
-        }
-        return;
-      }
-    }
     setState(() => _isProcessing = true);
     try {
       late List<String> outputPaths;
@@ -141,12 +129,22 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         );
         outputPaths = [outputPath];
       }
+      final savedFiles = <ExportedFile>[];
+      for (final outputPath in outputPaths) {
+        savedFiles.add(
+          await OutputPathHelper.exportGeneratedFile(
+            sourcePath: outputPath,
+            fileName: outputPath.split(Platform.pathSeparator).last,
+            category: OutputCategory.exports,
+          ),
+        );
+      }
       if (!mounted) return;
       setState(() => _isProcessing = false);
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text(
-            'PDF split successfully! (${outputPaths.length} file(s))',
+            'PDF split successfully. Saved ${savedFiles.length} file(s) to ${savedFiles.first.displayPath}',
           ),
           backgroundColor: Colors.green,
         ),
@@ -155,8 +153,9 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) =>
-                PdfViewerScreen(externalFile: File(outputPaths.first)),
+            builder: (_) => PdfViewerScreen(
+              externalFile: File(savedFiles.first.workingPath),
+            ),
           ),
         );
       }
@@ -344,15 +343,15 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                     ),
                     child: Row(
                       children: [
-                        Radio<bool>.adaptive(
-                          value: true,
-                          groupValue: _extractAllPages,
-                          onChanged: (value) {
-                            if (value != null) {
-                              setState(() => _extractAllPages = value);
-                            }
-                          },
+                        Icon(
+                          _extractAllPages
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_unchecked,
+                          color: _extractAllPages
+                              ? Colors.purple.shade600
+                              : Colors.grey,
                         ),
+                        const SizedBox(width: 12),
                         Expanded(
                           child: Column(
                             crossAxisAlignment: CrossAxisAlignment.start,
@@ -404,15 +403,15 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                       children: [
                         Row(
                           children: [
-                            Radio<bool>.adaptive(
-                              value: false,
-                              groupValue: _extractAllPages,
-                              onChanged: (value) {
-                                if (value != null) {
-                                  setState(() => _extractAllPages = value);
-                                }
-                              },
+                            Icon(
+                              !_extractAllPages
+                                  ? Icons.radio_button_checked
+                                  : Icons.radio_button_unchecked,
+                              color: !_extractAllPages
+                                  ? Colors.purple.shade600
+                                  : Colors.grey,
                             ),
+                            const SizedBox(width: 12),
                             Expanded(
                               child: Column(
                                 crossAxisAlignment: CrossAxisAlignment.start,

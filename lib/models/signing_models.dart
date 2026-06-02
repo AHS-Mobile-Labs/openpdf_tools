@@ -27,8 +27,12 @@ class CertificateInfo {
   });
   bool get isCurrentlyValid =>
       !isExpired && DateTime.now().isBefore(validUntil);
-  int get daysUntilExpiration =>
-      validUntil.difference(DateTime.now()).inDays.abs();
+  int get daysUntilExpiration {
+    final remaining = validUntil.difference(DateTime.now());
+    if (remaining.isNegative) return 0;
+    return (remaining.inMilliseconds / Duration.millisecondsPerDay).ceil();
+  }
+
   String get validityPeriod =>
       '${validFrom.year}-${validFrom.month.toString().padLeft(2, '0')}-${validFrom.day.toString().padLeft(2, '0')} to ${validUntil.year}-${validUntil.month.toString().padLeft(2, '0')}-${validUntil.day.toString().padLeft(2, '0')}';
   CertificateInfo copyWith({
@@ -52,6 +56,7 @@ class CertificateInfo {
     );
   }
 }
+
 class SigningRequest {
   final String pdfFilePath;
   final String nameOnSignature;
@@ -105,6 +110,7 @@ class SigningRequest {
     return ValidationResult(isValid: errors.isEmpty, errors: errors);
   }
 }
+
 class SigningResult {
   final bool success;
   final String? signedFilePath;
@@ -153,12 +159,14 @@ class SigningResult {
     );
   }
 }
+
 class ValidationResult {
   final bool isValid;
   final List<String> errors;
   ValidationResult({required this.isValid, required this.errors});
   String get errorMessage => errors.join('\n');
 }
+
 enum SignatureLocation {
   topLeft,
   topCenter,
@@ -167,7 +175,9 @@ enum SignatureLocation {
   bottomCenter,
   bottomRight,
 }
+
 enum SigningStatus { pending, inProgress, completed, failed, cancelled }
+
 class CertificateValidationResult {
   final bool isValid;
   final bool isExpired;
@@ -187,6 +197,7 @@ class CertificateValidationResult {
   });
   List<String> get allMessages => [...warnings, ...errors];
 }
+
 class PdfMetadata {
   final int pageCount;
   final String title;

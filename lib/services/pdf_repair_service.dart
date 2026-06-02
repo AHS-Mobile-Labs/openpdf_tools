@@ -3,6 +3,7 @@ import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'isolate_helper.dart';
 import 'pdf_isolate_tasks.dart';
+
 class PDFRepairService {
   static Future<Map<String, dynamic>> analyzePDF(String pdfPath) async {
     if (kIsWeb) {
@@ -44,6 +45,7 @@ class PDFRepairService {
       };
     }
   }
+
   static Future<bool> repairPDF({
     required String inputPath,
     required String outputPath,
@@ -82,6 +84,7 @@ class PDFRepairService {
       return false;
     }
   }
+
   static Future<List<String>> recoverText(String pdfPath) async {
     try {
       final file = File(pdfPath);
@@ -108,6 +111,7 @@ class PDFRepairService {
       return ['Error during recovery: $e'];
     }
   }
+
   static Future<PDFIntegrityReport> checkIntegrity(String pdfPath) async {
     try {
       final analysis = await analyzePDF(pdfPath);
@@ -134,6 +138,7 @@ class PDFRepairService {
     }
   }
 }
+
 class PDFIntegrityReport {
   final String filePath;
   final bool isValid;

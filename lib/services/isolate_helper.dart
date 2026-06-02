@@ -1,6 +1,7 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart' show compute;
 import 'package:flutter/material.dart';
+
 class IsolateHelper {
   static Future<T> computeInBackground<T, P>(
     FutureOr<T> Function(P) computation,
@@ -19,6 +20,7 @@ class IsolateHelper {
       rethrow;
     }
   }
+
   static Future<List<T>> computeSequenceInBackground<T, P>(
     List<(FutureOr<T> Function(P), P)> computations, {
     String? debugLabel,
@@ -43,6 +45,7 @@ class IsolateHelper {
       rethrow;
     }
   }
+
   static Future<T> computeWithTimeout<T, P>(
     FutureOr<T> Function(P) computation,
     P parameter, {
@@ -70,11 +73,13 @@ class IsolateHelper {
     }
   }
 }
+
 class PDFAnalysisData {
   final String filePath;
   final List<int> fileBytes;
   PDFAnalysisData({required this.filePath, required this.fileBytes});
 }
+
 class PDFRepairData {
   final String inputPath;
   final String outputPath;
@@ -85,11 +90,13 @@ class PDFRepairData {
     required this.fileBytes,
   });
 }
+
 class PDFTextRecoveryData {
   final String filePath;
   final List<int> fileBytes;
   PDFTextRecoveryData({required this.filePath, required this.fileBytes});
 }
+
 class IsolateResult<T> {
   final bool success;
   final T? data;

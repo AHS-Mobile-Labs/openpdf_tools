@@ -1,14 +1,18 @@
 package com.ahsmobilelabs.openpdf_tools
 
 import android.app.Activity
+import android.content.ContentValues
 import android.content.Context
 import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.pdf.PdfRenderer
+import android.os.Build
 import android.os.Handler
 import android.os.Looper
+import android.os.Environment
 import android.os.ParcelFileDescriptor
+import android.provider.MediaStore
 import io.flutter.plugin.common.MethodCall
 import io.flutter.plugin.common.MethodChannel
 import org.apache.pdfbox.Loader
@@ -51,6 +55,7 @@ class PdfManipulationHandler(private val context: Context) {
                 "cropPdf" -> cropPdf(call, result)
                 "changeBackgroundColor" -> changeBackgroundColor(call, result)
                 "copyUriToCache" -> copyUriToCache(call, result)
+                "exportToPublicDirectory" -> exportToPublicDirectory(call, result)
                 else -> result.notImplemented()
             }
         } catch (e: Throwable) {
@@ -67,10 +72,10 @@ class PdfManipulationHandler(private val context: Context) {
             ?: return result.error("INVALID_ARGS", "outputPath required", null)
 
         Thread {
+            val merged = PDDocument()
+            val sourceDocs = mutableListOf<PDDocument>()
             try {
                 ensureParentDir(outputPath)
-                val merged = PDDocument()
-                val sourceDocs = mutableListOf<PDDocument>()
 
                 for (path in inputPaths) {
                     val file = File(path)
@@ -83,12 +88,13 @@ class PdfManipulationHandler(private val context: Context) {
                 }
 
                 merged.save(outputPath)
-                merged.close()
-                sourceDocs.forEach { try { it.close() } catch (_: Exception) {} }
 
                 mainHandler.post { result.success(outputPath) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("MERGE_FAILED", e.message, e.stackTraceToString()) }
+            } finally {
+                try { merged.close() } catch (_: Exception) {}
+                sourceDocs.forEach { try { it.close() } catch (_: Exception) {} }
             }
         }.start()
     }
@@ -104,21 +110,20 @@ class PdfManipulationHandler(private val context: Context) {
         Thread {
             try {
                 File(outputDir).mkdirs()
-                val doc = Loader.loadPDF(File(inputPath))
                 val outputPaths = mutableListOf<String>()
                 val ts = System.currentTimeMillis()
-                val pageCount = doc.numberOfPages
+                Loader.loadPDF(File(inputPath)).use { doc ->
+                    val pageCount = doc.numberOfPages
 
-                for (i in 0 until pageCount) {
-                    val singlePage = PDDocument()
-                    // Import page (safer than direct reference)
-                    singlePage.importPage(doc.getPage(i))
-                    val outPath = "$outputDir/page_${i + 1}_$ts.pdf"
-                    singlePage.save(outPath)
-                    singlePage.close()
-                    outputPaths.add(outPath)
+                    for (i in 0 until pageCount) {
+                        PDDocument().use { singlePage ->
+                            singlePage.importPage(doc.getPage(i))
+                            val outPath = "$outputDir/page_${i + 1}_$ts.pdf"
+                            singlePage.save(outPath)
+                            outputPaths.add(outPath)
+                        }
+                    }
                 }
-                doc.close()
                 mainHandler.post { result.success(outputPaths) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SPLIT_FAILED", e.message, e.stackTraceToString()) }
@@ -134,18 +139,21 @@ class PdfManipulationHandler(private val context: Context) {
 
         Thread {
             try {
-                val doc = Loader.loadPDF(File(inputPath))
-                val rangeDoc = PDDocument()
-                val start = (startPage - 1).coerceAtLeast(0)
-                val end   = (endPage   - 1).coerceAtMost(doc.numberOfPages - 1)
+                Loader.loadPDF(File(inputPath)).use { doc ->
+                    PDDocument().use { rangeDoc ->
+                        val start = (startPage - 1).coerceAtLeast(0)
+                        val end   = (endPage   - 1).coerceAtMost(doc.numberOfPages - 1)
+                        if (start > end) {
+                            throw Exception("Invalid page range: $startPage-$endPage")
+                        }
 
-                for (i in start..end) {
-                    rangeDoc.importPage(doc.getPage(i))
+                        for (i in start..end) {
+                            rangeDoc.importPage(doc.getPage(i))
+                        }
+                        ensureParentDir(outputPath)
+                        rangeDoc.save(outputPath)
+                    }
                 }
-                ensureParentDir(outputPath)
-                rangeDoc.save(outputPath)
-                rangeDoc.close()
-                doc.close()
                 mainHandler.post { result.success(outputPath) }
             } catch (e: Exception) {
                 mainHandler.post { result.error("SPLIT_RANGE_FAILED", e.message, null) }
@@ -605,6 +613,111 @@ class PdfManipulationHandler(private val context: Context) {
                 mainHandler.post { result.error("COPY_FAILED", e.message, null) }
             }
         }.start()
+    }
+
+    private fun exportToPublicDirectory(call: MethodCall, result: MethodChannel.Result) {
+        val sourcePath = call.argument<String>("sourcePath")
+            ?: return result.error("INVALID_ARGS", "sourcePath required", null)
+        val fileName = call.argument<String>("fileName")
+            ?: return result.error("INVALID_ARGS", "fileName required", null)
+        val category = call.argument<String>("category") ?: "exports"
+        val mimeType = call.argument<String>("mimeType") ?: "application/octet-stream"
+
+        Thread {
+            try {
+                val sourceFile = File(sourcePath)
+                if (!sourceFile.exists()) {
+                    throw Exception("Source file not found: $sourcePath")
+                }
+
+                val relativePath = publicRelativePath(category)
+
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                    val values = ContentValues().apply {
+                        put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
+                        put(MediaStore.MediaColumns.MIME_TYPE, mimeType)
+                        put(MediaStore.MediaColumns.RELATIVE_PATH, relativePath)
+                        put(MediaStore.MediaColumns.IS_PENDING, 1)
+                    }
+
+                    val collection = when (category) {
+                        "pictures" -> MediaStore.Images.Media.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                        "documents" -> MediaStore.Files.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                        else -> MediaStore.Downloads.getContentUri(MediaStore.VOLUME_EXTERNAL_PRIMARY)
+                    }
+
+                    val uri = context.contentResolver.insert(collection, values)
+                        ?: throw Exception("Could not create public output file")
+
+                    context.contentResolver.openOutputStream(uri)?.use { output ->
+                        sourceFile.inputStream().use { input -> input.copyTo(output) }
+                    } ?: throw Exception("Could not open public output stream")
+
+                    val completeValues = ContentValues().apply {
+                        put(MediaStore.MediaColumns.IS_PENDING, 0)
+                    }
+                    context.contentResolver.update(uri, completeValues, null, null)
+
+                    mainHandler.post {
+                        result.success(
+                            mapOf(
+                                "uri" to uri.toString(),
+                                "fileName" to fileName,
+                                "displayPath" to "$relativePath$fileName"
+                            )
+                        )
+                    }
+                } else {
+                    @Suppress("DEPRECATION")
+                    val baseDir = when (category) {
+                        "pictures" -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_PICTURES)
+                        "documents" -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOCUMENTS)
+                        else -> Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
+                    }
+                    val subDir = if (category == "exports") {
+                        File(baseDir, "OpenPDF Tools/Exports")
+                    } else {
+                        File(baseDir, "OpenPDF Tools")
+                    }
+                    subDir.mkdirs()
+                    val target = uniqueFile(subDir, fileName)
+                    sourceFile.copyTo(target, overwrite = false)
+                    mainHandler.post {
+                        result.success(
+                            mapOf(
+                                "uri" to target.toURI().toString(),
+                                "fileName" to target.name,
+                                "displayPath" to target.absolutePath
+                            )
+                        )
+                    }
+                }
+            } catch (e: Exception) {
+                mainHandler.post { result.error("EXPORT_FAILED", e.message, e.stackTraceToString()) }
+            }
+        }.start()
+    }
+
+    private fun publicRelativePath(category: String): String {
+        return when (category) {
+            "documents" -> "${Environment.DIRECTORY_DOCUMENTS}/OpenPDF Tools/"
+            "pictures" -> "${Environment.DIRECTORY_PICTURES}/OpenPDF Tools/"
+            "exports" -> "${Environment.DIRECTORY_DOWNLOADS}/OpenPDF Tools/Exports/"
+            else -> "${Environment.DIRECTORY_DOWNLOADS}/OpenPDF Tools/"
+        }
+    }
+
+    private fun uniqueFile(dir: File, fileName: String): File {
+        val dot = fileName.lastIndexOf('.')
+        val base = if (dot > 0) fileName.substring(0, dot) else fileName
+        val ext = if (dot > 0) fileName.substring(dot) else ""
+        var candidate = File(dir, fileName)
+        var index = 1
+        while (candidate.exists()) {
+            candidate = File(dir, "${base}_$index$ext")
+            index++
+        }
+        return candidate
     }
 
     private fun getFileNameFromUri(uri: android.net.Uri): String? {

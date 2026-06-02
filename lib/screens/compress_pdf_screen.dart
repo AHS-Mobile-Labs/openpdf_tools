@@ -7,8 +7,8 @@ import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
 
@@ -136,12 +136,14 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
     }
     setState(() => _isProcessing = true);
     try {
-      final tempDir = await getTemporaryDirectory();
-      if (!await tempDir.exists()) {
-        await tempDir.create(recursive: true);
-      }
-      final outputPath =
-          '${tempDir.path}/compressed_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: OutputPathHelper.outputFileName(
+          sourcePath: _pdfPath!,
+          suffix: 'compressed',
+          extension: 'pdf',
+        ),
+        category: OutputCategory.exports,
+      );
       debugPrint('[CompressPdf] Compressing PDF from: $_pdfPath');
       debugPrint('[CompressPdf] Output path: $outputPath');
       debugPrint('[CompressPdf] Platform: ${PlatformHelper.platformName}');
@@ -154,6 +156,11 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       if (!await compressedFile.exists()) {
         throw Exception('Compressed PDF was not created at: $outputPath');
       }
+      final savedFile = await OutputPathHelper.exportGeneratedFile(
+        sourcePath: outputPath,
+        fileName: outputPath.split(Platform.pathSeparator).last,
+        category: OutputCategory.exports,
+      );
       final originalSize = File(_pdfPath!).lengthSync();
       final compressedSize = compressedFile.lengthSync();
       final reduction = ((1 - compressedSize / originalSize) * 100)
@@ -165,7 +172,7 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(
-              'Compressed: ${(compressedSize / 1024).toStringAsFixed(2)} KB (reduced by $reduction%)',
+              'Compressed: ${(compressedSize / 1024).toStringAsFixed(2)} KB (reduced by $reduction%). Saved to ${savedFile.displayPath}',
             ),
             duration: const Duration(seconds: 2),
           ),
@@ -173,7 +180,8 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         Navigator.push(
           context,
           MaterialPageRoute(
-            builder: (_) => PdfViewerScreen(externalFile: compressedFile),
+            builder: (_) =>
+                PdfViewerScreen(externalFile: File(savedFile.workingPath)),
           ),
         );
       }
@@ -241,12 +249,10 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         '-sDEVICE=pdfwrite',
         '-dCompatibilityLevel=1.4',
         '-dPDFSETTINGS=/ebook',
-        '-dPDFSETTINGS=/ebook',
         '-dNOPAUSE',
         '-dQUIET',
         '-dBATCH',
         '-dDetectDuplicateImages',
-        '-r${72 + (_quality - 20) ~/ 2}',
         '-r${72 + (_quality - 20) ~/ 2}',
         '-dCompressFonts=true',
         '-r150x150',
@@ -267,11 +273,11 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
     } catch (e) {
       if (e.toString().contains('No such file or directory')) {
-        debugPrint('[CompressPdf] Ghostscript not found, using fallback copy');
-        await File(_pdfPath!).copy(outputPath);
-      } else {
-        rethrow;
+        throw Exception(
+          'Ghostscript is not installed. Install ghostscript to compress PDFs on desktop.',
+        );
       }
+      rethrow;
     }
   }
 

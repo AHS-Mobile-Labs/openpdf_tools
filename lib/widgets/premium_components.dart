@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/animation_utils.dart';
+
 class PremiumButton extends StatefulWidget {
   final String label;
   final VoidCallback onPressed;
@@ -23,6 +24,7 @@ class PremiumButton extends StatefulWidget {
   @override
   State<PremiumButton> createState() => _PremiumButtonState();
 }
+
 class _PremiumButtonState extends State<PremiumButton> {
   @override
   Widget build(BuildContext context) {
@@ -91,6 +93,7 @@ class _PremiumButtonState extends State<PremiumButton> {
     );
   }
 }
+
 class PremiumOutlinedButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;
@@ -158,6 +161,7 @@ class PremiumOutlinedButton extends StatelessWidget {
     );
   }
 }
+
 class PremiumCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -205,6 +209,7 @@ class PremiumCard extends StatelessWidget {
     return cardContent;
   }
 }
+
 class PremiumGradientCard extends StatelessWidget {
   final Widget child;
   final EdgeInsets padding;
@@ -243,6 +248,7 @@ class PremiumGradientCard extends StatelessWidget {
     return cardContent;
   }
 }
+
 class PremiumTextField extends StatefulWidget {
   final String label;
   final String? hint;
@@ -270,6 +276,7 @@ class PremiumTextField extends StatefulWidget {
   @override
   State<PremiumTextField> createState() => _PremiumTextFieldState();
 }
+
 class _PremiumTextFieldState extends State<PremiumTextField>
     with SingleTickerProviderStateMixin {
   late AnimationController _focusController;
@@ -283,11 +290,13 @@ class _PremiumTextFieldState extends State<PremiumTextField>
     );
     _focusAnimation = Tween<double>(begin: 0, end: 1).animate(_focusController);
   }
+
   @override
   void dispose() {
     _focusController.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -379,6 +388,7 @@ class _PremiumTextFieldState extends State<PremiumTextField>
     );
   }
 }
+
 class PremiumChip extends StatefulWidget {
   final String label;
   final bool selected;
@@ -396,6 +406,7 @@ class PremiumChip extends StatefulWidget {
   @override
   State<PremiumChip> createState() => _PremiumChipState();
 }
+
 class _PremiumChipState extends State<PremiumChip>
     with SingleTickerProviderStateMixin {
   late AnimationController _controller;
@@ -412,6 +423,7 @@ class _PremiumChipState extends State<PremiumChip>
       end: 1.05,
     ).animate(CurvedAnimation(parent: _controller, curve: Curves.easeInOut));
   }
+
   @override
   void didUpdateWidget(PremiumChip oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -421,11 +433,13 @@ class _PremiumChipState extends State<PremiumChip>
       _controller.reverse();
     }
   }
+
   @override
   void dispose() {
     _controller.dispose();
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -493,6 +507,7 @@ class _PremiumChipState extends State<PremiumChip>
     );
   }
 }
+
 class SkeletonLoader extends StatelessWidget {
   final double width;
   final double height;
@@ -520,6 +535,7 @@ class SkeletonLoader extends StatelessWidget {
     );
   }
 }
+
 class SkeletonCardLoader extends StatelessWidget {
   final int lines;
   const SkeletonCardLoader({super.key, this.lines = 3});
@@ -543,6 +559,7 @@ class SkeletonCardLoader extends StatelessWidget {
     );
   }
 }
+
 class PremiumBadge extends StatelessWidget {
   final String label;
   final Color? bgColor;
@@ -588,6 +605,7 @@ class PremiumBadge extends StatelessWidget {
     );
   }
 }
+
 class PremiumDivider extends StatelessWidget {
   final String? label;
   final EdgeInsets padding;
@@ -643,6 +661,7 @@ class PremiumDivider extends StatelessWidget {
     );
   }
 }
+
 class PremiumListTile extends StatelessWidget {
   final String title;
   final String? subtitle;

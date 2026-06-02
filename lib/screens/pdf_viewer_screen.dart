@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/material.dart';
-import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/widgets/web_pdf_viewer.dart'
@@ -11,11 +11,11 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
-import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'history_screen.dart';
 
 class PdfViewerScreen extends StatefulWidget {
@@ -34,12 +34,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   Uint8List? _pdfBytes;
   bool _isLoadingBytes = false;
   final PdfViewerController _pdfViewerController = PdfViewerController();
+  PdfTextSearchResult _searchResult = PdfTextSearchResult();
   double _brightness = 1.0;
   bool _isNightMode = false;
   int _rotationAngle = 0;
   String _viewMode = 'fit';
   String? _webFileName;
   int? _webFileSize;
+  String? _viewerError;
   @override
   void initState() {
     super.initState();
@@ -52,6 +54,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _onPdfViewerControllerChanged() {
+    if (mounted) {
+      setState(() {});
+    }
+  }
+
+  void _onSearchResultChanged() {
     if (mounted) {
       setState(() {});
     }
@@ -71,6 +79,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   @override
   void dispose() {
     _pdfViewerController.removeListener(_onPdfViewerControllerChanged);
+    _searchResult.removeListener(_onSearchResultChanged);
+    _searchResult.clear();
     _pdfViewerController.dispose();
     super.dispose();
   }
@@ -310,6 +320,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         await share_plus.SharePlus.instance.share(
           share_plus.ShareParams(files: [share_plus.XFile(_pdfFile!.path)]),
         );
+      } else if (PlatformHelper.isMacOS) {
+        await Process.run('open', [_pdfFile!.parent.path]);
+      } else if (PlatformHelper.isWindows) {
+        await Process.run('explorer', [_pdfFile!.parent.path]);
       } else {
         await Process.run('xdg-open', [_pdfFile!.parent.path]);
       }
@@ -349,15 +363,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       return;
     }
     try {
-      final dir = await getApplicationDocumentsDirectory();
-      final fileName = _pdfFile!.path.split('/').last;
-      final savePath = '${dir.path}/$fileName';
       if (await _pdfFile!.exists()) {
-        await _pdfFile!.copy(savePath);
+        final savedFile = await OutputPathHelper.exportGeneratedFile(
+          sourcePath: _pdfFile!.path,
+          fileName: p.basename(_pdfFile!.path),
+          category: OutputCategory.downloads,
+        );
         if (!mounted) return;
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('✓ Saved to $savePath')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Saved to ${savedFile.displayPath}')),
+        );
       }
     } catch (e) {
       if (!mounted) return;
@@ -493,6 +508,73 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Future<void> _showSearchDialog() async {
+    if (_pdfFile == null && _pdfBytes == null) return;
+    final controller = TextEditingController();
+    final query = await showDialog<String>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Search PDF'),
+        content: TextField(
+          controller: controller,
+          autofocus: true,
+          decoration: const InputDecoration(
+            hintText: 'Search text',
+            border: OutlineInputBorder(),
+          ),
+          textInputAction: TextInputAction.search,
+          onSubmitted: (value) => Navigator.of(ctx).pop(value),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(controller.text),
+            child: const Text('Search'),
+          ),
+        ],
+      ),
+    );
+    final trimmedQuery = query?.trim();
+    if (trimmedQuery == null || trimmedQuery.isEmpty) return;
+    _searchResult.removeListener(_onSearchResultChanged);
+    _searchResult.clear();
+    _searchResult = _pdfViewerController.searchText(trimmedQuery);
+    _searchResult.addListener(_onSearchResultChanged);
+    setState(() {});
+  }
+
+  void _clearSearch() {
+    _searchResult.removeListener(_onSearchResultChanged);
+    _searchResult.clear();
+    _searchResult = PdfTextSearchResult();
+    setState(() {});
+  }
+
+  void _handleDocumentLoaded(PdfDocumentLoadedDetails details) {
+    if (mounted && _viewerError != null) {
+      setState(() => _viewerError = null);
+    }
+  }
+
+  void _handleDocumentLoadFailed(PdfDocumentLoadFailedDetails details) {
+    final message = details.description.isNotEmpty
+        ? details.description
+        : details.error;
+    debugPrint('[PdfViewer] Document load failed: ${details.error} $message');
+    if (!mounted) return;
+    setState(() {
+      _viewerError = message.isEmpty
+          ? 'Unable to load this PDF. It may be corrupt or password protected.'
+          : message;
+    });
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Unable to load PDF: $_viewerError')),
     );
   }
 
@@ -637,6 +719,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return null;
   }
 
+  String _safeFileSizeMb(File? file) {
+    if (file == null) return '0';
+    try {
+      if (!file.existsSync()) return '0';
+      return (file.lengthSync() / (1024 * 1024)).toStringAsFixed(2);
+    } catch (_) {
+      return '0';
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -647,9 +739,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ? (_webFileSize != null
               ? (_webFileSize! / (1024 * 1024)).toStringAsFixed(2)
               : '0')
-        : (_pdfFile != null
-              ? (_pdfFile!.lengthSync() / (1024 * 1024)).toStringAsFixed(2)
-              : '0');
+        : _safeFileSizeMb(_pdfFile);
     return Scaffold(
       backgroundColor: _isNightMode
           ? const Color(0xFF0A0A0A)
@@ -688,6 +778,30 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               actions: [
                 ThemeSwitcher(compact: true),
                 const SizedBox(width: 4),
+                IconButton(
+                  icon: const Icon(Icons.search),
+                  tooltip: 'Search',
+                  onPressed: (_pdfFile == null && _pdfBytes == null)
+                      ? null
+                      : _showSearchDialog,
+                ),
+                if (_searchResult.hasResult) ...[
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_up),
+                    tooltip: 'Previous result',
+                    onPressed: _searchResult.previousInstance,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.keyboard_arrow_down),
+                    tooltip: 'Next result',
+                    onPressed: _searchResult.nextInstance,
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    tooltip: 'Clear search',
+                    onPressed: _clearSearch,
+                  ),
+                ],
                 IconButton(
                   icon: Icon(
                     _isFavorite ? Icons.star : Icons.star_outline,
@@ -832,6 +946,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                               initialZoomLevel: _zoom,
                               enableTextSelection: true,
                               onHyperlinkClicked: _handleHyperlinkClicked,
+                              onDocumentLoaded: _handleDocumentLoaded,
+                              onDocumentLoadFailed: _handleDocumentLoadFailed,
+                              currentSearchTextHighlightColor: Colors.amber,
+                              otherSearchTextHighlightColor:
+                                  Colors.yellowAccent,
                             )
                           : SfPdfViewer.file(
                               _pdfFile!,
@@ -839,9 +958,55 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                               initialZoomLevel: _zoom,
                               enableTextSelection: true,
                               onHyperlinkClicked: _handleHyperlinkClicked,
+                              onDocumentLoaded: _handleDocumentLoaded,
+                              onDocumentLoadFailed: _handleDocumentLoadFailed,
+                              currentSearchTextHighlightColor: Colors.amber,
+                              otherSearchTextHighlightColor:
+                                  Colors.yellowAccent,
                             ),
                     ),
                   ),
+                  if (_viewerError != null)
+                    Positioned.fill(
+                      child: Container(
+                        color: Colors.black.withValues(alpha: 0.72),
+                        padding: const EdgeInsets.all(24),
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 420),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                const Icon(
+                                  Icons.error_outline,
+                                  color: Colors.white,
+                                  size: 44,
+                                ),
+                                const SizedBox(height: 16),
+                                Text(
+                                  _viewerError!,
+                                  textAlign: TextAlign.center,
+                                  style: const TextStyle(
+                                    color: Colors.white,
+                                    fontSize: 15,
+                                  ),
+                                ),
+                                const SizedBox(height: 16),
+                                OutlinedButton.icon(
+                                  onPressed: _pickPdf,
+                                  icon: const Icon(Icons.folder_open),
+                                  label: const Text('Open Another PDF'),
+                                  style: OutlinedButton.styleFrom(
+                                    foregroundColor: Colors.white,
+                                    side: const BorderSide(color: Colors.white),
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
                   if (_showControls)
                     Positioned(
                       bottom: MediaQuery.of(context).padding.bottom,

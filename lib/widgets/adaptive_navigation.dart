@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/responsive_helper.dart';
+
 class AdaptiveNavigation extends StatefulWidget {
   final Widget child;
   final Function(int index) onNavigationChanged;
@@ -16,6 +17,7 @@ class AdaptiveNavigation extends StatefulWidget {
   @override
   State<AdaptiveNavigation> createState() => _AdaptiveNavigationState();
 }
+
 class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
   @override
   Widget build(BuildContext context) {
@@ -29,6 +31,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
       return _buildTabletLayout();
     }
   }
+
   Widget _buildMobileLayout() {
     return Scaffold(
       body: widget.child,
@@ -48,6 +51,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
       ),
     );
   }
+
   Widget _buildTabletLayout() {
     return Scaffold(
       body: Row(
@@ -58,6 +62,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
       ),
     );
   }
+
   Widget _buildDesktopLayout() {
     return Scaffold(
       body: Row(
@@ -68,6 +73,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
       ),
     );
   }
+
   Widget _buildSideBar({required double width, required bool showLabels}) {
     return Container(
       width: width,
@@ -112,6 +118,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
       ),
     );
   }
+
   Widget _buildNavItem({
     required NavigationItem item,
     required int index,
@@ -149,6 +156,7 @@ class _AdaptiveNavigationState extends State<AdaptiveNavigation> {
     );
   }
 }
+
 class NavigationItem {
   final IconData icon;
   final String label;
@@ -161,6 +169,7 @@ class NavigationItem {
     required this.screen,
   });
 }
+
 class AdaptiveDialog extends StatelessWidget {
   final String title;
   final String message;
@@ -180,6 +189,7 @@ class AdaptiveDialog extends StatelessWidget {
     }
     return _buildMaterialDialog(context);
   }
+
   Widget _buildMaterialDialog(BuildContext context) {
     return AlertDialog(
       title: Text(title),
@@ -197,6 +207,7 @@ class AdaptiveDialog extends StatelessWidget {
           .toList(),
     );
   }
+
   Widget _buildCupertinoDialog(BuildContext context) {
     return Center(
       child: Material(
@@ -241,6 +252,7 @@ class AdaptiveDialog extends StatelessWidget {
     );
   }
 }
+
 class AdaptiveDialogAction {
   final String label;
   final dynamic value;
@@ -253,6 +265,7 @@ class AdaptiveDialogAction {
     this.isDestructive = false,
   });
 }
+
 class AdaptiveButton extends StatelessWidget {
   final String label;
   final VoidCallback onPressed;

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/animation_utils.dart';
+
 class PremiumBottomNavigation extends StatefulWidget {
   final int currentIndex;
   final ValueChanged<int> onTap;
@@ -15,6 +16,7 @@ class PremiumBottomNavigation extends StatefulWidget {
   State<PremiumBottomNavigation> createState() =>
       _PremiumBottomNavigationState();
 }
+
 class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     with TickerProviderStateMixin {
   late List<AnimationController> _animationControllers;
@@ -28,6 +30,7 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     );
     _animationControllers[widget.currentIndex].forward();
   }
+
   @override
   void didUpdateWidget(PremiumBottomNavigation oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -36,6 +39,7 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
       _animationControllers[widget.currentIndex].forward();
     }
   }
+
   @override
   void dispose() {
     for (final controller in _animationControllers) {
@@ -43,6 +47,7 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     }
     super.dispose();
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -83,6 +88,7 @@ class _PremiumBottomNavigationState extends State<PremiumBottomNavigation>
     );
   }
 }
+
 class _AnimatedNavItem extends StatefulWidget {
   final BottomNavItem item;
   final bool isActive;
@@ -97,6 +103,7 @@ class _AnimatedNavItem extends StatefulWidget {
   @override
   State<_AnimatedNavItem> createState() => _AnimatedNavItemState();
 }
+
 class _AnimatedNavItemState extends State<_AnimatedNavItem> {
   late Animation<double> _scaleAnimation;
   late Animation<double> _opacityAnimation;
@@ -105,6 +112,7 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
     super.initState();
     _setupAnimations();
   }
+
   void _setupAnimations() {
     _scaleAnimation = Tween<double>(begin: 1.0, end: 1.15).animate(
       CurvedAnimation(
@@ -119,6 +127,7 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
       ),
     );
   }
+
   @override
   void didUpdateWidget(_AnimatedNavItem oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -126,6 +135,7 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
       _setupAnimations();
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -183,11 +193,13 @@ class _AnimatedNavItemState extends State<_AnimatedNavItem> {
     );
   }
 }
+
 class BottomNavItem {
   final IconData icon;
   final String label;
   BottomNavItem({required this.icon, required this.label});
 }
+
 class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
   final String title;
   final List<Widget>? actions;
@@ -276,6 +288,7 @@ class PremiumAppBar extends StatelessWidget implements PreferredSizeWidget {
     );
   }
 }
+
 class PremiumIconButton extends StatefulWidget {
   final IconData icon;
   final VoidCallback onPressed;
@@ -293,6 +306,7 @@ class PremiumIconButton extends StatefulWidget {
   @override
   State<PremiumIconButton> createState() => _PremiumIconButtonState();
 }
+
 class _PremiumIconButtonState extends State<PremiumIconButton> {
   @override
   Widget build(BuildContext context) {

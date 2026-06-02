@@ -1,6 +1,7 @@
 import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:crypto/crypto.dart';
+
 class SignatureGenerationData {
   final List<int> pdfBytes;
   final String signerName;
@@ -15,6 +16,7 @@ class SignatureGenerationData {
     this.keyPassword,
   });
 }
+
 Future<Map<String, String>> generateCryptographicSignatureIsolateTask(
   SignatureGenerationData data,
 ) async {
@@ -43,6 +45,7 @@ Future<Map<String, String>> generateCryptographicSignatureIsolateTask(
     rethrow;
   }
 }
+
 Future<String> _getOrGenerateSigningKeyIsolate(
   String? privateKeyPath,
   String signerName,
@@ -58,6 +61,7 @@ Future<String> _getOrGenerateSigningKeyIsolate(
     rethrow;
   }
 }
+
 String _createHMACSignatureIsolate(List<int> data, String key) {
   try {
     final keyBytes = utf8.encode(key);

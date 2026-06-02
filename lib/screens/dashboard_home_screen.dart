@@ -13,11 +13,13 @@ import 'merge_pdf_screen.dart';
 import 'split_pdf_screen.dart';
 import 'sign_pdf_screen_refactored.dart';
 import 'repair_pdf_screen.dart';
+
 class DashboardHomeScreen extends StatefulWidget {
   const DashboardHomeScreen({super.key});
   @override
   State<DashboardHomeScreen> createState() => _DashboardHomeScreenState();
 }
+
 class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   Future<void> _launchGitHub() async {
     try {
@@ -39,6 +41,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       }
     }
   }
+
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
@@ -84,6 +87,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildHeader(bool isDark, bool isMobile) {
     return Container(
       width: double.infinity,
@@ -249,6 +253,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _versionBadge() {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
@@ -271,6 +276,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _label(String text, bool isDark) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
@@ -298,6 +304,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildQA(
     BuildContext context,
     String label,
@@ -344,6 +351,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildQuickActions(BuildContext context, bool isDark) {
     return Row(
       children: [
@@ -385,6 +393,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ],
     );
   }
+
   Widget _buildFeatures(BuildContext context, bool isDark, bool isDesktop) {
     final features = [
       FeatureItem(
@@ -472,6 +481,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ],
     );
   }
+
   Widget _buildFeatureMobile(
     BuildContext context,
     FeatureItem feature,
@@ -532,6 +542,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildFeatureDesktop(
     BuildContext context,
     FeatureItem feature,
@@ -601,6 +612,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildTips(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(14),
@@ -634,6 +646,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       ),
     );
   }
+
   Widget _buildFooter(bool isDark) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
@@ -657,6 +670,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 }
+
 class FeatureItem {
   final String title;
   final String description;
