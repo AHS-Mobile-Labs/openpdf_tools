@@ -1,67 +1,204 @@
 import 'dart:io';
+import 'dart:typed_data';
+import 'dart:ui' as ui;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
-import 'package:openpdf_tools/config/premium_theme.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
-import 'package:flutter_colorpicker/flutter_colorpicker.dart';
-import 'package:openpdf_tools/services/pdf_editing_service.dart';
-import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:printing/printing.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
+import 'package:share_plus/share_plus.dart' as share_plus;
 import 'package:path/path.dart' as p;
 import 'pdf_viewer_screen.dart';
 
+enum EditorTool {
+  select,
+  pen,
+  highlighter,
+  text,
+  signature,
+  stamp,
+  image,
+  redact,
+}
+
+class DrawingStroke {
+  final List<Offset> points;
+  final Color color;
+  final double strokeWidth;
+  final bool isHighlighter;
+
+  DrawingStroke({
+    required this.points,
+    required this.color,
+    required this.strokeWidth,
+    this.isHighlighter = false,
+  });
+}
+
+class TextElement {
+  final String id;
+  String text;
+  Offset position; // Normalized [0..1]
+  double fontSize;
+  Color color;
+  bool isBold;
+  Color? backgroundColor;
+
+  TextElement({
+    required this.id,
+    required this.text,
+    required this.position,
+    this.fontSize = 18.0,
+    this.color = Colors.black,
+    this.isBold = false,
+    this.backgroundColor,
+  });
+}
+
+class ImageStampElement {
+  final String id;
+  final Uint8List imageBytes;
+  Offset position; // Normalized [0..1]
+  Size size; // Normalized [0..1]
+  final bool isSignature;
+
+  ImageStampElement({
+    required this.id,
+    required this.imageBytes,
+    required this.position,
+    required this.size,
+    this.isSignature = false,
+  });
+}
+
+class WatermarkElement {
+  final String text;
+  final Color color;
+  final double opacity;
+  final double angleDegrees;
+  final double fontSize;
+
+  WatermarkElement({
+    required this.text,
+    this.color = const Color(0xFFE53935),
+    this.opacity = 0.35,
+    this.angleDegrees = -45,
+    this.fontSize = 38,
+  });
+}
+
+class RedactionElement {
+  final String id;
+  final Rect rect; // Normalized [0..1]
+  final bool isWhiteout;
+
+  RedactionElement({
+    required this.id,
+    required this.rect,
+    this.isWhiteout = false,
+  });
+}
+
+class PageEdits {
+  int rotationDegrees = 0;
+  List<DrawingStroke> strokes = [];
+  List<TextElement> texts = [];
+  List<ImageStampElement> images = [];
+  List<RedactionElement> redactions = [];
+  WatermarkElement? watermark;
+
+  bool get isEmpty =>
+      rotationDegrees == 0 &&
+      strokes.isEmpty &&
+      texts.isEmpty &&
+      images.isEmpty &&
+      redactions.isEmpty &&
+      watermark == null;
+
+  void undoLast() {
+    if (redactions.isNotEmpty) {
+      redactions.removeLast();
+    } else if (images.isNotEmpty) {
+      images.removeLast();
+    } else if (texts.isNotEmpty) {
+      texts.removeLast();
+    } else if (strokes.isNotEmpty) {
+      strokes.removeLast();
+    } else if (watermark != null) {
+      watermark = null;
+    }
+  }
+
+  void clear() {
+    strokes.clear();
+    texts.clear();
+    images.clear();
+    redactions.clear();
+    watermark = null;
+    rotationDegrees = 0;
+  }
+}
+
 class EditPdfScreen extends StatefulWidget {
-  const EditPdfScreen({super.key});
+  final String? initialPdfPath;
+  const EditPdfScreen({super.key, this.initialPdfPath});
+
   @override
   State<EditPdfScreen> createState() => _EditPdfScreenState();
 }
 
-class _EditPdfScreenState extends State<EditPdfScreen>
-    with TickerProviderStateMixin {
+class _EditPdfScreenState extends State<EditPdfScreen> {
   String? _pdfPath;
-  bool _isProcessing = false;
-  String _editType = 'addText';
-  late AnimationController _backgroundColorAnimationController;
-  late Animation<Color?> _backgroundColorAnimation;
-  Color _selectedBackgroundColor = Colors.white;
-  String? _previewPath;
-  bool _showPreviewModal = false;
-  String _watermarkPlacement = 'center';
-  late TextEditingController _cropLeftController;
-  late TextEditingController _cropBottomController;
-  late TextEditingController _cropRightController;
-  late TextEditingController _cropTopController;
+  Uint8List? _pdfBytes;
+  int _originalPageCount = 0;
+  List<int> _activeOriginalIndices = [];
+  List<Size> _originalPageSizes = [];
+
+  int _currentPageIndex = 0;
+  bool _isLoadingDoc = false;
+  bool _isRenderingPage = false;
+  bool _isSaving = false;
+
+  final Map<int, Uint8List> _renderedPageCache = {};
+  Uint8List? _currentRasterPng;
+
+  // Active page edits mapped by current page index
+  final Map<int, PageEdits> _pageEdits = {};
+
+  // Selected tool & drawing settings
+  EditorTool _activeTool = EditorTool.select;
+  Color _penColor = Colors.black;
+  double _penWidth = 3.0;
+
+  Color _highlighterColor = const Color(0x66FFEB3B); // Translucent yellow
+  final double _highlighterWidth = 20.0;
+
+  bool _isWhiteout = false;
+
+  // In-progress drawing gesture state
+  List<Offset>? _currentStrokePoints;
+  Offset? _redactStart;
+  Offset? _redactCurrent;
+
+  // Selection state
+  String? _selectedTextId;
+  String? _selectedImageId;
+
   @override
   void initState() {
     super.initState();
-    _cropLeftController = TextEditingController(text: '0');
-    _cropBottomController = TextEditingController(text: '0');
-    _cropRightController = TextEditingController(text: '612');
-    _cropTopController = TextEditingController(text: '792');
-    _backgroundColorAnimationController = AnimationController(
-      duration: const Duration(milliseconds: 800),
-      vsync: this,
-    );
-    _backgroundColorAnimation =
-        ColorTween(begin: Colors.white, end: Colors.white).animate(
-          CurvedAnimation(
-            parent: _backgroundColorAnimationController,
-            curve: Curves.easeInOut,
-          ),
-        );
+    if (widget.initialPdfPath != null) {
+      _loadPdfFile(widget.initialPdfPath!);
+    }
   }
 
-  @override
-  void dispose() {
-    _cropLeftController.dispose();
-    _cropBottomController.dispose();
-    _cropRightController.dispose();
-    _cropTopController.dispose();
-    _backgroundColorAnimationController.dispose();
-    super.dispose();
+  PageEdits _getEditsForPage(int pageIndex) {
+    return _pageEdits.putIfAbsent(pageIndex, () => PageEdits());
   }
 
   Future<void> _pickPdf() async {
@@ -72,10 +209,7 @@ class _EditPdfScreenState extends State<EditPdfScreen>
         if (!hasPermission && mounted) {
           ScaffoldMessenger.of(context).showSnackBar(
             const SnackBar(
-              content: Text(
-                'Storage permission denied. Attempting to proceed...',
-              ),
-              duration: Duration(seconds: 2),
+              content: Text('Storage permission not granted. Trying anyway...'),
             ),
           );
         }
@@ -86,1778 +220,2417 @@ class _EditPdfScreenState extends State<EditPdfScreen>
       );
       if (result != null && result.files.single.path != null) {
         final realPath = await resolveToRealPath(result.files.single.path!);
-        if (!mounted) return;
-        setState(() => _pdfPath = realPath);
+        await _loadPdfFile(realPath);
       }
     } catch (e) {
-      if (!mounted) return;
-      final choice = await showDialog<String>(
-        context: context,
-        builder: (ctx) => AlertDialog(
-          title: const Text('File picker failed'),
-          content: Text('File picker failed: $e\n\nChoose an option:'),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop('inapp'),
-              child: const Text('Use in-app picker'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop('enter'),
-              child: const Text('Enter path'),
-            ),
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop('cancel'),
-              child: const Text('Cancel'),
-            ),
-          ],
-        ),
-      );
-      if (choice == 'enter') {
-        final controller = TextEditingController();
-        if (!mounted) return;
-        final custom = await showDialog<String>(
-          context: context,
-          builder: (ctx) => AlertDialog(
-            title: const Text('Enter PDF path'),
-            content: TextField(
-              controller: controller,
-              decoration: const InputDecoration(hintText: '/path/to/file.pdf'),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(controller.text),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-        if (custom != null && custom.isNotEmpty) {
-          setState(() => _pdfPath = custom);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to open PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _loadPdfFile(String path) async {
+    setState(() {
+      _isLoadingDoc = true;
+      _pdfPath = path;
+      _renderedPageCache.clear();
+      _pageEdits.clear();
+      _selectedTextId = null;
+      _selectedImageId = null;
+    });
+
+    try {
+      final file = File(path);
+      if (!await file.exists()) {
+        throw Exception('File does not exist: $path');
+      }
+      final bytes = await file.readAsBytes();
+      final doc = PdfDocument(inputBytes: bytes);
+      final count = doc.pages.count;
+      final sizes = <Size>[];
+      for (var i = 0; i < count; i++) {
+        final page = doc.pages[i];
+        sizes.add(Size(page.size.width, page.size.height));
+      }
+      doc.dispose();
+
+      if (count == 0) {
+        throw Exception('The selected PDF contains no pages.');
+      }
+
+      setState(() {
+        _pdfBytes = bytes;
+        _originalPageCount = count;
+        _activeOriginalIndices = List.generate(count, (i) => i);
+        _originalPageSizes = sizes;
+        _currentPageIndex = 0;
+        _isLoadingDoc = false;
+      });
+
+      await _renderCurrentPage();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingDoc = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _renderCurrentPage() async {
+    if (_pdfBytes == null || _activeOriginalIndices.isEmpty) return;
+    final currentOriginalIndex = _activeOriginalIndices[_currentPageIndex];
+
+    if (_renderedPageCache.containsKey(currentOriginalIndex)) {
+      setState(() {
+        _currentRasterPng = _renderedPageCache[currentOriginalIndex];
+        _isRenderingPage = false;
+      });
+      return;
+    }
+
+    setState(() => _isRenderingPage = true);
+    try {
+      await for (final raster in Printing.raster(
+        _pdfBytes!,
+        pages: [currentOriginalIndex],
+        dpi: 140,
+      )) {
+        final png = await raster.toPng();
+        _renderedPageCache[currentOriginalIndex] = png;
+        if (mounted) {
+          setState(() {
+            _currentRasterPng = png;
+            _isRenderingPage = false;
+          });
         }
+        break;
       }
+    } catch (e) {
+      debugPrint('[EditPdfScreen] Error rendering page raster: $e');
+      if (mounted) setState(() => _isRenderingPage = false);
     }
   }
 
-  Future<void> _showEditResult(String message, String outputPath) async {
-    final savedFile = await OutputPathHelper.exportGeneratedFile(
-      sourcePath: outputPath,
-      fileName: outputPath.split(Platform.pathSeparator).last,
-      category: OutputCategory.exports,
-    );
-    if (!mounted) return;
-    setState(() => _previewPath = savedFile.workingPath);
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('$message Saved to ${savedFile.displayPath}'),
-        action: SnackBarAction(
-          label: 'View',
-          onPressed: () {
-            if (!mounted) return;
-            Navigator.push(
-              context,
-              MaterialPageRoute(
-                builder: (_) =>
-                    PdfViewerScreen(externalFile: File(savedFile.workingPath)),
-              ),
-            );
-          },
-        ),
-      ),
-    );
+  void _goToPage(int targetIndex) {
+    if (targetIndex < 0 || targetIndex >= _activeOriginalIndices.length) return;
+    setState(() {
+      _currentPageIndex = targetIndex;
+      _selectedTextId = null;
+      _selectedImageId = null;
+      _currentStrokePoints = null;
+      _redactStart = null;
+      _redactCurrent = null;
+    });
+    _renderCurrentPage();
   }
 
-  Future<void> _addTextToPdf() async {
-    if (_pdfPath == null) {
+  void _rotateCurrentPage() {
+    final edits = _getEditsForPage(_currentPageIndex);
+    setState(() {
+      edits.rotationDegrees = (edits.rotationDegrees + 90) % 360;
+    });
+  }
+
+  Future<void> _deleteCurrentPage() async {
+    if (_activeOriginalIndices.length <= 1) {
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
+        const SnackBar(
+          content: Text('Cannot delete the only page in the document.'),
+        ),
       );
       return;
     }
-    final textController = TextEditingController(text: 'Sample Text');
-    final fontSizeController = TextEditingController(text: '20');
-    final result = await showDialog<Map<String, dynamic>>(
+
+    final confirm = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
-        title: const Text('Add Text to PDF'),
-        content: SingleChildScrollView(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              TextField(
-                controller: textController,
-                decoration: const InputDecoration(
-                  labelText: 'Text',
-                  border: OutlineInputBorder(),
-                ),
-              ),
-              const SizedBox(height: 12),
-              TextField(
-                controller: fontSizeController,
-                decoration: const InputDecoration(
-                  labelText: 'Font Size',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
+        title: const Text('Delete Page?'),
+        content: Text(
+          'Delete page ${_currentPageIndex + 1} of ${_activeOriginalIndices.length}?',
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
+            onPressed: () => Navigator.pop(ctx, false),
             child: const Text('Cancel'),
           ),
-          TextButton(
-            onPressed: () {
-              final fontSize = double.tryParse(fontSizeController.text);
-              if (fontSize == null || fontSize <= 0) return;
-              Navigator.of(
-                ctx,
-              ).pop({'text': textController.text, 'fontSize': fontSize});
-            },
-            child: const Text('Add'),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () => Navigator.pop(ctx, true),
+            child: const Text('Delete', style: TextStyle(color: Colors.white)),
           ),
         ],
       ),
     );
-    if (result == null) return;
-    setState(() => _isProcessing = true);
-    try {
-      final outputPath = await PdfEditingService.addTextToPdf(
-        inputPath: _pdfPath!,
-        text: result['text'],
-        fontSize: result['fontSize'],
-      );
-      if (!mounted) return;
-      await _showEditResult(
-        'Text added: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
+
+    if (confirm != true) return;
+
+    setState(() {
+      _pageEdits.remove(_currentPageIndex);
+      _activeOriginalIndices.removeAt(_currentPageIndex);
+      if (_currentPageIndex >= _activeOriginalIndices.length) {
+        _currentPageIndex = _activeOriginalIndices.length - 1;
+      }
+      _selectedTextId = null;
+      _selectedImageId = null;
+    });
+
+    await _renderCurrentPage();
   }
 
-  Future<void> _rotatePdf() async {
-    if (_pdfPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
-      );
-      return;
-    }
-    final angle = await showDialog<int>(
+  void _undoOnCurrentPage() {
+    final edits = _getEditsForPage(_currentPageIndex);
+    setState(() {
+      edits.undoLast();
+    });
+  }
+
+  void _clearCurrentPage() {
+    final edits = _getEditsForPage(_currentPageIndex);
+    if (edits.isEmpty) return;
+    showDialog(
       context: context,
-      builder: (context) => AlertDialog(
-        title: const Text('Select Rotation Angle'),
-        content: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            ListTile(
-              title: const Text('90°'),
-              onTap: () => Navigator.of(context).pop(90),
-            ),
-            ListTile(
-              title: const Text('180°'),
-              onTap: () => Navigator.of(context).pop(180),
-            ),
-            ListTile(
-              title: const Text('270°'),
-              onTap: () => Navigator.of(context).pop(270),
-            ),
-          ],
+      builder: (ctx) => AlertDialog(
+        title: const Text('Clear All Edits?'),
+        content: const Text(
+          'Remove all drawings, text, and stamps on this page?',
         ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            style: ElevatedButton.styleFrom(backgroundColor: Colors.red),
+            onPressed: () {
+              Navigator.pop(ctx);
+              setState(() {
+                edits.clear();
+                _selectedTextId = null;
+                _selectedImageId = null;
+              });
+            },
+            child: const Text('Clear', style: TextStyle(color: Colors.white)),
+          ),
+        ],
       ),
     );
-    if (angle == null) return;
-    setState(() => _isProcessing = true);
-    try {
-      final outputPath = await PdfEditingService.rotatePdf(
-        inputPath: _pdfPath!,
-        angle: angle,
-      );
-      if (!mounted) return;
-      await _showEditResult(
-        'Rotated by $angle°: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
   }
 
-  Future<void> _addWatermarkWithPlacement() async {
-    if (_pdfPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
-      );
-      return;
-    }
-    final watermarkController = TextEditingController(text: 'WATERMARK');
-    final opacityController = TextEditingController(text: '0.5');
-    final result = await showDialog<Map<String, dynamic>>(
+  // --- ADD TEXT DIALOG ---
+  void _openAddTextDialog({TextElement? existing}) {
+    final textController = TextEditingController(text: existing?.text ?? '');
+    double fontSize = existing?.fontSize ?? 18.0;
+    Color textColor = existing?.color ?? Colors.black;
+    bool isBold = existing?.isBold ?? false;
+    Color? bgColor = existing?.backgroundColor;
+
+    final palette = [
+      Colors.black,
+      const Color(0xFF1565C0),
+      const Color(0xFFC62828),
+      const Color(0xFF2E7D32),
+      const Color(0xFF6A1B9A),
+      const Color(0xFFE65100),
+    ];
+
+    showModalBottomSheet(
       context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
       builder: (ctx) => StatefulBuilder(
-        builder: (ctx, setDialogState) => AlertDialog(
-          title: const Text('Add Watermark'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                TextField(
-                  controller: watermarkController,
-                  decoration: const InputDecoration(
-                    labelText: 'Watermark Text',
-                    border: OutlineInputBorder(),
-                  ),
-                ),
-                const SizedBox(height: 12),
-                DropdownButton<String>(
-                  isExpanded: true,
-                  value: _watermarkPlacement,
-                  items:
-                      [
-                            'top-left',
-                            'top-center',
-                            'top-right',
-                            'center',
-                            'bottom-left',
-                            'bottom-center',
-                            'bottom-right',
-                          ]
-                          .map(
-                            (e) => DropdownMenuItem(value: e, child: Text(e)),
-                          )
-                          .toList(),
-                  onChanged: (v) {
-                    final placement = v ?? 'center';
-                    setState(() => _watermarkPlacement = placement);
-                    setDialogState(() {});
-                  },
-                ),
-                const SizedBox(height: 12),
-                TextField(
-                  controller: opacityController,
-                  decoration: const InputDecoration(
-                    labelText: 'Opacity (0.0 - 1.0)',
-                    border: OutlineInputBorder(),
-                  ),
-                  keyboardType: TextInputType.number,
-                ),
-              ],
-            ),
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.of(ctx).pop(),
-              child: const Text('Cancel'),
-            ),
-            TextButton(
-              onPressed: () {
-                final opacity = double.tryParse(opacityController.text);
-                if (opacity == null || opacity < 0 || opacity > 1) return;
-                Navigator.of(ctx).pop({
-                  'watermark': watermarkController.text,
-                  'placement': _watermarkPlacement,
-                  'opacity': opacity,
-                });
-              },
-              child: const Text('Add'),
-            ),
-          ],
-        ),
-      ),
-    );
-    if (result == null) return;
-    setState(() => _isProcessing = true);
-    try {
-      final outputPath = await PdfEditingService.addWatermarkWithPlacement(
-        inputPath: _pdfPath!,
-        text: result['watermark'],
-        placement: result['placement'],
-        opacity: result['opacity'],
-        fontSize: 20,
-      );
-      if (!mounted) return;
-      await _showEditResult(
-        'Watermark added: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _cropPdf() async {
-    if (_pdfPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
-      );
-      return;
-    }
-    final result = await showDialog<List<double>>(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: const Text('Crop PDF'),
-        content: SingleChildScrollView(
           child: Column(
             mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              const Text('Crop dimensions (in points, 1 inch = 72 points):'),
-              const SizedBox(height: 12),
-              TextField(
-                controller: _cropLeftController,
-                decoration: const InputDecoration(
-                  labelText: 'Left',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _cropBottomController,
-                decoration: const InputDecoration(
-                  labelText: 'Bottom',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _cropRightController,
-                decoration: const InputDecoration(
-                  labelText: 'Right',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-              const SizedBox(height: 8),
-              TextField(
-                controller: _cropTopController,
-                decoration: const InputDecoration(
-                  labelText: 'Top',
-                  border: OutlineInputBorder(),
-                ),
-                keyboardType: TextInputType.number,
-              ),
-            ],
-          ),
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.of(ctx).pop(),
-            child: const Text('Cancel'),
-          ),
-          TextButton(
-            onPressed: () {
-              final left = double.tryParse(_cropLeftController.text);
-              final bottom = double.tryParse(_cropBottomController.text);
-              final right = double.tryParse(_cropRightController.text);
-              final top = double.tryParse(_cropTopController.text);
-              if (left == null ||
-                  bottom == null ||
-                  right == null ||
-                  top == null ||
-                  right <= left ||
-                  top <= bottom) {
-                return;
-              }
-              Navigator.of(ctx).pop([left, bottom, right, top]);
-            },
-            child: const Text('Crop'),
-          ),
-        ],
-      ),
-    );
-    if (result == null) return;
-    setState(() => _isProcessing = true);
-    try {
-      final outputPath = await PdfEditingService.cropPdf(
-        inputPath: _pdfPath!,
-        cropBox: result,
-      );
-      if (!mounted) return;
-      await _showEditResult(
-        'PDF cropped: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _changeBackgroundColor() async {
-    if (_pdfPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
-      );
-      return;
-    }
-    final pickedColor = await showDialog<Color>(
-      context: context,
-      builder: (ctx) {
-        Color dialogColor = _selectedBackgroundColor;
-        return StatefulBuilder(
-          builder: (ctx, setDialogState) => AlertDialog(
-            title: const Text('Pick Background Color'),
-            content: SingleChildScrollView(
-              child: ColorPicker(
-                pickerColor: dialogColor,
-                onColorChanged: (color) =>
-                    setDialogState(() => dialogColor = color),
-              ),
-            ),
-            actions: [
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(),
-                child: const Text('Cancel'),
-              ),
-              TextButton(
-                onPressed: () => Navigator.of(ctx).pop(dialogColor),
-                child: const Text('OK'),
-              ),
-            ],
-          ),
-        );
-      },
-    );
-    if (pickedColor == null) return;
-    setState(() => _isProcessing = true);
-    try {
-      _backgroundColorAnimation =
-          ColorTween(begin: _selectedBackgroundColor, end: pickedColor).animate(
-            CurvedAnimation(
-              parent: _backgroundColorAnimationController,
-              curve: Curves.easeInOut,
-            ),
-          );
-      _backgroundColorAnimationController.forward(from: 0);
-      final r = ((pickedColor.r * 255.0).round().clamp(0, 255));
-      final g = ((pickedColor.g * 255.0).round().clamp(0, 255));
-      final b = ((pickedColor.b * 255.0).round().clamp(0, 255));
-      final colorHex =
-          '#${((r << 16) | (g << 8) | b).toRadixString(16).toUpperCase().padLeft(6, '0')}';
-      final outputPath = await PdfEditingService.changeBackgroundColor(
-        inputPath: _pdfPath!,
-        hexColor: colorHex,
-      );
-      if (!mounted) return;
-      setState(() => _selectedBackgroundColor = pickedColor);
-      await _showEditResult(
-        'Background color changed: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  Future<void> _compressPdf() async {
-    if (_pdfPath == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Please select a PDF first')),
-      );
-      return;
-    }
-    setState(() => _isProcessing = true);
-    try {
-      final outputPath = await PdfEditingService.compressPdf(
-        inputPath: _pdfPath!,
-      );
-      if (!mounted) return;
-      await _showEditResult(
-        'PDF compressed: ${File(outputPath).path.split('/').last}',
-        outputPath,
-      );
-    } catch (e) {
-      if (!mounted) return;
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(SnackBar(content: Text('Error: $e')));
-    } finally {
-      if (mounted) setState(() => _isProcessing = false);
-    }
-  }
-
-  void _performEdit() {
-    switch (_editType) {
-      case 'addText':
-        _addTextToPdf();
-        break;
-      case 'watermark':
-        _addWatermarkWithPlacement();
-        break;
-      case 'rotate':
-        _rotatePdf();
-        break;
-      case 'crop':
-        _cropPdf();
-        break;
-      case 'bgColor':
-        _changeBackgroundColor();
-        break;
-      case 'compress':
-        _compressPdf();
-        break;
-    }
-  }
-
-  _EditOperation get _selectedOperation =>
-      _editOperations.firstWhere((operation) => operation.id == _editType);
-
-  String get _selectedFileName =>
-      _pdfPath == null ? 'No PDF selected' : p.basename(_pdfPath!);
-
-  String get _selectedFileSize {
-    if (_pdfPath == null) return '';
-    try {
-      final file = File(_pdfPath!);
-      if (!file.existsSync()) return 'File path ready';
-      return _formatBytes(file.lengthSync());
-    } catch (_) {
-      return 'File path ready';
-    }
-  }
-
-  String get _previewFileName =>
-      _previewPath == null ? '' : p.basename(_previewPath!);
-
-  String _formatBytes(int bytes) {
-    if (bytes < 1024) return '$bytes B';
-    final kb = bytes / 1024;
-    if (kb < 1024) return '${kb.toStringAsFixed(1)} KB';
-    final mb = kb / 1024;
-    return '${mb.toStringAsFixed(2)} MB';
-  }
-
-  void _openPreviewFile() {
-    if (_previewPath == null) return;
-    Navigator.push(
-      context,
-      MaterialPageRoute(
-        builder: (_) => PdfViewerScreen(externalFile: File(_previewPath!)),
-      ),
-    );
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final size = MediaQuery.of(context).size;
-    final isWide = size.width > 900;
-    final panelWidth = size.width > 1200 ? 480.0 : 420.0;
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Scaffold(
-      backgroundColor: isDark ? PremiumColors.darkBg : PremiumColors.lightBg,
-      appBar: AppBar(
-        title: const Text('Edit PDF Studio'),
-        elevation: 0,
-        backgroundColor: isDark
-            ? PremiumColors.darkSurfacePrimary
-            : PremiumColors.lightSurfacePrimary,
-        foregroundColor: isDark
-            ? PremiumColors.darkText
-            : PremiumColors.lightText,
-        actions: [
-          if (_previewPath != null)
-            IconButton(
-              icon: const Icon(Icons.visibility_outlined),
-              tooltip: 'View output',
-              onPressed: _openPreviewFile,
-            ),
-          ThemeSwitcher(compact: true),
-          const SizedBox(width: 8),
-        ],
-      ),
-      body: AnimatedBuilder(
-        animation: _backgroundColorAnimation,
-        builder: (context, child) {
-          final baseColor = isDark
-              ? PremiumColors.darkBg
-              : PremiumColors.lightBg;
-          final animatedColor = _backgroundColorAnimation.value;
-          final canvasColor = animatedColor == null || isDark
-              ? baseColor
-              : Color.alphaBlend(
-                  animatedColor.withValues(alpha: 0.08),
-                  baseColor,
-                );
-          return Container(color: canvasColor, child: child);
-        },
-        child: SafeArea(
-          child: isWide
-              ? Row(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    SizedBox(width: panelWidth, child: _buildEditPanel()),
-                    Container(
-                      width: 1,
-                      color: isDark
-                          ? PremiumColors.darkDivider
-                          : PremiumColors.lightDivider,
-                    ),
-                    Expanded(child: _buildPreviewWorkspace(isWide: true)),
-                  ],
-                )
-              : Stack(
-                  children: [
-                    _buildEditPanel(),
-                    if (_showPreviewModal && _previewPath != null)
-                      _buildMobilePreviewOverlay(),
-                  ],
-                ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildEditPanel() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return SingleChildScrollView(
-      padding: EdgeInsets.fromLTRB(
-        16,
-        16,
-        16,
-        24 + MediaQuery.of(context).padding.bottom,
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          _buildEditorHero(isDark),
-          const SizedBox(height: 16),
-          _buildFilePickerCard(isDark),
-          if (_pdfPath != null) ...[
-            const SizedBox(height: 16),
-            _buildOperationSection(isDark),
-            const SizedBox(height: 16),
-            _buildSelectedActionCard(isDark),
-            if (_previewPath != null) ...[
-              const SizedBox(height: 16),
-              _buildPreviewReadyCard(isDark),
-            ],
-          ] else ...[
-            const SizedBox(height: 16),
-            _buildGettingStartedPanel(isDark),
-          ],
-        ],
-      ),
-    );
-  }
-
-  Widget _buildEditorHero(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        color: isDark
-            ? PremiumColors.darkSurfaceSecondary
-            : PremiumColors.lightSurfacePrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark
-              ? PremiumColors.darkDivider
-              : PremiumColors.lightDivider,
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: Colors.black.withValues(alpha: isDark ? 0.22 : 0.06),
-            blurRadius: 18,
-            offset: const Offset(0, 8),
-          ),
-        ],
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Container(
-                width: 48,
-                height: 48,
-                decoration: BoxDecoration(
-                  color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: const Icon(
-                  Icons.edit_document,
-                  color: PremiumColors.luxuryRed,
-                ),
-              ),
-              const SizedBox(width: 14),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      'Edit, polish, export',
-                      style: PremiumTypography.headlineLarge.copyWith(
-                        color: isDark
-                            ? PremiumColors.darkText
-                            : PremiumColors.lightText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      'Choose one focused PDF action and preview the output.',
-                      style: PremiumTypography.bodyMedium.copyWith(
-                        color: isDark
-                            ? PremiumColors.darkTextSecondary
-                            : PremiumColors.lightTextSecondary,
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 18),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: const [
-              _FeatureBullet(icon: Icons.text_fields, label: 'Text'),
-              _FeatureBullet(
-                icon: Icons.water_drop_outlined,
-                label: 'Watermark',
-              ),
-              _FeatureBullet(icon: Icons.crop_rotate, label: 'Rotate & crop'),
-              _FeatureBullet(icon: Icons.compress, label: 'Compress'),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildFilePickerCard(bool isDark) {
-    final surfaceColor = isDark
-        ? PremiumColors.darkSurfaceSecondary
-        : PremiumColors.lightSurfacePrimary;
-    final mutedColor = isDark
-        ? PremiumColors.darkTextSecondary
-        : PremiumColors.lightTextSecondary;
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: surfaceColor,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: _pdfPath == null
-              ? PremiumColors.luxuryRed.withValues(alpha: 0.28)
-              : (isDark
-                    ? PremiumColors.darkDivider
-                    : PremiumColors.lightDivider),
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Document',
-                style: PremiumTypography.headlineSmall.copyWith(
-                  color: isDark
-                      ? PremiumColors.darkText
-                      : PremiumColors.lightText,
-                ),
-              ),
-              const Spacer(),
-              if (_pdfPath != null)
-                TextButton.icon(
-                  onPressed: _pickPdf,
-                  icon: const Icon(Icons.swap_horiz, size: 18),
-                  label: const Text('Change'),
-                ),
-            ],
-          ),
-          const SizedBox(height: 12),
-          if (_pdfPath == null)
-            InkWell(
-              onTap: _pickPdf,
-              borderRadius: BorderRadius.circular(14),
-              child: Container(
-                width: double.infinity,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 18,
-                  vertical: 22,
-                ),
-                decoration: BoxDecoration(
-                  color: PremiumColors.luxuryRed.withValues(alpha: 0.06),
-                  borderRadius: BorderRadius.circular(14),
-                  border: Border.all(
-                    color: PremiumColors.luxuryRed.withValues(alpha: 0.22),
-                  ),
-                ),
-                child: Column(
-                  children: [
-                    const Icon(
-                      Icons.upload_file,
-                      color: PremiumColors.luxuryRed,
-                      size: 42,
-                    ),
-                    const SizedBox(height: 12),
-                    Text(
-                      'Select a PDF to start editing',
-                      style: PremiumTypography.labelLarge.copyWith(
-                        color: isDark
-                            ? PremiumColors.darkText
-                            : PremiumColors.lightText,
-                      ),
-                    ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Your original file stays untouched; exports are saved as new files.',
-                      textAlign: TextAlign.center,
-                      style: PremiumTypography.bodySmall.copyWith(
-                        color: mutedColor,
-                      ),
-                    ),
-                    const SizedBox(height: 16),
-                    ElevatedButton.icon(
-                      onPressed: _pickPdf,
-                      icon: const Icon(Icons.folder_open),
-                      label: const Text('Pick PDF'),
-                    ),
-                  ],
-                ),
-              ),
-            )
-          else
-            Container(
-              padding: const EdgeInsets.all(14),
-              decoration: BoxDecoration(
-                color: isDark
-                    ? PremiumColors.darkSurfacePrimary
-                    : PremiumColors.lightSurfaceSecondary,
-                borderRadius: BorderRadius.circular(14),
-              ),
-              child: Row(
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Container(
-                    width: 42,
-                    height: 42,
-                    decoration: BoxDecoration(
-                      color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
-                      borderRadius: BorderRadius.circular(12),
-                    ),
-                    child: const Icon(
-                      Icons.picture_as_pdf,
-                      color: PremiumColors.luxuryRed,
+                  Text(
+                    existing == null ? 'Add Text' : 'Edit Text',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
                     ),
                   ),
-                  const SizedBox(width: 12),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          _selectedFileName,
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
-                          style: PremiumTypography.labelLarge.copyWith(
-                            color: isDark
-                                ? PremiumColors.darkText
-                                : PremiumColors.lightText,
-                          ),
-                        ),
-                        const SizedBox(height: 3),
-                        Text(
-                          _selectedFileSize,
-                          style: PremiumTypography.bodySmall.copyWith(
-                            color: mutedColor,
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  Icon(
-                    Icons.check_circle,
-                    color: PremiumColors.success.withValues(alpha: 0.9),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
                   ),
                 ],
               ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildOperationSection(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark
-            ? PremiumColors.darkSurfaceSecondary
-            : PremiumColors.lightSurfacePrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark
-              ? PremiumColors.darkDivider
-              : PremiumColors.lightDivider,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            children: [
-              Text(
-                'Editing tools',
-                style: PremiumTypography.headlineSmall.copyWith(
-                  color: isDark
-                      ? PremiumColors.darkText
-                      : PremiumColors.lightText,
+              const SizedBox(height: 12),
+              TextField(
+                controller: textController,
+                autofocus: true,
+                maxLines: 3,
+                minLines: 1,
+                decoration: InputDecoration(
+                  hintText: 'Enter text here...',
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
               ),
-              const Spacer(),
-              Container(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 10,
-                  vertical: 5,
+              const SizedBox(height: 16),
+              Row(
+                children: [
+                  const Text(
+                    'Size: ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: fontSize,
+                      min: 10,
+                      max: 44,
+                      divisions: 34,
+                      label: fontSize.round().toString(),
+                      onChanged: (v) => setSheetState(() => fontSize = v),
+                    ),
+                  ),
+                  Text('${fontSize.round()} pt'),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Color:',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Row(
+                    children: palette.map((c) {
+                      final isSelected = textColor == c;
+                      return GestureDetector(
+                        onTap: () => setSheetState(() => textColor = c),
+                        child: Container(
+                          margin: const EdgeInsets.symmetric(horizontal: 4),
+                          width: 28,
+                          height: 28,
+                          decoration: BoxDecoration(
+                            color: c,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: isSelected ? Colors.blue : Colors.grey,
+                              width: isSelected ? 3 : 1,
+                            ),
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Bold Style',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Switch(
+                    value: isBold,
+                    onChanged: (v) => setSheetState(() => isBold = v),
+                  ),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Background Highlight',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Switch(
+                    value: bgColor != null,
+                    onChanged: (v) => setSheetState(() {
+                      bgColor = v ? const Color(0x55FFEB3B) : null;
+                    }),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC6302C),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                decoration: BoxDecoration(
-                  color: PremiumColors.luxuryBlue.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(999),
-                ),
+                onPressed: () {
+                  final text = textController.text.trim();
+                  if (text.isEmpty) return;
+                  Navigator.pop(ctx);
+                  final edits = _getEditsForPage(_currentPageIndex);
+                  setState(() {
+                    if (existing != null) {
+                      existing.text = text;
+                      existing.fontSize = fontSize;
+                      existing.color = textColor;
+                      existing.isBold = isBold;
+                      existing.backgroundColor = bgColor;
+                    } else {
+                      final id =
+                          'txt_${DateTime.now().millisecondsSinceEpoch}';
+                      edits.texts.add(
+                        TextElement(
+                          id: id,
+                          text: text,
+                          position: const Offset(0.3, 0.4),
+                          fontSize: fontSize,
+                          color: textColor,
+                          isBold: isBold,
+                          backgroundColor: bgColor,
+                        ),
+                      );
+                      _selectedTextId = id;
+                      _activeTool = EditorTool.select;
+                    }
+                  });
+                },
                 child: Text(
-                  '${_editOperations.length} tools',
-                  style: PremiumTypography.labelSmall.copyWith(
-                    color: PremiumColors.luxuryBlue,
+                  existing == null ? 'Add to Page' : 'Save Changes',
+                  style: const TextStyle(
+                    fontSize: 16,
+                    fontWeight: FontWeight.bold,
                   ),
                 ),
               ),
             ],
           ),
-          const SizedBox(height: 6),
-          Text(
-            'Pick an action. Each one opens the right settings only when needed.',
-            style: PremiumTypography.bodySmall.copyWith(
-              color: isDark
-                  ? PremiumColors.darkTextSecondary
-                  : PremiumColors.lightTextSecondary,
-            ),
-          ),
-          const SizedBox(height: 14),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final columns = constraints.maxWidth >= 620 ? 2 : 1;
-              final gap = 12.0;
-              final itemWidth =
-                  (constraints.maxWidth - (gap * (columns - 1))) / columns;
-              return Wrap(
-                spacing: gap,
-                runSpacing: gap,
-                children: _editOperations
-                    .map(
-                      (operation) => SizedBox(
-                        width: itemWidth,
-                        child: _EditOptionCard(
-                          operation: operation,
-                          isSelected: _editType == operation.id,
-                          isDark: isDark,
-                          onTap: () => setState(() => _editType = operation.id),
-                        ),
-                      ),
-                    )
-                    .toList(),
-              );
-            },
-          ),
-        ],
+        ),
       ),
     );
   }
 
-  Widget _buildSelectedActionCard(bool isDark) {
-    final operation = _selectedOperation;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: operation.accent.withValues(alpha: isDark ? 0.18 : 0.08),
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(color: operation.accent.withValues(alpha: 0.28)),
+  // --- SIGNATURE PAD MODAL ---
+  void _openSignaturePad() {
+    final strokes = <List<Offset>>[];
+    List<Offset>? currentStroke;
+    Color inkColor = const Color(0xFF0D47A1);
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: const EdgeInsets.all(20),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
             children: [
-              Container(
-                width: 46,
-                height: 46,
-                decoration: BoxDecoration(
-                  color: operation.accent.withValues(alpha: 0.16),
-                  borderRadius: BorderRadius.circular(14),
-                ),
-                child: Icon(operation.icon, color: operation.accent),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Draw Your Signature',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
               ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      operation.title,
-                      style: PremiumTypography.headlineSmall.copyWith(
-                        color: isDark
-                            ? PremiumColors.darkText
-                            : PremiumColors.lightText,
-                      ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      operation.detail,
-                      style: PremiumTypography.bodySmall.copyWith(
-                        color: isDark
-                            ? PremiumColors.darkTextSecondary
-                            : PremiumColors.lightTextSecondary,
-                      ),
+              const SizedBox(height: 8),
+              const Text(
+                'Sign with your finger on the pad below:',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 12),
+              Container(
+                height: 200,
+                decoration: BoxDecoration(
+                  color: Colors.white,
+                  borderRadius: BorderRadius.circular(16),
+                  border: Border.all(color: Colors.grey.shade400, width: 1.5),
+                  boxShadow: [
+                    BoxShadow(
+                      color: Colors.black.withValues(alpha: 0.05),
+                      blurRadius: 8,
+                      offset: const Offset(0, 4),
                     ),
                   ],
                 ),
-              ),
-            ],
-          ),
-          const SizedBox(height: 16),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              _MiniSpecChip(label: 'Offline', isDark: isDark),
-              _MiniSpecChip(label: 'Creates a copy', isDark: isDark),
-              _MiniSpecChip(label: operation.outcome, isDark: isDark),
-            ],
-          ),
-          if (_isProcessing) ...[
-            const SizedBox(height: 16),
-            ClipRRect(
-              borderRadius: BorderRadius.circular(999),
-              child: LinearProgressIndicator(
-                minHeight: 6,
-                color: operation.accent,
-                backgroundColor: operation.accent.withValues(alpha: 0.18),
-              ),
-            ),
-          ],
-          const SizedBox(height: 18),
-          ElevatedButton.icon(
-            onPressed: _isProcessing ? null : _performEdit,
-            icon: _isProcessing
-                ? const SizedBox(
-                    width: 18,
-                    height: 18,
-                    child: CircularProgressIndicator(
-                      strokeWidth: 2,
-                      color: Colors.white,
-                    ),
-                  )
-                : Icon(operation.icon),
-            label: Text(_isProcessing ? 'Processing...' : operation.ctaLabel),
-            style: ElevatedButton.styleFrom(
-              backgroundColor: operation.accent,
-              foregroundColor: Colors.white,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreviewReadyCard(bool isDark) {
-    return Container(
-      padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(
-        color: isDark
-            ? PremiumColors.darkSurfaceSecondary
-            : PremiumColors.lightSurfacePrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: PremiumColors.success.withValues(alpha: 0.35),
-        ),
-      ),
-      child: Row(
-        children: [
-          Container(
-            width: 42,
-            height: 42,
-            decoration: BoxDecoration(
-              color: PremiumColors.success.withValues(alpha: 0.12),
-              borderRadius: BorderRadius.circular(12),
-            ),
-            child: const Icon(Icons.done, color: PremiumColors.success),
-          ),
-          const SizedBox(width: 12),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Output ready',
-                  style: PremiumTypography.labelLarge.copyWith(
-                    color: isDark
-                        ? PremiumColors.darkText
-                        : PremiumColors.lightText,
-                  ),
-                ),
-                const SizedBox(height: 3),
-                Text(
-                  _previewFileName,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: PremiumTypography.bodySmall.copyWith(
-                    color: isDark
-                        ? PremiumColors.darkTextSecondary
-                        : PremiumColors.lightTextSecondary,
-                  ),
-                ),
-              ],
-            ),
-          ),
-          if (MediaQuery.of(context).size.width <= 900)
-            IconButton(
-              icon: const Icon(Icons.preview),
-              tooltip: 'Preview',
-              onPressed: () => setState(() => _showPreviewModal = true),
-            )
-          else
-            TextButton.icon(
-              onPressed: _openPreviewFile,
-              icon: const Icon(Icons.open_in_new, size: 18),
-              label: const Text('Open'),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildGettingStartedPanel(bool isDark) {
-    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
-    final mutedColor = isDark
-        ? PremiumColors.darkTextSecondary
-        : PremiumColors.lightTextSecondary;
-    return Container(
-      padding: const EdgeInsets.all(18),
-      decoration: BoxDecoration(
-        color: isDark
-            ? PremiumColors.darkSurfaceSecondary
-            : PremiumColors.lightSurfacePrimary,
-        borderRadius: BorderRadius.circular(16),
-        border: Border.all(
-          color: isDark
-              ? PremiumColors.darkDivider
-              : PremiumColors.lightDivider,
-        ),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(
-            'A cleaner editing flow',
-            style: PremiumTypography.headlineSmall.copyWith(color: textColor),
-          ),
-          const SizedBox(height: 12),
-          _WorkflowRow(
-            number: '1',
-            title: 'Open a PDF',
-            description: 'Select a file from device storage.',
-            isDark: isDark,
-          ),
-          _WorkflowRow(
-            number: '2',
-            title: 'Pick one tool',
-            description:
-                'Use text, watermark, rotation, crop, color, or compression.',
-            isDark: isDark,
-          ),
-          _WorkflowRow(
-            number: '3',
-            title: 'Preview and export',
-            description: 'Review the generated copy before sharing or saving.',
-            isDark: isDark,
-            isLast: true,
-          ),
-          const SizedBox(height: 12),
-          Text(
-            'Tip: edits are exported as new files, so the source PDF remains available.',
-            style: PremiumTypography.bodySmall.copyWith(color: mutedColor),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildPreviewWorkspace({required bool isWide}) {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    final background = isDark
-        ? PremiumColors.darkSurfacePrimary
-        : PremiumColors.lightSurfaceSecondary;
-    return Container(
-      color: background,
-      padding: EdgeInsets.all(isWide ? 18 : 0),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Container(
-            padding: const EdgeInsets.all(14),
-            decoration: BoxDecoration(
-              color: isDark
-                  ? PremiumColors.darkSurfaceSecondary
-                  : PremiumColors.lightSurfacePrimary,
-              borderRadius: BorderRadius.circular(16),
-              border: Border.all(
-                color: isDark
-                    ? PremiumColors.darkDivider
-                    : PremiumColors.lightDivider,
-              ),
-            ),
-            child: Row(
-              children: [
-                Container(
-                  width: 40,
-                  height: 40,
-                  decoration: BoxDecoration(
-                    color: PremiumColors.luxuryBlue.withValues(alpha: 0.12),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: const Icon(
-                    Icons.visibility_outlined,
-                    color: PremiumColors.luxuryBlue,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                child: ClipRRect(
+                  borderRadius: BorderRadius.circular(16),
+                  child: Stack(
                     children: [
-                      Text(
-                        'Live preview',
-                        style: PremiumTypography.labelLarge.copyWith(
-                          color: isDark
-                              ? PremiumColors.darkText
-                              : PremiumColors.lightText,
+                      // Guidelines
+                      Positioned(
+                        left: 20,
+                        right: 20,
+                        bottom: 40,
+                        child: Container(
+                          height: 1,
+                          color: Colors.grey.shade300,
                         ),
                       ),
-                      const SizedBox(height: 3),
-                      Text(
-                        _previewPath == null
-                            ? 'Apply an edit to generate a preview.'
-                            : _previewFileName,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                        style: PremiumTypography.bodySmall.copyWith(
-                          color: isDark
-                              ? PremiumColors.darkTextSecondary
-                              : PremiumColors.lightTextSecondary,
+                      Positioned(
+                        left: 20,
+                        bottom: 44,
+                        child: Text(
+                          'Sign above line',
+                          style: TextStyle(
+                            fontSize: 10,
+                            color: Colors.grey.shade400,
+                          ),
+                        ),
+                      ),
+                      GestureDetector(
+                        onPanStart: (details) {
+                          setSheetState(() {
+                            currentStroke = [details.localPosition];
+                            strokes.add(currentStroke!);
+                          });
+                        },
+                        onPanUpdate: (details) {
+                          setSheetState(() {
+                            currentStroke?.add(details.localPosition);
+                          });
+                        },
+                        onPanEnd: (_) => currentStroke = null,
+                        child: CustomPaint(
+                          painter: _SignaturePadPainter(
+                            strokes: strokes,
+                            color: inkColor,
+                          ),
+                          size: const Size(double.infinity, 200),
                         ),
                       ),
                     ],
                   ),
                 ),
-                if (_previewPath != null)
-                  TextButton.icon(
-                    onPressed: _openPreviewFile,
-                    icon: const Icon(Icons.open_in_new, size: 18),
-                    label: const Text('Full view'),
-                  ),
-              ],
-            ),
-          ),
-          const SizedBox(height: 14),
-          Expanded(
-            child: Container(
-              decoration: BoxDecoration(
-                color: isDark ? const Color(0xFF111111) : Colors.white,
-                borderRadius: BorderRadius.circular(16),
-                border: Border.all(
-                  color: isDark
-                      ? PremiumColors.darkDivider
-                      : PremiumColors.lightDivider,
-                ),
-                boxShadow: [
-                  BoxShadow(
-                    color: Colors.black.withValues(alpha: isDark ? 0.28 : 0.06),
-                    blurRadius: 20,
-                    offset: const Offset(0, 8),
-                  ),
-                ],
               ),
-              clipBehavior: Clip.antiAlias,
-              child: _previewPath != null
-                  ? SfPdfViewer.file(File(_previewPath!))
-                  : _PreviewEmptyState(
-                      hasPdf: _pdfPath != null,
-                      operation: _selectedOperation,
-                      isDark: isDark,
-                    ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildMobilePreviewOverlay() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
-    return Positioned.fill(
-      child: Container(
-        color: Colors.black.withValues(alpha: 0.72),
-        padding: const EdgeInsets.all(16),
-        child: Center(
-          child: Material(
-            color: isDark
-                ? PremiumColors.darkSurfacePrimary
-                : PremiumColors.lightSurfacePrimary,
-            borderRadius: BorderRadius.circular(18),
-            child: SizedBox(
-              width: double.infinity,
-              height: MediaQuery.of(context).size.height * 0.74,
-              child: Column(
+              const SizedBox(height: 12),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 children: [
-                  Padding(
-                    padding: const EdgeInsets.fromLTRB(16, 12, 8, 8),
-                    child: Row(
-                      children: [
-                        Expanded(
-                          child: Text(
-                            _previewFileName,
-                            maxLines: 1,
-                            overflow: TextOverflow.ellipsis,
-                            style: PremiumTypography.labelLarge.copyWith(
-                              color: isDark
-                                  ? PremiumColors.darkText
-                                  : PremiumColors.lightText,
+                  Row(
+                    children: [
+                      const Text(
+                        'Ink: ',
+                        style: TextStyle(fontWeight: FontWeight.w600),
+                      ),
+                      GestureDetector(
+                        onTap: () => setSheetState(
+                          () => inkColor = const Color(0xFF0D47A1),
+                        ),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: const Color(0xFF0D47A1),
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: inkColor == const Color(0xFF0D47A1)
+                                  ? Colors.blue
+                                  : Colors.transparent,
+                              width: 2,
                             ),
                           ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.open_in_new),
-                          tooltip: 'Full view',
-                          onPressed: _openPreviewFile,
+                      ),
+                      const SizedBox(width: 8),
+                      GestureDetector(
+                        onTap: () => setSheetState(() => inkColor = Colors.black),
+                        child: Container(
+                          width: 24,
+                          height: 24,
+                          decoration: BoxDecoration(
+                            color: Colors.black,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: inkColor == Colors.black
+                                  ? Colors.blue
+                                  : Colors.transparent,
+                              width: 2,
+                            ),
+                          ),
                         ),
-                        IconButton(
-                          icon: const Icon(Icons.close),
-                          tooltip: 'Close',
-                          onPressed: () =>
-                              setState(() => _showPreviewModal = false),
-                        ),
-                      ],
-                    ),
+                      ),
+                    ],
                   ),
-                  Divider(
-                    height: 1,
-                    color: isDark
-                        ? PremiumColors.darkDivider
-                        : PremiumColors.lightDivider,
+                  TextButton.icon(
+                    onPressed: () => setSheetState(() => strokes.clear()),
+                    icon: const Icon(Icons.delete_outline, size: 18),
+                    label: const Text('Clear Pad'),
                   ),
-                  Expanded(child: SfPdfViewer.file(File(_previewPath!))),
                 ],
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-const List<_EditOperation> _editOperations = [
-  _EditOperation(
-    id: 'addText',
-    title: 'Add Text',
-    description: 'Place custom text on the document.',
-    detail:
-        'Add labels, notes, or quick corrections using your chosen text size.',
-    outcome: 'Text layer',
-    ctaLabel: 'Add Text',
-    icon: Icons.text_fields,
-    accent: PremiumColors.luxuryRed,
-  ),
-  _EditOperation(
-    id: 'watermark',
-    title: 'Watermark',
-    description: 'Add branded or confidential marks.',
-    detail: 'Control placement and opacity for subtle stamps across the PDF.',
-    outcome: 'Placement',
-    ctaLabel: 'Add Watermark',
-    icon: Icons.water_drop_outlined,
-    accent: PremiumColors.luxuryBlue,
-  ),
-  _EditOperation(
-    id: 'rotate',
-    title: 'Rotate Pages',
-    description: 'Fix page orientation quickly.',
-    detail:
-        'Rotate pages by 90, 180, or 270 degrees and export a corrected copy.',
-    outcome: 'Orientation',
-    ctaLabel: 'Rotate Pages',
-    icon: Icons.rotate_right,
-    accent: PremiumColors.warning,
-  ),
-  _EditOperation(
-    id: 'crop',
-    title: 'Crop PDF',
-    description: 'Trim page bounds with point values.',
-    detail:
-        'Enter page crop dimensions when you need precise printable margins.',
-    outcome: 'Margins',
-    ctaLabel: 'Crop PDF',
-    icon: Icons.crop,
-    accent: PremiumColors.luxuryGreen,
-  ),
-  _EditOperation(
-    id: 'bgColor',
-    title: 'Background Color',
-    description: 'Apply a new PDF background color.',
-    detail: 'Pick a color visually and generate a fresh document background.',
-    outcome: 'Color',
-    ctaLabel: 'Change Color',
-    icon: Icons.palette_outlined,
-    accent: PremiumColors.info,
-  ),
-  _EditOperation(
-    id: 'compress',
-    title: 'Compress',
-    description: 'Reduce file size for sharing.',
-    detail: 'Create a smaller copy that is easier to send or store.',
-    outcome: 'Smaller file',
-    ctaLabel: 'Compress PDF',
-    icon: Icons.compress,
-    accent: PremiumColors.luxuryRed,
-  ),
-];
-
-class _EditOperation {
-  final String id;
-  final String title;
-  final String description;
-  final String detail;
-  final String outcome;
-  final String ctaLabel;
-  final IconData icon;
-  final Color accent;
-  const _EditOperation({
-    required this.id,
-    required this.title,
-    required this.description,
-    required this.detail,
-    required this.outcome,
-    required this.ctaLabel,
-    required this.icon,
-    required this.accent,
-  });
-}
-
-class _EditOptionCard extends StatelessWidget {
-  final _EditOperation operation;
-  final bool isSelected;
-  final VoidCallback onTap;
-  final bool isDark;
-  const _EditOptionCard({
-    required this.operation,
-    required this.isSelected,
-    required this.onTap,
-    required this.isDark,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
-    final mutedColor = isDark
-        ? PremiumColors.darkTextSecondary
-        : PremiumColors.lightTextSecondary;
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 180),
-      decoration: BoxDecoration(
-        color: isSelected
-            ? operation.accent.withValues(alpha: isDark ? 0.18 : 0.08)
-            : (isDark
-                  ? PremiumColors.darkSurfacePrimary
-                  : PremiumColors.lightSurfaceSecondary),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: isSelected
-              ? operation.accent.withValues(alpha: 0.62)
-              : (isDark
-                    ? PremiumColors.darkDivider
-                    : PremiumColors.lightDivider),
-          width: isSelected ? 1.5 : 1,
-        ),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Padding(
-          padding: const EdgeInsets.all(14),
-          child: Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Container(
-                width: 38,
-                height: 38,
-                decoration: BoxDecoration(
-                  color: operation.accent.withValues(alpha: 0.13),
-                  borderRadius: BorderRadius.circular(12),
+              const SizedBox(height: 12),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFF1565C0),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
                 ),
-                child: Icon(operation.icon, size: 21, color: operation.accent),
-              ),
-              const SizedBox(width: 12),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      operation.title,
-                      style: PremiumTypography.labelLarge.copyWith(
-                        color: textColor,
+                onPressed: () async {
+                  if (strokes.isEmpty) {
+                    ScaffoldMessenger.of(ctx).showSnackBar(
+                      const SnackBar(
+                        content: Text('Please draw your signature first.'),
                       ),
-                    ),
-                    const SizedBox(height: 4),
-                    Text(
-                      operation.description,
-                      style: PremiumTypography.bodySmall.copyWith(
-                        color: mutedColor,
+                    );
+                    return;
+                  }
+                  final pngBytes = await _rasterizeSignature(strokes, inkColor);
+                  if (pngBytes == null) return;
+                  if (!mounted || !ctx.mounted) return;
+                  Navigator.pop(ctx);
+
+                  final id = 'sig_${DateTime.now().millisecondsSinceEpoch}';
+                  final edits = _getEditsForPage(_currentPageIndex);
+                  setState(() {
+                    edits.images.add(
+                      ImageStampElement(
+                        id: id,
+                        imageBytes: pngBytes,
+                        position: const Offset(0.3, 0.6),
+                        size: const Size(0.4, 0.15),
+                        isSignature: true,
                       ),
-                    ),
-                  ],
+                    );
+                    _selectedImageId = id;
+                    _activeTool = EditorTool.select;
+                  });
+                },
+                child: const Text(
+                  'Stamp Signature to Page',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
                 ),
               ),
-              if (isSelected)
-                Icon(Icons.check_circle, color: operation.accent, size: 20),
             ],
           ),
         ),
       ),
     );
   }
-}
 
-class _FeatureBullet extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  const _FeatureBullet({required this.icon, required this.label});
+  Future<Uint8List?> _rasterizeSignature(
+    List<List<Offset>> strokes,
+    Color color,
+  ) async {
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder, const Rect.fromLTWH(0, 0, 400, 200));
+
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    for (final stroke in strokes) {
+      if (stroke.length < 2) continue;
+      final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
+      for (var i = 1; i < stroke.length; i++) {
+        path.lineTo(stroke[i].dx, stroke[i].dy);
+      }
+      canvas.drawPath(path, paint);
+    }
+
+    final picture = recorder.endRecording();
+    final image = await picture.toImage(400, 200);
+    final byteData = await image.toByteData(format: ui.ImageByteFormat.png);
+    return byteData?.buffer.asUint8List();
+  }
+
+  // --- STAMP & WATERMARK MODAL ---
+  void _openStampDialog() {
+    final quickStamps = [
+      {'text': 'APPROVED', 'color': const Color(0xFF2E7D32)},
+      {'text': 'CONFIDENTIAL', 'color': const Color(0xFFC62828)},
+      {'text': 'DRAFT', 'color': const Color(0xFFEF6C00)},
+      {'text': 'PAID', 'color': const Color(0xFF1565C0)},
+      {'text': 'URGENT', 'color': const Color(0xFFD84315)},
+      {'text': 'FINAL', 'color': const Color(0xFF00695C)},
+    ];
+
+    final customController = TextEditingController();
+    double opacity = 0.35;
+    double angle = -45;
+    bool applyToAll = false;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: Theme.of(context).scaffoldBackgroundColor,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
+      ),
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setSheetState) => Padding(
+          padding: EdgeInsets.only(
+            left: 20,
+            right: 20,
+            top: 20,
+            bottom: MediaQuery.of(ctx).viewInsets.bottom + 20,
+          ),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Watermark & Status Stamps',
+                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.close),
+                    onPressed: () => Navigator.pop(ctx),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 12),
+              const Text(
+                'Quick Status Stamps:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              Wrap(
+                spacing: 8,
+                runSpacing: 8,
+                children: quickStamps.map((item) {
+                  final text = item['text'] as String;
+                  final color = item['color'] as Color;
+                  return ActionChip(
+                    avatar: Icon(Icons.verified, size: 16, color: color),
+                    label: Text(
+                      text,
+                      style: TextStyle(
+                        fontWeight: FontWeight.bold,
+                        color: color,
+                      ),
+                    ),
+                    backgroundColor: color.withValues(alpha: 0.1),
+                    side: BorderSide(color: color, width: 1.5),
+                    onPressed: () {
+                      Navigator.pop(ctx);
+                      _applyWatermark(
+                        text: text,
+                        color: color,
+                        opacity: 0.35,
+                        angle: -45,
+                        applyToAll: false,
+                      );
+                    },
+                  );
+                }).toList(),
+              ),
+              const Divider(height: 28),
+              const Text(
+                'Custom Watermark Text:',
+                style: TextStyle(fontWeight: FontWeight.w600),
+              ),
+              const SizedBox(height: 8),
+              TextField(
+                controller: customController,
+                decoration: InputDecoration(
+                  hintText: 'e.g. DO NOT COPY / MY COMPANY',
+                  filled: true,
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+              ),
+              const SizedBox(height: 12),
+              Row(
+                children: [
+                  const Text(
+                    'Opacity: ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Expanded(
+                    child: Slider(
+                      value: opacity,
+                      min: 0.1,
+                      max: 0.8,
+                      divisions: 7,
+                      label: '${(opacity * 100).round()}%',
+                      onChanged: (v) => setSheetState(() => opacity = v),
+                    ),
+                  ),
+                  Text('${(opacity * 100).round()}%'),
+                ],
+              ),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Angle: ',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  SegmentedButton<double>(
+                    segments: const [
+                      ButtonSegment(value: 0.0, label: Text('Horizontal')),
+                      ButtonSegment(value: -45.0, label: Text('Diagonal')),
+                    ],
+                    selected: {angle},
+                    onSelectionChanged: (set) =>
+                        setSheetState(() => angle = set.first),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 8),
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  const Text(
+                    'Apply to all pages in PDF',
+                    style: TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                  Switch(
+                    value: applyToAll,
+                    onChanged: (v) => setSheetState(() => applyToAll = v),
+                  ),
+                ],
+              ),
+              const SizedBox(height: 16),
+              ElevatedButton(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC6302C),
+                  foregroundColor: Colors.white,
+                  padding: const EdgeInsets.symmetric(vertical: 14),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(12),
+                  ),
+                ),
+                onPressed: () {
+                  final text = customController.text.trim();
+                  if (text.isEmpty) return;
+                  Navigator.pop(ctx);
+                  _applyWatermark(
+                    text: text,
+                    color: const Color(0xFFC62828),
+                    opacity: opacity,
+                    angle: angle,
+                    applyToAll: applyToAll,
+                  );
+                },
+                child: const Text(
+                  'Apply Watermark',
+                  style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  void _applyWatermark({
+    required String text,
+    required Color color,
+    required double opacity,
+    required double angle,
+    required bool applyToAll,
+  }) {
+    final wm = WatermarkElement(
+      text: text,
+      color: color,
+      opacity: opacity,
+      angleDegrees: angle,
+    );
+
+    setState(() {
+      if (applyToAll) {
+        for (var i = 0; i < _activeOriginalIndices.length; i++) {
+          _getEditsForPage(i).watermark = wm;
+        }
+      } else {
+        _getEditsForPage(_currentPageIndex).watermark = wm;
+      }
+    });
+  }
+
+  // --- INSERT IMAGE ---
+  Future<void> _insertImage() async {
+    try {
+      Uint8List? imageBytes;
+      try {
+        final picker = ImagePicker();
+        final picked = await picker.pickImage(source: ImageSource.gallery);
+        if (picked != null) {
+          imageBytes = await picked.readAsBytes();
+        }
+      } catch (_) {
+        // Fallback to file picker if image_picker fails on desktop
+        final result = await FilePicker.platform.pickFiles(
+          type: FileType.image,
+        );
+        if (result != null && result.files.single.path != null) {
+          imageBytes = await File(result.files.single.path!).readAsBytes();
+        }
+      }
+
+      if (imageBytes == null) return;
+
+      final id = 'img_${DateTime.now().millisecondsSinceEpoch}';
+      final edits = _getEditsForPage(_currentPageIndex);
+      setState(() {
+        edits.images.add(
+          ImageStampElement(
+            id: id,
+            imageBytes: imageBytes!,
+            position: const Offset(0.3, 0.35),
+            size: const Size(0.35, 0.25),
+          ),
+        );
+        _selectedImageId = id;
+        _activeTool = EditorTool.select;
+      });
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to pick image: $e')));
+      }
+    }
+  }
+
+  // --- SAVE / EXPORT PDF ROUTINE ---
+  Future<void> _saveAndExportPdf() async {
+    if (_pdfBytes == null || _activeOriginalIndices.isEmpty) return;
+
+    setState(() => _isSaving = true);
+    try {
+      final doc = PdfDocument(inputBytes: _pdfBytes!);
+
+      // 1. Remove deleted pages in descending order
+      for (var i = _originalPageCount - 1; i >= 0; i--) {
+        if (!_activeOriginalIndices.contains(i)) {
+          doc.pages.removeAt(i);
+        }
+      }
+
+      // 2. Apply edits to retained pages
+      for (var pageIdx = 0; pageIdx < _activeOriginalIndices.length; pageIdx++) {
+        final page = doc.pages[pageIdx];
+        final edits = _pageEdits[pageIdx];
+        if (edits == null || edits.isEmpty) continue;
+
+        // Rotation
+        if (edits.rotationDegrees != 0) {
+          int currentDeg = 0;
+          switch (page.rotation) {
+            case PdfPageRotateAngle.rotateAngle90:
+              currentDeg = 90;
+              break;
+            case PdfPageRotateAngle.rotateAngle180:
+              currentDeg = 180;
+              break;
+            case PdfPageRotateAngle.rotateAngle270:
+              currentDeg = 270;
+              break;
+            case PdfPageRotateAngle.rotateAngle0:
+              currentDeg = 0;
+              break;
+          }
+          final newDeg = (currentDeg + edits.rotationDegrees) % 360;
+          switch (newDeg) {
+            case 90:
+              page.rotation = PdfPageRotateAngle.rotateAngle90;
+              break;
+            case 180:
+              page.rotation = PdfPageRotateAngle.rotateAngle180;
+              break;
+            case 270:
+              page.rotation = PdfPageRotateAngle.rotateAngle270;
+              break;
+            case 0:
+            default:
+              page.rotation = PdfPageRotateAngle.rotateAngle0;
+              break;
+          }
+        }
+
+        final pw = page.size.width;
+        final ph = page.size.height;
+
+        // Redactions / Whiteouts
+        for (final redact in edits.redactions) {
+          final rx = redact.rect.left * pw;
+          final ry = redact.rect.top * ph;
+          final rw = redact.rect.width * pw;
+          final rh = redact.rect.height * ph;
+
+          final color = redact.isWhiteout
+              ? PdfColor(255, 255, 255)
+              : PdfColor(0, 0, 0);
+
+          page.graphics.drawRectangle(
+            brush: PdfSolidBrush(color),
+            bounds: ui.Rect.fromLTWH(rx, ry, rw, rh),
+          );
+        }
+
+        // Freehand Strokes (Pen & Highlighter)
+        for (final stroke in edits.strokes) {
+          if (stroke.points.length < 2) continue;
+          final r = (stroke.color.r * 255.0).round().clamp(0, 255);
+          final g = (stroke.color.g * 255.0).round().clamp(0, 255);
+          final b = (stroke.color.b * 255.0).round().clamp(0, 255);
+          final a = (stroke.color.a * 255.0).round().clamp(0, 255);
+
+          final pen = PdfPen(
+            PdfColor(r, g, b, a),
+            width: stroke.strokeWidth,
+            lineCap: PdfLineCap.round,
+            lineJoin: PdfLineJoin.round,
+          );
+
+          for (var i = 0; i < stroke.points.length - 1; i++) {
+            final p1 = Offset(
+              stroke.points[i].dx * pw,
+              stroke.points[i].dy * ph,
+            );
+            final p2 = Offset(
+              stroke.points[i + 1].dx * pw,
+              stroke.points[i + 1].dy * ph,
+            );
+            page.graphics.drawLine(pen, p1, p2);
+          }
+        }
+
+        // Text elements
+        for (final textItem in edits.texts) {
+          final font = PdfStandardFont(
+            PdfFontFamily.helvetica,
+            textItem.fontSize,
+            style: textItem.isBold ? PdfFontStyle.bold : PdfFontStyle.regular,
+          );
+          final tr = (textItem.color.r * 255.0).round().clamp(0, 255);
+          final tg = (textItem.color.g * 255.0).round().clamp(0, 255);
+          final tb = (textItem.color.b * 255.0).round().clamp(0, 255);
+          final brush = PdfSolidBrush(PdfColor(tr, tg, tb));
+
+          final tx = textItem.position.dx * pw;
+          final ty = textItem.position.dy * ph;
+
+          if (textItem.backgroundColor != null) {
+            final textSize = font.measureString(textItem.text);
+            final bgr = (textItem.backgroundColor!.r * 255.0).round().clamp(0, 255);
+            final bgg = (textItem.backgroundColor!.g * 255.0).round().clamp(0, 255);
+            final bgb = (textItem.backgroundColor!.b * 255.0).round().clamp(0, 255);
+            page.graphics.drawRectangle(
+              brush: PdfSolidBrush(PdfColor(bgr, bgg, bgb)),
+              bounds: ui.Rect.fromLTWH(
+                tx - 4,
+                ty - 2,
+                textSize.width + 8,
+                textSize.height + 4,
+              ),
+            );
+          }
+
+          page.graphics.drawString(
+            textItem.text,
+            font,
+            brush: brush,
+            bounds: ui.Rect.fromLTWH(tx, ty, pw - tx > 50 ? pw - tx : pw, ph - ty),
+          );
+        }
+
+        // Signatures and Images
+        for (final imgItem in edits.images) {
+          final bmp = PdfBitmap(imgItem.imageBytes);
+          final ix = imgItem.position.dx * pw;
+          final iy = imgItem.position.dy * ph;
+          final iw = imgItem.size.width * pw;
+          final ih = imgItem.size.height * ph;
+
+          page.graphics.drawImage(bmp, ui.Rect.fromLTWH(ix, iy, iw, ih));
+        }
+
+        // Watermark
+        if (edits.watermark != null) {
+          final wm = edits.watermark!;
+          final state = page.graphics.save();
+          page.graphics.setTransparency(wm.opacity.clamp(0.05, 1.0));
+          page.graphics.translateTransform(pw / 2, ph / 2);
+          page.graphics.rotateTransform(wm.angleDegrees);
+
+          final font = PdfStandardFont(
+            PdfFontFamily.helvetica,
+            wm.fontSize,
+            style: PdfFontStyle.bold,
+          );
+          final textSize = font.measureString(wm.text);
+          final wr = (wm.color.r * 255.0).round().clamp(0, 255);
+          final wg = (wm.color.g * 255.0).round().clamp(0, 255);
+          final wb = (wm.color.b * 255.0).round().clamp(0, 255);
+
+          page.graphics.drawString(
+            wm.text,
+            font,
+            brush: PdfSolidBrush(PdfColor(wr, wg, wb)),
+            bounds: ui.Rect.fromLTWH(
+              -textSize.width / 2,
+              -textSize.height / 2,
+              textSize.width,
+              textSize.height,
+            ),
+            format: PdfStringFormat(alignment: PdfTextAlignment.center),
+          );
+          page.graphics.restore(state);
+        }
+      }
+
+      final savedBytes = await doc.save();
+      doc.dispose();
+
+      // Write to working path and export to public directory
+      final baseName = p.basenameWithoutExtension(_pdfPath ?? 'document');
+      final fileName = '${baseName}_edited_${DateTime.now().millisecondsSinceEpoch}.pdf';
+      final workingPath = await OutputPathHelper.createWorkingOutputPath(
+        fileName: fileName,
+        category: OutputCategory.exports,
+      );
+      await File(workingPath).writeAsBytes(savedBytes, flush: true);
+
+      final exportResult = await OutputPathHelper.exportGeneratedFile(
+        sourcePath: workingPath,
+        fileName: fileName,
+        category: OutputCategory.exports,
+      );
+
+      setState(() => _isSaving = false);
+      if (!mounted) return;
+      _showSavedDialog(
+        workingPath: exportResult.workingPath,
+        displayPath: exportResult.displayPath,
+        fileName: fileName,
+        byteCount: savedBytes.length,
+      );
+    } catch (e) {
+      setState(() => _isSaving = false);
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Failed to save PDF: $e')));
+      }
+    }
+  }
+
+  void _showSavedDialog({
+    required String workingPath,
+    required String displayPath,
+    required String fileName,
+    required int byteCount,
+  }) {
+    final sizeKb = (byteCount / 1024).toStringAsFixed(1);
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Row(
+          children: const [
+            Icon(Icons.check_circle, color: Color(0xFF2E7D32), size: 28),
+            SizedBox(width: 10),
+            Text('PDF Saved!'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text(
+              fileName,
+              style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
+            ),
+            const SizedBox(height: 6),
+            Text('Size: $sizeKb KB • Pages: ${_activeOriginalIndices.length}'),
+            const SizedBox(height: 10),
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: Colors.grey.withValues(alpha: 0.1),
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                displayPath,
+                style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
+              ),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton.icon(
+            onPressed: () {
+              Navigator.pop(ctx);
+              share_plus.SharePlus.instance.share(
+                share_plus.ShareParams(
+                  files: [share_plus.XFile(workingPath)],
+                ),
+              );
+            },
+            icon: const Icon(Icons.share),
+            label: const Text('Share'),
+          ),
+          ElevatedButton.icon(
+            style: ElevatedButton.styleFrom(
+              backgroundColor: const Color(0xFFC6302C),
+              foregroundColor: Colors.white,
+            ),
+            onPressed: () {
+              Navigator.pop(ctx);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (_) => PdfViewerScreen(
+                    externalFile: File(workingPath),
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.picture_as_pdf),
+            label: const Text('Open Viewer'),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Done'),
+          ),
+        ],
+      ),
+    );
+  }
 
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF121212) : const Color(0xFFF5F5F7),
+      appBar: AppBar(
+        title: Text(
+          _pdfPath != null ? p.basename(_pdfPath!) : 'Edit PDF Studio',
+          style: const TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+          overflow: TextOverflow.ellipsis,
+        ),
+        elevation: 0,
+        backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+        foregroundColor: isDark ? Colors.white : Colors.black,
+        actions: [
+          if (_pdfBytes != null) ...[
+            IconButton(
+              icon: const Icon(Icons.undo),
+              tooltip: 'Undo last edit on page',
+              onPressed: _undoOnCurrentPage,
+            ),
+            IconButton(
+              icon: const Icon(Icons.delete_sweep),
+              tooltip: 'Clear page edits',
+              onPressed: _clearCurrentPage,
+            ),
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+              child: ElevatedButton.icon(
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: const Color(0xFFC6302C),
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(horizontal: 12),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                ),
+                onPressed: _isSaving ? null : _saveAndExportPdf,
+                icon: _isSaving
+                    ? const SizedBox(
+                        width: 14,
+                        height: 14,
+                        child: CircularProgressIndicator(
+                          strokeWidth: 2,
+                          color: Colors.white,
+                        ),
+                      )
+                    : const Icon(Icons.save, size: 16),
+                label: const Text('Save PDF', style: TextStyle(fontSize: 13)),
+              ),
+            ),
+          ],
+          ThemeSwitcher(compact: true),
+          const SizedBox(width: 8),
+        ],
+      ),
+      body: _isLoadingDoc
+          ? const Center(
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  CircularProgressIndicator(),
+                  SizedBox(height: 16),
+                  Text('Loading PDF Studio...'),
+                ],
+              ),
+            )
+          : _pdfBytes == null
+              ? _buildEmptyState(isDark)
+              : _buildStudioWorkspace(isDark),
+    );
+  }
+
+  // --- EMPTY / FILE PICKER STATE ---
+  Widget _buildEmptyState(bool isDark) {
+    return Center(
+      child: SingleChildScrollView(
+        padding: const EdgeInsets.all(24),
+        child: Column(
+          mainAxisAlignment: MainAxisAlignment.center,
+          children: [
+            Container(
+              padding: const EdgeInsets.all(20),
+              decoration: BoxDecoration(
+                color: const Color(0xFFC6302C).withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(
+                Icons.design_services,
+                size: 64,
+                color: Color(0xFFC6302C),
+              ),
+            ),
+            const SizedBox(height: 20),
+            const Text(
+              'PDF Studio Editor',
+              style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Annotate, draw, place signatures, add text, stamps, watermark, and redact PDFs 100% locally on Android.',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: 14,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+            ),
+            const SizedBox(height: 24),
+            Wrap(
+              spacing: 10,
+              runSpacing: 10,
+              alignment: WrapAlignment.center,
+              children: [
+                _featureChip(Icons.edit, 'Draw & Markup', isDark),
+                _featureChip(Icons.text_fields, 'Add Text', isDark),
+                _featureChip(Icons.gesture, 'Handwritten Signature', isDark),
+                _featureChip(Icons.verified, 'Watermark & Stamps', isDark),
+                _featureChip(Icons.image, 'Insert Photos', isDark),
+                _featureChip(Icons.visibility_off, 'Redact Sensitive Info', isDark),
+                _featureChip(Icons.rotate_right, 'Rotate & Delete Pages', isDark),
+              ],
+            ),
+            const SizedBox(height: 32),
+            ElevatedButton.icon(
+              style: ElevatedButton.styleFrom(
+                backgroundColor: const Color(0xFFC6302C),
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 32,
+                  vertical: 16,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(16),
+                ),
+                elevation: 4,
+              ),
+              onPressed: _pickPdf,
+              icon: const Icon(Icons.file_open),
+              label: const Text(
+                'Select PDF to Edit',
+                style: TextStyle(fontSize: 16, fontWeight: FontWeight.bold),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _featureChip(IconData icon, String label, bool isDark) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
       decoration: BoxDecoration(
-        color: isDark
-            ? PremiumColors.darkSurfacePrimary
-            : PremiumColors.lightSurfaceSecondary,
-        borderRadius: BorderRadius.circular(999),
+        color: isDark ? const Color(0xFF222222) : Colors.white,
+        borderRadius: BorderRadius.circular(20),
         border: Border.all(
-          color: isDark
-              ? PremiumColors.darkDivider
-              : PremiumColors.lightDivider,
+          color: isDark ? Colors.white12 : Colors.grey.shade300,
         ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          Icon(icon, size: 15, color: PremiumColors.luxuryRed),
+          Icon(icon, size: 14, color: const Color(0xFFC6302C)),
           const SizedBox(width: 6),
-          Text(
-            label,
-            style: PremiumTypography.labelSmall.copyWith(
-              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
-            ),
+          Text(label, style: const TextStyle(fontSize: 12)),
+        ],
+      ),
+    );
+  }
+
+  // --- STUDIO WORKSPACE ---
+  Widget _buildStudioWorkspace(bool isDark) {
+    final edits = _getEditsForPage(_currentPageIndex);
+    final currentOriginalIndex = _activeOriginalIndices[_currentPageIndex];
+    final originalPageSize = _originalPageSizes[currentOriginalIndex];
+
+    // Compute display size accounting for rotation
+    final rotation = edits.rotationDegrees;
+    final isQuarterTurn = rotation == 90 || rotation == 270;
+    final displayWidth = isQuarterTurn
+        ? originalPageSize.height
+        : originalPageSize.width;
+    final displayHeight = isQuarterTurn
+        ? originalPageSize.width
+        : originalPageSize.height;
+
+    return Column(
+      children: [
+        // Page Navigation Strip
+        _buildPageNavBar(isDark),
+
+        // PDF Interactive Canvas
+        Expanded(
+          child: LayoutBuilder(
+            builder: (context, constraints) {
+              final containerW = constraints.maxWidth;
+              final containerH = constraints.maxHeight;
+
+              // Compute aspect-fit rectangle
+              final pageAspect = displayWidth / displayHeight;
+              final containerAspect = containerW / containerH;
+
+              double canvasW;
+              double canvasH;
+
+              if (containerAspect > pageAspect) {
+                canvasH = containerH * 0.95;
+                canvasW = canvasH * pageAspect;
+              } else {
+                canvasW = containerW * 0.95;
+                canvasH = canvasW / pageAspect;
+              }
+
+              return Center(
+                child: Container(
+                  width: canvasW,
+                  height: canvasH,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(8),
+                    boxShadow: [
+                      BoxShadow(
+                        color: Colors.black.withValues(alpha: 0.15),
+                        blurRadius: 16,
+                        offset: const Offset(0, 4),
+                      ),
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(8),
+                    child: Stack(
+                      children: [
+                        // 1. Rendered PDF Page Raster
+                        if (_currentRasterPng != null)
+                          Positioned.fill(
+                            child: RotatedBox(
+                              quarterTurns: rotation ~/ 90,
+                              child: Image.memory(
+                                _currentRasterPng!,
+                                fit: BoxFit.fill,
+                              ),
+                            ),
+                          )
+                        else
+                          const Center(
+                            child: CircularProgressIndicator(),
+                          ),
+
+                        // 2. Watermark overlay (if applied)
+                        if (edits.watermark != null)
+                          Positioned.fill(
+                            child: _buildWatermarkWidget(edits.watermark!),
+                          ),
+
+                        // 3. Static Custom Paint (Strokes & Redactions)
+                        Positioned.fill(
+                          child: CustomPaint(
+                            painter: _CanvasAnnotationsPainter(
+                              strokes: edits.strokes,
+                              redactions: edits.redactions,
+                            ),
+                          ),
+                        ),
+
+                        // 4. Interactive Items (Draggable Texts)
+                        for (final textItem in edits.texts)
+                          _buildDraggableTextWidget(
+                            textItem,
+                            canvasW,
+                            canvasH,
+                          ),
+
+                        // 5. Interactive Items (Draggable Images & Signatures)
+                        for (final imgItem in edits.images)
+                          _buildDraggableImageWidget(
+                            imgItem,
+                            canvasW,
+                            canvasH,
+                          ),
+
+                        // 6. Active Drawing / Redacting Gesture Layer
+                        if (_activeTool == EditorTool.pen ||
+                            _activeTool == EditorTool.highlighter ||
+                            _activeTool == EditorTool.redact)
+                          Positioned.fill(
+                            child: GestureDetector(
+                              onPanStart: (details) {
+                                final local = details.localPosition;
+                                final norm = Offset(
+                                  (local.dx / canvasW).clamp(0.0, 1.0),
+                                  (local.dy / canvasH).clamp(0.0, 1.0),
+                                );
+
+                                if (_activeTool == EditorTool.redact) {
+                                  setState(() {
+                                    _redactStart = norm;
+                                    _redactCurrent = norm;
+                                  });
+                                } else {
+                                  setState(() {
+                                    _currentStrokePoints = [norm];
+                                  });
+                                }
+                              },
+                              onPanUpdate: (details) {
+                                final local = details.localPosition;
+                                final norm = Offset(
+                                  (local.dx / canvasW).clamp(0.0, 1.0),
+                                  (local.dy / canvasH).clamp(0.0, 1.0),
+                                );
+
+                                if (_activeTool == EditorTool.redact) {
+                                  setState(() {
+                                    _redactCurrent = norm;
+                                  });
+                                } else {
+                                  setState(() {
+                                    _currentStrokePoints?.add(norm);
+                                  });
+                                }
+                              },
+                              onPanEnd: (_) {
+                                if (_activeTool == EditorTool.redact) {
+                                  if (_redactStart != null &&
+                                      _redactCurrent != null) {
+                                    final l = _redactStart!.dx < _redactCurrent!.dx
+                                        ? _redactStart!.dx
+                                        : _redactCurrent!.dx;
+                                    final t = _redactStart!.dy < _redactCurrent!.dy
+                                        ? _redactStart!.dy
+                                        : _redactCurrent!.dy;
+                                    final r = _redactStart!.dx > _redactCurrent!.dx
+                                        ? _redactStart!.dx
+                                        : _redactCurrent!.dx;
+                                    final b = _redactStart!.dy > _redactCurrent!.dy
+                                        ? _redactStart!.dy
+                                        : _redactCurrent!.dy;
+
+                                    if ((r - l) > 0.01 && (b - t) > 0.01) {
+                                      final id =
+                                          'redact_${DateTime.now().millisecondsSinceEpoch}';
+                                      edits.redactions.add(
+                                        RedactionElement(
+                                          id: id,
+                                          rect: Rect.fromLTRB(l, t, r, b),
+                                          isWhiteout: _isWhiteout,
+                                        ),
+                                      );
+                                    }
+                                  }
+                                  setState(() {
+                                    _redactStart = null;
+                                    _redactCurrent = null;
+                                  });
+                                } else {
+                                  if (_currentStrokePoints != null &&
+                                      _currentStrokePoints!.length > 1) {
+                                    final isHigh =
+                                        _activeTool == EditorTool.highlighter;
+                                    edits.strokes.add(
+                                      DrawingStroke(
+                                        points: List.from(_currentStrokePoints!),
+                                        color: isHigh
+                                            ? _highlighterColor
+                                            : _penColor,
+                                        strokeWidth: isHigh
+                                            ? _highlighterWidth
+                                            : _penWidth,
+                                        isHighlighter: isHigh,
+                                      ),
+                                    );
+                                  }
+                                  setState(() {
+                                    _currentStrokePoints = null;
+                                  });
+                                }
+                              },
+                              child: CustomPaint(
+                                painter: _ActiveInteractionPainter(
+                                  activeStroke: _currentStrokePoints,
+                                  strokeColor:
+                                      _activeTool == EditorTool.highlighter
+                                          ? _highlighterColor
+                                          : _penColor,
+                                  strokeWidth:
+                                      _activeTool == EditorTool.highlighter
+                                          ? _highlighterWidth
+                                          : _penWidth,
+                                  redactStart: _redactStart,
+                                  redactCurrent: _redactCurrent,
+                                  isWhiteout: _isWhiteout,
+                                ),
+                              ),
+                            ),
+                          ),
+
+                        // Loading spinner indicator over page when rendering
+                        if (_isRenderingPage)
+                          Container(
+                            color: Colors.black12,
+                            child: const Center(
+                              child: CircularProgressIndicator(),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+
+        // Floating Drawer for active subtool options (Pen colors, Highlighter widths, Redact toggles)
+        _buildSubtoolOptionBar(isDark),
+
+        // Bottom Tool Selection Bar
+        _buildBottomToolDock(isDark),
+      ],
+    );
+  }
+
+  // --- PAGE NAVIGATION BAR ---
+  Widget _buildPageNavBar(bool isDark) {
+    final total = _activeOriginalIndices.length;
+    final current = _currentPageIndex + 1;
+
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+      color: isDark ? const Color(0xFF1E1E1E) : Colors.white,
+      child: Row(
+        mainAxisAlignment: MainAxisAlignment.spaceBetween,
+        children: [
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.arrow_back_ios, size: 16),
+                tooltip: 'Previous Page',
+                onPressed: _currentPageIndex > 0
+                    ? () => _goToPage(_currentPageIndex - 1)
+                    : null,
+              ),
+              GestureDetector(
+                onTap: _showPageJumpSheet,
+                child: Container(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 6,
+                  ),
+                  decoration: BoxDecoration(
+                    color: const Color(0xFFC6302C).withValues(alpha: 0.1),
+                    borderRadius: BorderRadius.circular(16),
+                  ),
+                  child: Text(
+                    'Page $current of $total',
+                    style: const TextStyle(
+                      fontWeight: FontWeight.bold,
+                      fontSize: 13,
+                      color: Color(0xFFC6302C),
+                    ),
+                  ),
+                ),
+              ),
+              IconButton(
+                icon: const Icon(Icons.arrow_forward_ios, size: 16),
+                tooltip: 'Next Page',
+                onPressed: _currentPageIndex < total - 1
+                    ? () => _goToPage(_currentPageIndex + 1)
+                    : null,
+              ),
+            ],
+          ),
+          Row(
+            children: [
+              IconButton(
+                icon: const Icon(Icons.rotate_90_degrees_cw, size: 20),
+                tooltip: 'Rotate 90°',
+                onPressed: _rotateCurrentPage,
+              ),
+              IconButton(
+                icon: const Icon(Icons.delete_outline, size: 20),
+                tooltip: 'Delete Page',
+                color: Colors.red.shade400,
+                onPressed: total > 1 ? _deleteCurrentPage : null,
+              ),
+            ],
           ),
         ],
       ),
     );
   }
-}
 
-class _MiniSpecChip extends StatelessWidget {
-  final String label;
-  final bool isDark;
-  const _MiniSpecChip({required this.label, required this.isDark});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
-      decoration: BoxDecoration(
-        color: isDark
-            ? Colors.white.withValues(alpha: 0.08)
-            : Colors.white.withValues(alpha: 0.76),
-        borderRadius: BorderRadius.circular(999),
+  void _showPageJumpSheet() {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(top: Radius.circular(20)),
       ),
-      child: Text(
-        label,
-        style: PremiumTypography.labelSmall.copyWith(
-          color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
+      builder: (ctx) => Padding(
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            const Text(
+              'Select Page',
+              style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold),
+            ),
+            const SizedBox(height: 12),
+            Expanded(
+              child: GridView.builder(
+                gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+                  crossAxisCount: 5,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
+                ),
+                itemCount: _activeOriginalIndices.length,
+                itemBuilder: (ctx, i) {
+                  final isSelected = i == _currentPageIndex;
+                  return InkWell(
+                    onTap: () {
+                      Navigator.pop(ctx);
+                      _goToPage(i);
+                    },
+                    child: Container(
+                      decoration: BoxDecoration(
+                        color: isSelected
+                            ? const Color(0xFFC6302C)
+                            : Colors.grey.withValues(alpha: 0.1),
+                        borderRadius: BorderRadius.circular(10),
+                        border: Border.all(
+                          color: isSelected
+                              ? const Color(0xFFC6302C)
+                              : Colors.grey.shade300,
+                        ),
+                      ),
+                      child: Center(
+                        child: Text(
+                          '${i + 1}',
+                          style: TextStyle(
+                            fontWeight: FontWeight.bold,
+                            color: isSelected ? Colors.white : null,
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          ],
         ),
       ),
     );
   }
-}
 
-class _WorkflowRow extends StatelessWidget {
-  final String number;
-  final String title;
-  final String description;
-  final bool isDark;
-  final bool isLast;
-  const _WorkflowRow({
-    required this.number,
-    required this.title,
-    required this.description,
-    required this.isDark,
-    this.isLast = false,
-  });
+  // --- SUBTOOL BAR (Options for Pen, Highlighter, Redact) ---
+  Widget _buildSubtoolOptionBar(bool isDark) {
+    if (_activeTool == EditorTool.pen) {
+      final penColors = [
+        Colors.black,
+        const Color(0xFF1565C0),
+        const Color(0xFFC62828),
+        const Color(0xFF2E7D32),
+        const Color(0xFF6A1B9A),
+        Colors.white,
+      ];
+      final widths = [2.0, 4.0, 8.0];
 
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
-    final mutedColor = isDark
-        ? PremiumColors.darkTextSecondary
-        : PremiumColors.lightTextSecondary;
-    return Padding(
-      padding: EdgeInsets.only(bottom: isLast ? 0 : 16),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Column(
-            children: [
-              Container(
-                width: 28,
-                height: 28,
-                alignment: Alignment.center,
-                decoration: BoxDecoration(
-                  color: PremiumColors.luxuryRed.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(10),
-                ),
-                child: Text(
-                  number,
-                  style: PremiumTypography.labelSmall.copyWith(
-                    color: PremiumColors.luxuryRed,
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: isDark ? const Color(0xFF181818) : Colors.grey.shade200,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: penColors.map((c) {
+                final isSelected = _penColor == c;
+                return GestureDetector(
+                  onTap: () => setState(() => _penColor = c),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: c,
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.blue : Colors.grey,
+                        width: isSelected ? 2.5 : 1,
+                      ),
+                    ),
                   ),
+                );
+              }).toList(),
+            ),
+            Row(
+              children: widths.map((w) {
+                final isSelected = _penWidth == w;
+                return GestureDetector(
+                  onTap: () => setState(() => _penWidth = w),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: 8,
+                      vertical: 4,
+                    ),
+                    decoration: BoxDecoration(
+                      color: isSelected
+                          ? const Color(0xFFC6302C)
+                          : Colors.transparent,
+                      borderRadius: BorderRadius.circular(6),
+                    ),
+                    child: Text(
+                      '${w.toInt()}pt',
+                      style: TextStyle(
+                        fontSize: 11,
+                        fontWeight: FontWeight.bold,
+                        color: isSelected ? Colors.white : null,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+          ],
+        ),
+      );
+    } else if (_activeTool == EditorTool.highlighter) {
+      final highColors = [
+        const Color(0x66FFEB3B), // Yellow
+        const Color(0x6600E676), // Green
+        const Color(0x66FF4081), // Pink
+        const Color(0x6600B0FF), // Blue
+        const Color(0x66FF9100), // Orange
+      ];
+
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: isDark ? const Color(0xFF181818) : Colors.grey.shade200,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Row(
+              children: highColors.map((c) {
+                final isSelected = _highlighterColor == c;
+                return GestureDetector(
+                  onTap: () => setState(() => _highlighterColor = c),
+                  child: Container(
+                    margin: const EdgeInsets.symmetric(horizontal: 4),
+                    width: 24,
+                    height: 24,
+                    decoration: BoxDecoration(
+                      color: c.withValues(alpha: 1.0),
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: isSelected ? Colors.black : Colors.transparent,
+                        width: 2,
+                      ),
+                    ),
+                  ),
+                );
+              }).toList(),
+            ),
+            const Text(
+              'Highlighter Mode',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+          ],
+        ),
+      );
+    } else if (_activeTool == EditorTool.redact) {
+      return Container(
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+        color: isDark ? const Color(0xFF181818) : Colors.grey.shade200,
+        child: Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            const Text(
+              'Drag a rectangle to cover info:',
+              style: TextStyle(fontSize: 12, fontWeight: FontWeight.bold),
+            ),
+            Row(
+              children: [
+                ChoiceChip(
+                  label: const Text('Blackout', style: TextStyle(fontSize: 11)),
+                  selected: !_isWhiteout,
+                  onSelected: (v) => setState(() => _isWhiteout = false),
                 ),
+                const SizedBox(width: 8),
+                ChoiceChip(
+                  label: const Text('Whiteout', style: TextStyle(fontSize: 11)),
+                  selected: _isWhiteout,
+                  onSelected: (v) => setState(() => _isWhiteout = true),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    }
+    return const SizedBox.shrink();
+  }
+
+  // --- BOTTOM DOCK (Primary Tools) ---
+  Widget _buildBottomToolDock(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.symmetric(vertical: 8),
+      color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+      child: SafeArea(
+        top: false,
+        child: SingleChildScrollView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(horizontal: 8),
+          child: Row(
+            children: [
+              _dockToolItem(
+                icon: Icons.touch_app,
+                label: 'Select',
+                tool: EditorTool.select,
+                onTap: () => setState(() => _activeTool = EditorTool.select),
               ),
-              if (!isLast)
-                Container(
-                  width: 1,
-                  height: 26,
-                  color: isDark
-                      ? PremiumColors.darkDivider
-                      : PremiumColors.lightDivider,
-                ),
+              _dockToolItem(
+                icon: Icons.edit,
+                label: 'Pen',
+                tool: EditorTool.pen,
+                onTap: () => setState(() => _activeTool = EditorTool.pen),
+              ),
+              _dockToolItem(
+                icon: Icons.brush,
+                label: 'Highlight',
+                tool: EditorTool.highlighter,
+                onTap: () =>
+                    setState(() => _activeTool = EditorTool.highlighter),
+              ),
+              _dockToolItem(
+                icon: Icons.text_fields,
+                label: 'Add Text',
+                tool: EditorTool.text,
+                onTap: () => _openAddTextDialog(),
+              ),
+              _dockToolItem(
+                icon: Icons.gesture,
+                label: 'Signature',
+                tool: EditorTool.signature,
+                onTap: _openSignaturePad,
+              ),
+              _dockToolItem(
+                icon: Icons.verified,
+                label: 'Stamps',
+                tool: EditorTool.stamp,
+                onTap: _openStampDialog,
+              ),
+              _dockToolItem(
+                icon: Icons.add_photo_alternate,
+                label: 'Image',
+                tool: EditorTool.image,
+                onTap: _insertImage,
+              ),
+              _dockToolItem(
+                icon: Icons.visibility_off,
+                label: 'Redact',
+                tool: EditorTool.redact,
+                onTap: () => setState(() => _activeTool = EditorTool.redact),
+              ),
             ],
           ),
-          const SizedBox(width: 12),
-          Expanded(
+        ),
+      ),
+    );
+  }
+
+  Widget _dockToolItem({
+    required IconData icon,
+    required String label,
+    required EditorTool tool,
+    required VoidCallback onTap,
+  }) {
+    final isSelected = _activeTool == tool;
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 4),
+      child: Material(
+        color: isSelected
+            ? const Color(0xFFC6302C).withValues(alpha: 0.12)
+            : Colors.transparent,
+        borderRadius: BorderRadius.circular(10),
+        child: InkWell(
+          onTap: onTap,
+          borderRadius: BorderRadius.circular(10),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
             child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+              mainAxisSize: MainAxisSize.min,
               children: [
-                Text(
-                  title,
-                  style: PremiumTypography.labelLarge.copyWith(
-                    color: textColor,
-                  ),
+                Icon(
+                  icon,
+                  size: 20,
+                  color: isSelected
+                      ? const Color(0xFFC6302C)
+                      : Colors.grey.shade600,
                 ),
                 const SizedBox(height: 3),
                 Text(
-                  description,
-                  style: PremiumTypography.bodySmall.copyWith(
-                    color: mutedColor,
+                  label,
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    color: isSelected
+                        ? const Color(0xFFC6302C)
+                        : Colors.grey.shade600,
                   ),
                 ),
               ],
             ),
           ),
-        ],
+        ),
       ),
     );
   }
-}
 
-class _PreviewEmptyState extends StatelessWidget {
-  final bool hasPdf;
-  final _EditOperation operation;
-  final bool isDark;
-  const _PreviewEmptyState({
-    required this.hasPdf,
-    required this.operation,
-    required this.isDark,
-  });
+  // --- DRAGGABLE TEXT WIDGET ---
+  Widget _buildDraggableTextWidget(
+    TextElement textItem,
+    double canvasW,
+    double canvasH,
+  ) {
+    final isSelected = _selectedTextId == textItem.id;
+    final left = textItem.position.dx * canvasW;
+    final top = textItem.position.dy * canvasH;
 
-  @override
-  Widget build(BuildContext context) {
-    final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
-    final mutedColor = isDark
-        ? PremiumColors.darkTextSecondary
-        : PremiumColors.lightTextSecondary;
-    return Center(
-      child: ConstrainedBox(
-        constraints: const BoxConstraints(maxWidth: 360),
-        child: Padding(
-          padding: const EdgeInsets.all(24),
-          child: Column(
+    return Positioned(
+      left: left,
+      top: top,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedTextId = textItem.id;
+            _selectedImageId = null;
+          });
+        },
+        onDoubleTap: () => _openAddTextDialog(existing: textItem),
+        onPanUpdate: (details) {
+          setState(() {
+            _selectedTextId = textItem.id;
+            final newX = (textItem.position.dx + details.delta.dx / canvasW)
+                .clamp(0.0, 0.9);
+            final newY = (textItem.position.dy + details.delta.dy / canvasH)
+                .clamp(0.0, 0.95);
+            textItem.position = Offset(newX, newY);
+          });
+        },
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+          decoration: BoxDecoration(
+            color: textItem.backgroundColor ??
+                (isSelected ? Colors.blue.withValues(alpha: 0.1) : null),
+            border: isSelected
+                ? Border.all(color: Colors.blue, width: 1.5)
+                : null,
+            borderRadius: BorderRadius.circular(4),
+          ),
+          child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
-              Container(
-                width: 74,
-                height: 74,
-                decoration: BoxDecoration(
-                  color: operation.accent.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(22),
-                ),
-                child: Icon(
-                  hasPdf ? operation.icon : Icons.picture_as_pdf_outlined,
-                  color: operation.accent,
-                  size: 34,
-                ),
-              ),
-              const SizedBox(height: 18),
               Text(
-                hasPdf ? 'Preview after ${operation.title}' : 'No preview yet',
-                textAlign: TextAlign.center,
-                style: PremiumTypography.headlineSmall.copyWith(
-                  color: textColor,
+                textItem.text,
+                style: TextStyle(
+                  fontSize: textItem.fontSize * (canvasW / 450).clamp(0.7, 1.3),
+                  color: textItem.color,
+                  fontWeight:
+                      textItem.isBold ? FontWeight.bold : FontWeight.normal,
                 ),
               ),
-              const SizedBox(height: 8),
-              Text(
-                hasPdf
-                    ? 'Apply the selected edit to generate a reviewable output file.'
-                    : 'Choose a PDF, pick an editing tool, and the generated file appears here.',
-                textAlign: TextAlign.center,
-                style: PremiumTypography.bodyMedium.copyWith(color: mutedColor),
-              ),
+              if (isSelected) ...[
+                const SizedBox(width: 4),
+                GestureDetector(
+                  onTap: () {
+                    final edits = _getEditsForPage(_currentPageIndex);
+                    setState(() {
+                      edits.texts.removeWhere((t) => t.id == textItem.id);
+                      _selectedTextId = null;
+                    });
+                  },
+                  child: Container(
+                    padding: const EdgeInsets.all(2),
+                    decoration: const BoxDecoration(
+                      color: Colors.red,
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.close,
+                      size: 10,
+                      color: Colors.white,
+                    ),
+                  ),
+                ),
+              ],
             ],
           ),
         ),
       ),
     );
   }
+
+  // --- DRAGGABLE IMAGE & SIGNATURE WIDGET ---
+  Widget _buildDraggableImageWidget(
+    ImageStampElement imgItem,
+    double canvasW,
+    double canvasH,
+  ) {
+    final isSelected = _selectedImageId == imgItem.id;
+    final left = imgItem.position.dx * canvasW;
+    final top = imgItem.position.dy * canvasH;
+    final width = imgItem.size.width * canvasW;
+    final height = imgItem.size.height * canvasH;
+
+    return Positioned(
+      left: left,
+      top: top,
+      child: GestureDetector(
+        onTap: () {
+          setState(() {
+            _selectedImageId = imgItem.id;
+            _selectedTextId = null;
+          });
+        },
+        onPanUpdate: (details) {
+          setState(() {
+            _selectedImageId = imgItem.id;
+            final newX = (imgItem.position.dx + details.delta.dx / canvasW)
+                .clamp(0.0, 1.0 - imgItem.size.width);
+            final newY = (imgItem.position.dy + details.delta.dy / canvasH)
+                .clamp(0.0, 1.0 - imgItem.size.height);
+            imgItem.position = Offset(newX, newY);
+          });
+        },
+        child: Container(
+          width: width,
+          height: height,
+          decoration: BoxDecoration(
+            border: isSelected
+                ? Border.all(color: Colors.blue, width: 1.5)
+                : null,
+          ),
+          child: Stack(
+            children: [
+              Positioned.fill(
+                child: Image.memory(imgItem.imageBytes, fit: BoxFit.contain),
+              ),
+              if (isSelected) ...[
+                Positioned(
+                  top: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    onTap: () {
+                      final edits = _getEditsForPage(_currentPageIndex);
+                      setState(() {
+                        edits.images.removeWhere((i) => i.id == imgItem.id);
+                        _selectedImageId = null;
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Colors.red,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.close,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: GestureDetector(
+                    onPanUpdate: (details) {
+                      setState(() {
+                        final newW = (imgItem.size.width +
+                                details.delta.dx / canvasW)
+                            .clamp(0.1, 0.8);
+                        final newH = (imgItem.size.height +
+                                details.delta.dy / canvasH)
+                            .clamp(0.05, 0.8);
+                        imgItem.size = Size(newW, newH);
+                      });
+                    },
+                    child: Container(
+                      padding: const EdgeInsets.all(3),
+                      decoration: const BoxDecoration(
+                        color: Colors.blue,
+                        shape: BoxShape.circle,
+                      ),
+                      child: const Icon(
+                        Icons.aspect_ratio,
+                        size: 12,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- WATERMARK OVERLAY ---
+  Widget _buildWatermarkWidget(WatermarkElement wm) {
+    return Center(
+      child: Transform.rotate(
+        angle: wm.angleDegrees * 3.141592653589793 / 180,
+        child: Opacity(
+          opacity: wm.opacity,
+          child: Text(
+            wm.text,
+            textAlign: TextAlign.center,
+            style: TextStyle(
+              fontSize: wm.fontSize,
+              fontWeight: FontWeight.bold,
+              color: wm.color,
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}
+
+// --- PAINTER: STATIC STROKES & REDACTIONS ---
+class _CanvasAnnotationsPainter extends CustomPainter {
+  final List<DrawingStroke> strokes;
+  final List<RedactionElement> redactions;
+
+  _CanvasAnnotationsPainter({
+    required this.strokes,
+    required this.redactions,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // 1. Redactions
+    for (final r in redactions) {
+      final rect = Rect.fromLTRB(
+        r.rect.left * size.width,
+        r.rect.top * size.height,
+        r.rect.right * size.width,
+        r.rect.bottom * size.height,
+      );
+      final paint = Paint()
+        ..color = r.isWhiteout ? Colors.white : Colors.black
+        ..style = PaintingStyle.fill;
+      canvas.drawRect(rect, paint);
+    }
+
+    // 2. Freehand strokes
+    for (final stroke in strokes) {
+      if (stroke.points.length < 2) continue;
+      final paint = Paint()
+        ..color = stroke.color
+        ..strokeWidth = stroke.strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+
+      final path = Path()
+        ..moveTo(
+          stroke.points.first.dx * size.width,
+          stroke.points.first.dy * size.height,
+        );
+
+      for (var i = 1; i < stroke.points.length; i++) {
+        path.lineTo(
+          stroke.points[i].dx * size.width,
+          stroke.points[i].dy * size.height,
+        );
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _CanvasAnnotationsPainter oldDelegate) => true;
+}
+
+// --- PAINTER: ACTIVE GESTURE DRAWING ---
+class _ActiveInteractionPainter extends CustomPainter {
+  final List<Offset>? activeStroke;
+  final Color strokeColor;
+  final double strokeWidth;
+  final Offset? redactStart;
+  final Offset? redactCurrent;
+  final bool isWhiteout;
+
+  _ActiveInteractionPainter({
+    required this.activeStroke,
+    required this.strokeColor,
+    required this.strokeWidth,
+    required this.redactStart,
+    required this.redactCurrent,
+    required this.isWhiteout,
+  });
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    // Active freehand stroke
+    if (activeStroke != null && activeStroke!.length > 1) {
+      final paint = Paint()
+        ..color = strokeColor
+        ..strokeWidth = strokeWidth
+        ..strokeCap = StrokeCap.round
+        ..strokeJoin = StrokeJoin.round
+        ..style = PaintingStyle.stroke;
+
+      final path = Path()
+        ..moveTo(
+          activeStroke!.first.dx * size.width,
+          activeStroke!.first.dy * size.height,
+        );
+
+      for (var i = 1; i < activeStroke!.length; i++) {
+        path.lineTo(
+          activeStroke![i].dx * size.width,
+          activeStroke![i].dy * size.height,
+        );
+      }
+      canvas.drawPath(path, paint);
+    }
+
+    // Active redaction rectangle
+    if (redactStart != null && redactCurrent != null) {
+      final l = redactStart!.dx < redactCurrent!.dx
+          ? redactStart!.dx
+          : redactCurrent!.dx;
+      final t = redactStart!.dy < redactCurrent!.dy
+          ? redactStart!.dy
+          : redactCurrent!.dy;
+      final r = redactStart!.dx > redactCurrent!.dx
+          ? redactStart!.dx
+          : redactCurrent!.dx;
+      final b = redactStart!.dy > redactCurrent!.dy
+          ? redactStart!.dy
+          : redactCurrent!.dy;
+
+      final rect = Rect.fromLTRB(
+        l * size.width,
+        t * size.height,
+        r * size.width,
+        b * size.height,
+      );
+
+      final paint = Paint()
+        ..color = isWhiteout
+            ? Colors.white.withValues(alpha: 0.8)
+            : Colors.black.withValues(alpha: 0.7)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawRect(rect, paint);
+
+      final borderPaint = Paint()
+        ..color = Colors.blue
+        ..strokeWidth = 1.5
+        ..style = PaintingStyle.stroke;
+
+      canvas.drawRect(rect, borderPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _ActiveInteractionPainter oldDelegate) => true;
+}
+
+// --- SIGNATURE PAD PAINTER ---
+class _SignaturePadPainter extends CustomPainter {
+  final List<List<Offset>> strokes;
+  final Color color;
+
+  _SignaturePadPainter({required this.strokes, required this.color});
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..strokeWidth = 3.5
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round
+      ..style = PaintingStyle.stroke;
+
+    for (final stroke in strokes) {
+      if (stroke.length < 2) continue;
+      final path = Path()..moveTo(stroke.first.dx, stroke.first.dy);
+      for (var i = 1; i < stroke.length; i++) {
+        path.lineTo(stroke[i].dx, stroke[i].dy);
+      }
+      canvas.drawPath(path, paint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant _SignaturePadPainter oldDelegate) => true;
 }

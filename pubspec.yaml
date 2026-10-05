@@ -15,6 +15,7 @@ dependencies:
 
   # Web support
   html: ^0.15.0
+  archive: ^4.0.0
 
   # PDF generation and manipulation
   pdf: ^3.10.0
@@ -25,6 +26,7 @@ dependencies:
   # PDF viewer (supports password-protected PDFs)
   syncfusion_flutter_pdfviewer: ^32.2.7
   syncfusion_flutter_pdf: ^32.2.7
+  syncfusion_flutter_core: ^32.2.7
 
   # Pick images & files
   image_picker: ^1.0.7

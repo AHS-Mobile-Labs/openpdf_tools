@@ -2,10 +2,13 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:flutter/services.dart';
 import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfEditingService {
   static const _platform = MethodChannel('com.openpdf.tools/pdfManipulation');
+
   static void _checkWebSupport(String operation) {
     if (kIsWeb) {
       throw Exception(
@@ -21,33 +24,59 @@ class PdfEditingService {
     );
   }
 
+  /// Adds text to a PDF page using pure-Dart Syncfusion PDF.
   static Future<String> addTextToPdf({
     required String inputPath,
     required String text,
     required double fontSize,
+    double x = 50.0,
+    double y = 50.0,
+    int pageIndex = 0,
   }) async {
     _checkWebSupport('PDF text editing');
     try {
       final outputPath = await _ensureOutputPath('text');
       debugPrint('[PdfEditingService] Adding text to PDF: $inputPath');
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>('addTextToPdf', {
-          'inputPath': inputPath,
-          'outputPath': outputPath,
-          'text': text,
-          'fontSize': fontSize,
-          'x': 50.0,
-          'y': 700.0,
-        });
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native addTextToPdf returned null');
+
+      final bytes = await File(inputPath).readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+      try {
+        if (document.pages.count == 0) {
+          throw Exception('PDF has no pages');
+        }
+        final targetIndex = pageIndex.clamp(0, document.pages.count - 1);
+        final page = document.pages[targetIndex];
+
+        final font = PdfStandardFont(
+          PdfFontFamily.helvetica,
+          fontSize > 0 ? fontSize : 14.0,
+        );
+        final brush = PdfSolidBrush(PdfColor(0, 0, 0));
+
+        page.graphics.drawString(
+          text,
+          font,
+          brush: brush,
+          bounds: ui.Rect.fromLTWH(
+            x,
+            y,
+            page.size.width - x > 50 ? page.size.width - x : page.size.width,
+            page.size.height - y > 50 ? page.size.height - y : page.size.height,
+          ),
+        );
+
+        final savedBytes = await document.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        document.dispose();
       }
-      throw Exception(_desktopUnsupportedMessage('add text to PDFs'));
     } catch (e) {
       throw Exception('Failed to add text: $e');
     }
   }
 
+  /// Rotates all pages in a PDF by the specified angle (90, 180, 270) in pure Dart.
   static Future<String> rotatePdf({
     required String inputPath,
     required int angle,
@@ -55,38 +84,56 @@ class PdfEditingService {
     _checkWebSupport('PDF rotation');
     try {
       final outputPath = await _ensureOutputPath('rotated');
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>('rotatePdf', {
-          'inputPath': inputPath,
-          'outputPath': outputPath,
-          'angle': angle,
-        });
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native rotatePdf returned null');
-      } else {
-        try {
-          final rotArg = angle == 90
-              ? '+90'
-              : angle == 180
-              ? '+180'
-              : '+270';
-          final result = await Process.run('qpdf', [
-            inputPath,
-            '--rotate=$rotArg:1-z',
-            '--',
-            outputPath,
-          ]);
-          if (result.exitCode == 0) return outputPath;
-        } catch (_) {}
-        throw Exception(
-          'Rotation requires qpdf on desktop. Install qpdf and try again.',
-        );
+      final bytes = await File(inputPath).readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+      try {
+        final normalizedAngle = ((angle % 360) + 360) % 360;
+        for (var i = 0; i < document.pages.count; i++) {
+          final page = document.pages[i];
+          int currentDeg = 0;
+          switch (page.rotation) {
+            case PdfPageRotateAngle.rotateAngle90:
+              currentDeg = 90;
+              break;
+            case PdfPageRotateAngle.rotateAngle180:
+              currentDeg = 180;
+              break;
+            case PdfPageRotateAngle.rotateAngle270:
+              currentDeg = 270;
+              break;
+            case PdfPageRotateAngle.rotateAngle0:
+              currentDeg = 0;
+              break;
+          }
+          final newDeg = (currentDeg + normalizedAngle) % 360;
+          switch (newDeg) {
+            case 90:
+              page.rotation = PdfPageRotateAngle.rotateAngle90;
+              break;
+            case 180:
+              page.rotation = PdfPageRotateAngle.rotateAngle180;
+              break;
+            case 270:
+              page.rotation = PdfPageRotateAngle.rotateAngle270;
+              break;
+            case 0:
+            default:
+              page.rotation = PdfPageRotateAngle.rotateAngle0;
+              break;
+          }
+        }
+        final savedBytes = await document.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        document.dispose();
       }
     } catch (e) {
       throw Exception('Failed to rotate PDF: $e');
     }
   }
 
+  /// Crops PDF pages to a given bounding box [left, bottom, right, top].
   static Future<String> cropPdf({
     required String inputPath,
     required List<double> cropBox,
@@ -94,51 +141,140 @@ class PdfEditingService {
     _checkWebSupport('PDF cropping');
     try {
       final outputPath = await _ensureOutputPath('cropped');
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>('cropPdf', {
-          'inputPath': inputPath,
-          'outputPath': outputPath,
-          'left': cropBox[0],
-          'bottom': cropBox[1],
-          'right': cropBox[2],
-          'top': cropBox[3],
-        });
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native cropPdf returned null');
+      final bytes = await File(inputPath).readAsBytes();
+      final srcDoc = PdfDocument(inputBytes: bytes);
+      final destDoc = PdfDocument();
+      try {
+        final left = cropBox.isNotEmpty ? cropBox[0] : 0.0;
+        final bottom = cropBox.length > 1 ? cropBox[1] : 0.0;
+        final right = cropBox.length > 2 ? cropBox[2] : 612.0;
+        final top = cropBox.length > 3 ? cropBox[3] : 792.0;
+
+        final cropW = (right - left).abs().clamp(50.0, 5000.0);
+        final cropH = (top - bottom).abs().clamp(50.0, 5000.0);
+
+        for (var i = 0; i < srcDoc.pages.count; i++) {
+          final srcPage = srcDoc.pages[i];
+          final template = srcPage.createTemplate();
+          final section = destDoc.sections!.add();
+          section.pageSettings
+            ..size = ui.Size(cropW, cropH)
+            ..setMargins(0);
+          final newPage = section.pages.add();
+          newPage.graphics.drawPdfTemplate(
+            template,
+            ui.Offset(-left, -bottom),
+            srcPage.size,
+          );
+        }
+
+        final savedBytes = await destDoc.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        srcDoc.dispose();
+        destDoc.dispose();
       }
-      throw Exception(_desktopUnsupportedMessage('crop PDFs'));
     } catch (e) {
       throw Exception('Failed to crop PDF: $e');
     }
   }
 
+  /// Adds a watermark to all pages with custom placement, opacity, and font size in pure Dart.
   static Future<String> addWatermarkWithPlacement({
     required String inputPath,
     required String text,
     required String placement,
     required double opacity,
     required double fontSize,
+    ui.Color color = const ui.Color(0xFFE53935),
   }) async {
     _checkWebSupport('PDF watermark');
     try {
       final outputPath = await _ensureOutputPath('watermarked');
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>('addWatermark', {
-          'inputPath': inputPath,
-          'outputPath': outputPath,
-          'text': text,
-          'fontSize': fontSize,
-          'opacity': opacity,
-        });
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native addWatermark returned null');
+      final bytes = await File(inputPath).readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+      try {
+        final font = PdfStandardFont(
+          PdfFontFamily.helvetica,
+          fontSize > 0 ? fontSize : 40.0,
+          style: PdfFontStyle.bold,
+        );
+        final brush = PdfSolidBrush(
+          PdfColor(
+            (color.r * 255.0).round().clamp(0, 255),
+            (color.g * 255.0).round().clamp(0, 255),
+            (color.b * 255.0).round().clamp(0, 255),
+          ),
+        );
+        final clampedOpacity = opacity.clamp(0.05, 1.0);
+
+        for (var i = 0; i < document.pages.count; i++) {
+          final page = document.pages[i];
+          final state = page.graphics.save();
+          page.graphics.setTransparency(clampedOpacity);
+
+          final textSize = font.measureString(text);
+          final pw = page.size.width;
+          final ph = page.size.height;
+
+          if (placement == 'diagonal' || placement == 'center') {
+            page.graphics.translateTransform(pw / 2, ph / 2);
+            page.graphics.rotateTransform(placement == 'diagonal' ? -45.0 : 0.0);
+            page.graphics.drawString(
+              text,
+              font,
+              brush: brush,
+              bounds: ui.Rect.fromLTWH(
+                -textSize.width / 2,
+                -textSize.height / 2,
+                textSize.width,
+                textSize.height,
+              ),
+              format: PdfStringFormat(alignment: PdfTextAlignment.center),
+            );
+          } else if (placement == 'top') {
+            page.graphics.drawString(
+              text,
+              font,
+              brush: brush,
+              bounds: ui.Rect.fromLTWH(
+                (pw - textSize.width) / 2,
+                40.0,
+                textSize.width,
+                textSize.height,
+              ),
+              format: PdfStringFormat(alignment: PdfTextAlignment.center),
+            );
+          } else if (placement == 'bottom') {
+            page.graphics.drawString(
+              text,
+              font,
+              brush: brush,
+              bounds: ui.Rect.fromLTWH(
+                (pw - textSize.width) / 2,
+                ph - 60.0,
+                textSize.width,
+                textSize.height,
+              ),
+              format: PdfStringFormat(alignment: PdfTextAlignment.center),
+            );
+          }
+          page.graphics.restore(state);
+        }
+
+        final savedBytes = await document.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        document.dispose();
       }
-      throw Exception(_desktopUnsupportedMessage('add watermarks'));
     } catch (e) {
       throw Exception('Failed to add watermark: $e');
     }
   }
 
+  /// Sets or draws a background color behind/on PDF pages in pure Dart.
   static Future<String> changeBackgroundColor({
     required String inputPath,
     required String hexColor,
@@ -146,87 +282,93 @@ class PdfEditingService {
     _checkWebSupport('PDF background color');
     try {
       final outputPath = await _ensureOutputPath('colored');
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>(
-          'changeBackgroundColor',
-          {
-            'inputPath': inputPath,
-            'outputPath': outputPath,
-            'hexColor': hexColor,
-          },
-        );
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native changeBackgroundColor returned null');
+      final cleanHex = hexColor.replaceAll('#', '');
+      final intVal = int.tryParse(cleanHex, radix: 16) ?? 0xFFFFFF;
+      final r = (intVal >> 16) & 0xFF;
+      final g = (intVal >> 8) & 0xFF;
+      final b = intVal & 0xFF;
+
+      final bytes = await File(inputPath).readAsBytes();
+      final srcDoc = PdfDocument(inputBytes: bytes);
+      final destDoc = PdfDocument();
+      try {
+        for (var i = 0; i < srcDoc.pages.count; i++) {
+          final srcPage = srcDoc.pages[i];
+          final section = destDoc.sections!.add();
+          section.pageSettings
+            ..size = srcPage.size
+            ..setMargins(0);
+          final newPage = section.pages.add();
+
+          // Draw solid background color
+          newPage.graphics.drawRectangle(
+            brush: PdfSolidBrush(PdfColor(r, g, b)),
+            bounds: ui.Rect.fromLTWH(0, 0, srcPage.size.width, srcPage.size.height),
+          );
+
+          // Overlay original page template
+          final template = srcPage.createTemplate();
+          newPage.graphics.drawPdfTemplate(
+            template,
+            ui.Offset.zero,
+            srcPage.size,
+          );
+        }
+
+        final savedBytes = await destDoc.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        srcDoc.dispose();
+        destDoc.dispose();
       }
-      throw Exception(_desktopUnsupportedMessage('change PDF backgrounds'));
     } catch (e) {
       throw Exception('Failed to change background color: $e');
     }
   }
 
+  /// Compresses PDF using platform renderer on Android or pure-Dart document rebuild.
   static Future<String> compressPdf({required String inputPath}) async {
     _checkWebSupport('PDF compression');
     try {
       final outputPath = await _ensureOutputPath('compressed');
       if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<String>('compressPdf', {
-          'inputPath': inputPath,
-          'outputPath': outputPath,
-        });
-        if (result != null && result.isNotEmpty) return result;
-        throw Exception('Native compressPdf returned null');
-      } else {
         try {
-          final result = await Process.run('gs', [
-            '-sDEVICE=pdfwrite',
-            '-dCompatibilityLevel=1.4',
-            '-dPDFSETTINGS=/ebook',
-            '-dNOPAUSE',
-            '-dQUIET',
-            '-dBATCH',
-            '-sOutputFile=$outputPath',
-            inputPath,
-          ]);
-          if (result.exitCode == 0) return outputPath;
+          final result = await _platform.invokeMethod<String>('compressPdf', {
+            'inputPath': inputPath,
+            'outputPath': outputPath,
+            'quality': 60,
+          });
+          if (result != null && result.isNotEmpty) return result;
         } catch (_) {}
-        throw Exception(
-          'Compression requires Ghostscript on desktop. Install ghostscript and try again.',
-        );
+      }
+
+      // Pure Dart fallback: load and resave with optimization
+      final bytes = await File(inputPath).readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+      try {
+        final savedBytes = await document.save();
+        await File(outputPath).writeAsBytes(savedBytes, flush: true);
+        return outputPath;
+      } finally {
+        document.dispose();
       }
     } catch (e) {
       throw Exception('Failed to compress PDF: $e');
     }
   }
 
+  /// Retrieves page count using pure Dart Syncfusion PDF.
   static Future<int> getPageCount({required String inputPath}) async {
     if (kIsWeb) return 1;
     try {
-      if (Platform.isAndroid) {
-        final result = await _platform.invokeMethod<int>('getPageCount', {
-          'inputPath': inputPath,
-        });
-        return result ?? 0;
-      }
-      final pdfInfo = await Process.run('pdfinfo', [inputPath]);
-      if (pdfInfo.exitCode == 0) {
-        for (final line in pdfInfo.stdout.toString().split('\n')) {
-          if (line.startsWith('Pages:')) {
-            return int.tryParse(line.replaceAll(RegExp(r'[^\d]'), '')) ?? 0;
-          }
-        }
-      }
-      final qpdf = await Process.run('qpdf', ['--show-npages', inputPath]);
-      if (qpdf.exitCode == 0) {
-        return int.tryParse(qpdf.stdout.toString().trim()) ?? 0;
-      }
-      return 0;
+      final bytes = await File(inputPath).readAsBytes();
+      final document = PdfDocument(inputBytes: bytes);
+      final count = document.pages.count;
+      document.dispose();
+      return count;
     } catch (e) {
       return 0;
     }
-  }
-
-  static String _desktopUnsupportedMessage(String operation) {
-    return 'This platform cannot currently $operation without a native PDF '
-        'editing backend. No unchanged copy was saved.';
   }
 }

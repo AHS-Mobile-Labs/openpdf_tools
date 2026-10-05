@@ -13,6 +13,7 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:syncfusion_flutter_pdfviewer/pdfviewer.dart';
+import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -381,13 +382,15 @@ class _ViewerFeatureTile extends StatelessWidget {
 }
 
 class _PdfViewerScreenState extends State<PdfViewerScreen> {
-  static const double _minZoom = 0.5;
-  static const double _maxZoom = 3.0;
-  static const double _syncfusionMinZoom = 1.0;
+  static const double _minZoom = 1.0;
+  static const double _maxZoom = 5.0;
 
   File? _pdfFile;
   String? _password;
   double _zoom = 1.0;
+  final ValueNotifier<double> _zoomNotifier = ValueNotifier<double>(1.0);
+  final ValueNotifier<int> _pageNumberNotifier = ValueNotifier<int>(1);
+  final ValueNotifier<int> _pageCountNotifier = ValueNotifier<int>(0);
   bool _isFavorite = false;
   bool _showControls = true;
   Uint8List? _pdfBytes;
@@ -405,10 +408,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   Size? _viewerViewportSize;
   bool _isApplyingControllerZoom = false;
   int _lastPageNumber = 0;
-  final Map<int, Offset> _activePointers = <int, Offset>{};
-  double? _pinchStartDistance;
-  double _pinchStartZoom = 1.0;
-  bool _suppressNextTapToggle = false;
+
   @override
   void initState() {
     super.initState();
@@ -423,22 +423,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void _onPdfViewerControllerChanged() {
     if (!mounted) return;
     final pageNumber = _pdfViewerController.pageNumber;
-    final pageChanged = pageNumber > 0 && pageNumber != _lastPageNumber;
-    if (pageChanged) {
+    if (pageNumber > 0 && pageNumber != _lastPageNumber) {
       _lastPageNumber = pageNumber;
-      _scheduleViewModeRefresh();
+      _pageNumberNotifier.value = pageNumber;
     }
-
-    if (!_isApplyingControllerZoom) {
-      final controllerZoom = _normaliseZoom(_pdfViewerController.zoomLevel);
-      final shouldSyncControllerZoom =
-          controllerZoom > _syncfusionMinZoom || _zoom >= _syncfusionMinZoom;
-      if (shouldSyncControllerZoom && (controllerZoom - _zoom).abs() > 0.005) {
-        _zoom = controllerZoom;
-        _viewMode = 'custom';
-      }
+    final controllerZoom = _pdfViewerController.zoomLevel;
+    if ((controllerZoom - _zoomNotifier.value).abs() > 0.01) {
+      _zoom = controllerZoom;
+      _zoomNotifier.value = controllerZoom;
     }
-    setState(() {});
   }
 
   void _onSearchResultChanged() {
@@ -464,6 +457,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     _searchResult.removeListener(_onSearchResultChanged);
     _searchResult.clear();
     _pdfViewerController.dispose();
+    _zoomNotifier.dispose();
+    _pageNumberNotifier.dispose();
+    _pageCountNotifier.dispose();
     super.dispose();
   }
 
@@ -522,6 +518,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   void _resetReaderStateForNewDocument() {
     _zoom = 1.0;
+    _zoomNotifier.value = 1.0;
+    _pageNumberNotifier.value = 1;
+    _pageCountNotifier.value = 0;
     _rotationAngle = 0;
     _brightness = 1.0;
     _isNightMode = false;
@@ -529,9 +528,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     _viewerError = null;
     _pageSizes = <Size>[];
     _lastPageNumber = 0;
-    _activePointers.clear();
-    _pinchStartDistance = null;
-    _suppressNextTapToggle = false;
   }
 
   Future<void> _pickPdf() async {
@@ -844,19 +840,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   double _normaliseZoom(double zoom) {
-    if (!zoom.isFinite) return _syncfusionMinZoom;
+    if (!zoom.isFinite) return 1.0;
     return zoom.clamp(_minZoom, _maxZoom).toDouble();
   }
 
-  double get _pdfRenderZoom => math.max(_zoom, _syncfusionMinZoom);
-
-  double get _viewerScale => _zoom < _syncfusionMinZoom ? _zoom : 1.0;
-
-  String get _zoomLabel => '${(_zoom * 100).round()}%';
-
   void _setControllerZoom(double zoom) {
     if (kIsWeb) return;
-    final renderZoom = math.max(_normaliseZoom(zoom), _syncfusionMinZoom);
+    final renderZoom = _normaliseZoom(zoom);
     if ((_pdfViewerController.zoomLevel - renderZoom).abs() <= 0.001) return;
     _isApplyingControllerZoom = true;
     try {
@@ -872,21 +862,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     bool updateViewMode = true,
   }) {
     final displayZoom = _normaliseZoom(zoom);
-    setState(() {
-      _zoom = displayZoom;
-      if (updateViewMode) {
-        _viewMode = viewMode;
-      }
-    });
-    _setControllerZoom(_pdfRenderZoom);
+    _zoom = displayZoom;
+    _zoomNotifier.value = displayZoom;
+    if (updateViewMode) {
+      _viewMode = viewMode;
+    }
+    _setControllerZoom(displayZoom);
   }
 
   void _zoomIn() {
-    _setZoom(_zoom + 0.1);
+    _setZoom(_zoomNotifier.value + 0.25);
   }
 
   void _zoomOut() {
-    _setZoom(_zoom - 0.1);
+    _setZoom(_zoomNotifier.value - 0.25);
   }
 
   void _resetZoom() {
@@ -993,6 +982,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       pageSizes.add(pages[index].size);
     }
     if (!mounted) return;
+    _pageCountNotifier.value = pages.count;
+    _pageNumberNotifier.value =
+        _pdfViewerController.pageNumber > 0 ? _pdfViewerController.pageNumber : 1;
     setState(() {
       _viewerError = null;
       _pageSizes = pageSizes;
@@ -1020,11 +1012,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void _handlePdfZoomLevelChanged(PdfZoomDetails details) {
     if (_isApplyingControllerZoom || !mounted) return;
     final controllerZoom = _normaliseZoom(details.newZoomLevel);
-    if (controllerZoom < _syncfusionMinZoom) return;
-    setState(() {
-      _zoom = controllerZoom;
-      _viewMode = 'custom';
-    });
+    _zoom = controllerZoom;
+    _zoomNotifier.value = controllerZoom;
   }
 
   Size? get _activePageSize {
@@ -1069,7 +1058,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _setViewMode(String mode) {
-    final targetZoom = _zoomForViewMode(mode) ?? _syncfusionMinZoom;
+    final targetZoom = _zoomForViewMode(mode) ?? 1.0;
     _setZoom(targetZoom, viewMode: mode);
   }
 
@@ -1086,13 +1075,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void _toggleNightMode() {
     setState(() {
       _isNightMode = !_isNightMode;
-      _brightness = _isNightMode ? 0.6 : 1.0;
     });
   }
 
   Future<void> _showCustomZoomDialog() async {
     final controller = TextEditingController(
-      text: (_zoom * 100).round().toString(),
+      text: (_zoomNotifier.value * 100).round().toString(),
     );
     try {
       final zoom = await showDialog<double>(
@@ -1106,7 +1094,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             decoration: const InputDecoration(
               labelText: 'Zoom percentage',
               suffixText: '%',
-              helperText: 'Supported range: 50% to 300%',
+              helperText: 'Supported range: 100% to 500%',
               border: OutlineInputBorder(),
             ),
             onSubmitted: (_) => _submitCustomZoom(ctx, controller),
@@ -1271,9 +1259,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 icon: const Icon(Icons.remove),
                 tooltip: 'Zoom out',
               ),
-              Text(
-                _zoomLabel,
-                style: PremiumTypography.labelLarge.copyWith(color: textColor),
+              ValueListenableBuilder<double>(
+                valueListenable: _zoomNotifier,
+                builder: (context, currentZoom, _) {
+                  return Text(
+                    '${(currentZoom * 100).round()}%',
+                    style: PremiumTypography.labelLarge.copyWith(color: textColor),
+                  );
+                },
               ),
               IconButton(
                 onPressed: () {
@@ -1285,15 +1278,20 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
             ],
           ),
-          Slider(
-            value: _zoom,
-            min: _minZoom,
-            max: _maxZoom,
-            divisions: 25,
-            activeColor: PremiumColors.luxuryRed,
-            onChanged: (value) {
-              _setZoom(value);
-              setSheetState(() {});
+          ValueListenableBuilder<double>(
+            valueListenable: _zoomNotifier,
+            builder: (context, currentZoom, _) {
+              return Slider(
+                value: currentZoom.clamp(_minZoom, _maxZoom),
+                min: _minZoom,
+                max: _maxZoom,
+                divisions: 16,
+                activeColor: PremiumColors.luxuryRed,
+                onChanged: (value) {
+                  _setZoom(value);
+                  setSheetState(() {});
+                },
+              );
             },
           ),
           Wrap(
@@ -1617,15 +1615,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
   }
 
-  String get _pageLabel {
-    final pageCount = _pdfViewerController.pageCount;
-    if (pageCount <= 0) return 'Loading';
-    final pageNumber = _pdfViewerController.pageNumber <= 0
-        ? 1
-        : _pdfViewerController.pageNumber;
-    return '$pageNumber / $pageCount';
-  }
-
   void _rememberViewerViewport(Size size) {
     if (!size.width.isFinite ||
         !size.height.isFinite ||
@@ -1635,75 +1624,17 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
     final oldSize = _viewerViewportSize;
     if (oldSize != null &&
-        (oldSize.width - size.width).abs() < 0.5 &&
-        (oldSize.height - size.height).abs() < 0.5) {
+        (oldSize.width - size.width).abs() < 2.0 &&
+        (oldSize.height - size.height).abs() < 2.0) {
       return;
     }
     _viewerViewportSize = size;
-    _scheduleViewModeRefresh(force: true);
-  }
-
-  double? _activePointerDistance() {
-    if (_activePointers.length < 2) return null;
-    final points = _activePointers.values.take(2).toList();
-    return (points[0] - points[1]).distance;
-  }
-
-  void _startExternalPinch() {
-    _pinchStartDistance = _activePointerDistance();
-    _pinchStartZoom = _zoom;
-  }
-
-  void _handleViewerPointerDown(PointerDownEvent event) {
-    _activePointers[event.pointer] = event.localPosition;
-    if (_activePointers.length == 2) {
-      _startExternalPinch();
+    if (_viewMode != 'custom') {
+      _scheduleViewModeRefresh(force: false);
     }
   }
 
-  void _handleViewerPointerMove(PointerMoveEvent event) {
-    if (!_activePointers.containsKey(event.pointer)) return;
-    _activePointers[event.pointer] = event.localPosition;
-    final startDistance = _pinchStartDistance;
-    final currentDistance = _activePointerDistance();
-    if (startDistance == null ||
-        currentDistance == null ||
-        startDistance <= 0 ||
-        currentDistance <= 0) {
-      return;
-    }
-    final targetZoom = _normaliseZoom(
-      _pinchStartZoom * (currentDistance / startDistance),
-    );
-    if (_pinchStartZoom < _syncfusionMinZoom ||
-        targetZoom < _syncfusionMinZoom) {
-      _suppressNextTapToggle = true;
-      _setZoom(
-        _pinchStartZoom < _syncfusionMinZoom
-            ? math.min(targetZoom, _syncfusionMinZoom)
-            : targetZoom,
-      );
-    }
-  }
-
-  void _handleViewerPointerEnd(PointerEvent event) {
-    _activePointers.remove(event.pointer);
-    if (_activePointers.length < 2) {
-      _pinchStartDistance = null;
-    } else {
-      _startExternalPinch();
-    }
-  }
-
-  void _toggleControlsFromTap() {
-    if (_suppressNextTapToggle) {
-      _suppressNextTapToggle = false;
-      return;
-    }
-    setState(() => _showControls = !_showControls);
-  }
-
-  Widget _buildPdfContent() {
+  Widget _buildPdfContent(bool isDark) {
     if (kIsWeb) {
       if (_isLoadingBytes) {
         return const Center(child: CircularProgressIndicator());
@@ -1718,67 +1649,87 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       return const Center(child: Text('Unable to load PDF'));
     }
 
-    if (_password != null) {
-      return SfPdfViewer.file(
-        _pdfFile!,
-        controller: _pdfViewerController,
-        password: _password!,
-        initialZoomLevel: _pdfRenderZoom,
-        maxZoomLevel: _maxZoom,
-        enableTextSelection: true,
-        onHyperlinkClicked: _handleHyperlinkClicked,
-        onDocumentLoaded: _handleDocumentLoaded,
-        onDocumentLoadFailed: _handleDocumentLoadFailed,
-        onZoomLevelChanged: _handlePdfZoomLevelChanged,
-        currentSearchTextHighlightColor: Colors.amber,
-        otherSearchTextHighlightColor: Colors.yellowAccent,
-      );
-    }
+    final surfaceColor = _isNightMode
+        ? const Color(0xFF050505)
+        : (isDark ? PremiumColors.darkBg : const Color(0xFFEFF1F5));
 
-    return SfPdfViewer.file(
-      _pdfFile!,
-      controller: _pdfViewerController,
-      initialZoomLevel: _pdfRenderZoom,
-      maxZoomLevel: _maxZoom,
-      enableTextSelection: true,
-      onHyperlinkClicked: _handleHyperlinkClicked,
-      onDocumentLoaded: _handleDocumentLoaded,
-      onDocumentLoadFailed: _handleDocumentLoadFailed,
-      onZoomLevelChanged: _handlePdfZoomLevelChanged,
-      currentSearchTextHighlightColor: Colors.amber,
-      otherSearchTextHighlightColor: Colors.yellowAccent,
+    final viewer = _password != null
+        ? SfPdfViewer.file(
+            _pdfFile!,
+            key: ValueKey('sf_pdf_${_pdfFile!.path}'),
+            controller: _pdfViewerController,
+            password: _password!,
+            initialZoomLevel: 1.0,
+            maxZoomLevel: _maxZoom,
+            enableDoubleTapZooming: true,
+            enableTextSelection: true,
+            onTap: (_) => setState(() => _showControls = !_showControls),
+            onHyperlinkClicked: _handleHyperlinkClicked,
+            onDocumentLoaded: _handleDocumentLoaded,
+            onDocumentLoadFailed: _handleDocumentLoadFailed,
+            onZoomLevelChanged: _handlePdfZoomLevelChanged,
+            currentSearchTextHighlightColor: Colors.amber,
+            otherSearchTextHighlightColor: Colors.yellowAccent,
+          )
+        : SfPdfViewer.file(
+            _pdfFile!,
+            key: ValueKey('sf_pdf_${_pdfFile!.path}'),
+            controller: _pdfViewerController,
+            initialZoomLevel: 1.0,
+            maxZoomLevel: _maxZoom,
+            enableDoubleTapZooming: true,
+            enableTextSelection: true,
+            onTap: (_) => setState(() => _showControls = !_showControls),
+            onHyperlinkClicked: _handleHyperlinkClicked,
+            onDocumentLoaded: _handleDocumentLoaded,
+            onDocumentLoadFailed: _handleDocumentLoadFailed,
+            onZoomLevelChanged: _handlePdfZoomLevelChanged,
+            currentSearchTextHighlightColor: Colors.amber,
+            otherSearchTextHighlightColor: Colors.yellowAccent,
+          );
+
+    return SfPdfViewerTheme(
+      data: SfPdfViewerThemeData(
+        backgroundColor: surfaceColor,
+      ),
+      child: viewer,
     );
   }
 
-  Widget _buildScaledPdfContent() {
-    final content = _buildPdfContent();
-    final scale = _viewerScale;
-    if (kIsWeb || scale >= _syncfusionMinZoom) {
-      return content;
+  Widget _buildTransformedAndFilteredPdfContent(bool isDark) {
+    Widget content = _buildPdfContent(isDark);
+
+    if (_rotationAngle != 0) {
+      content = Transform.rotate(
+        angle: (_rotationAngle * math.pi) / 180,
+        child: content,
+      );
     }
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        final width = constraints.maxWidth;
-        final height = constraints.maxHeight;
-        if (!width.isFinite || !height.isFinite || width <= 0 || height <= 0) {
-          return content;
-        }
-        return ClipRect(
-          child: Align(
-            alignment: Alignment.topCenter,
-            child: Transform.scale(
-              scale: scale,
-              alignment: Alignment.topCenter,
-              child: SizedBox(
-                width: width / scale,
-                height: height / scale,
-                child: content,
-              ),
-            ),
-          ),
-        );
-      },
-    );
+
+    if (_isNightMode) {
+      final b = _brightness;
+      content = ColorFiltered(
+        colorFilter: ColorFilter.matrix(<double>[
+          -0.85 * b, 0, 0, 0, 235 * b,
+          0, -0.85 * b, 0, 0, 235 * b,
+          0, 0, -0.85 * b, 0, 235 * b,
+          0, 0, 0, 1, 0,
+        ]),
+        child: content,
+      );
+    } else if ((_brightness - 1.0).abs() >= 0.01) {
+      content = ColorFiltered(
+        colorFilter: ColorFilter.matrix(<double>[
+          _brightness, 0, 0, 0, 0,
+          0, _brightness, 0, 0, 0,
+          0, 0, _brightness, 0, 0,
+          0, 0, 0, 1, 0,
+        ]),
+        child: content,
+      );
+    }
+
+    return content;
   }
 
   Widget _buildViewerWorkspace({
@@ -1794,93 +1745,44 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         _rememberViewerViewport(
           Size(constraints.maxWidth, constraints.maxHeight),
         );
-        return GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: _toggleControlsFromTap,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: Listener(
-                  onPointerDown: _handleViewerPointerDown,
-                  onPointerMove: _handleViewerPointerMove,
-                  onPointerUp: _handleViewerPointerEnd,
-                  onPointerCancel: _handleViewerPointerEnd,
-                  child: Container(
-                    color: surfaceColor,
-                    child: ColorFiltered(
-                      colorFilter: ColorFilter.matrix(<double>[
-                        _brightness,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        _brightness,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        _brightness,
-                        0,
-                        0,
-                        0,
-                        0,
-                        0,
-                        1,
-                        0,
-                      ]),
-                      child: Transform.rotate(
-                        angle: (_rotationAngle * math.pi) / 180,
-                        child: _buildScaledPdfContent(),
-                      ),
-                    ),
-                  ),
+        return Stack(
+          children: [
+            Positioned.fill(
+              child: Container(
+                color: surfaceColor,
+                child: _buildTransformedAndFilteredPdfContent(isDark),
+              ),
+            ),
+            if (_viewerError != null) _buildViewerErrorOverlay(),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              top: _showControls ? 12 : -100,
+              left: 12,
+              right: 12,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _showControls ? 1.0 : 0.0,
+                child: _buildViewerStatusBar(
+                  isDark: isDark,
+                  fileName: fileName,
+                  fileSize: fileSize,
                 ),
               ),
-              if (_viewerError != null) _buildViewerErrorOverlay(),
-              if (_showControls)
-                Positioned(
-                  top: 12,
-                  left: 12,
-                  right: 12,
-                  child: _buildViewerStatusBar(
-                    isDark: isDark,
-                    fileName: fileName,
-                    fileSize: fileSize,
-                  ),
-                ),
-              if (_showControls)
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: 0,
-                  child: _buildReaderControls(isDark),
-                ),
-              if (!_showControls)
-                Positioned(
-                  bottom: 18 + MediaQuery.of(context).padding.bottom,
-                  left: 0,
-                  right: 0,
-                  child: Center(
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 16,
-                        vertical: 9,
-                      ),
-                      decoration: BoxDecoration(
-                        color: Colors.black.withValues(alpha: 0.62),
-                        borderRadius: BorderRadius.circular(999),
-                      ),
-                      child: const Text(
-                        'Tap to show controls',
-                        style: TextStyle(color: Colors.white, fontSize: 13),
-                      ),
-                    ),
-                  ),
-                ),
-            ],
-          ),
+            ),
+            AnimatedPositioned(
+              duration: const Duration(milliseconds: 200),
+              curve: Curves.easeOutCubic,
+              bottom: _showControls ? 0 : -120,
+              left: 0,
+              right: 0,
+              child: AnimatedOpacity(
+                duration: const Duration(milliseconds: 200),
+                opacity: _showControls ? 1.0 : 0.0,
+                child: _buildReaderControls(isDark),
+              ),
+            ),
+          ],
         );
       },
     );
@@ -1964,16 +1866,28 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
             ),
             const SizedBox(width: 8),
-            _ReaderStatusChip(
-              icon: Icons.description_outlined,
-              label: _pageLabel,
-              isDark: isDark || _isNightMode,
+            ValueListenableBuilder<int>(
+              valueListenable: _pageNumberNotifier,
+              builder: (context, page, _) {
+                final pageCount = _pageCountNotifier.value;
+                final label = pageCount > 0 ? '$page / $pageCount' : 'Loading';
+                return _ReaderStatusChip(
+                  icon: Icons.description_outlined,
+                  label: label,
+                  isDark: isDark || _isNightMode,
+                );
+              },
             ),
             const SizedBox(width: 6),
-            _ReaderStatusChip(
-              icon: Icons.zoom_in,
-              label: _zoomLabel,
-              isDark: isDark || _isNightMode,
+            ValueListenableBuilder<double>(
+              valueListenable: _zoomNotifier,
+              builder: (context, zoom, _) {
+                return _ReaderStatusChip(
+                  icon: Icons.zoom_in,
+                  label: '${(zoom * 100).round()}%',
+                  isDark: isDark || _isNightMode,
+                );
+              },
             ),
             if (_searchResult.hasResult) ...[
               const SizedBox(width: 6),
@@ -2034,7 +1948,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               label: 'Out',
               onPressed: _zoomOut,
             ),
-            _ZoomReadout(label: _zoomLabel, onTap: _showCustomZoomDialog),
+            ValueListenableBuilder<double>(
+              valueListenable: _zoomNotifier,
+              builder: (context, zoom, _) {
+                return _ZoomReadout(
+                  label: '${(zoom * 100).round()}%',
+                  onTap: _showCustomZoomDialog,
+                );
+              },
+            ),
             _ReaderToolButton(
               icon: Icons.zoom_in,
               label: 'In',

@@ -34,7 +34,7 @@ packages:
     source: hosted
     version: "1.0.4"
   archive:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: archive
       sha256: a96e8b390886ee8abb49b7bd3ac8df6f451c621619f52a26e815fdcf568959ff
@@ -1014,7 +1014,7 @@ packages:
     source: hosted
     version: "1.4.1"
   syncfusion_flutter_core:
-    dependency: transitive
+    dependency: "direct main"
     description:
       name: syncfusion_flutter_core
       sha256: a7cc6eaed797806890de86b208b2094e66f61e278457867677a29b040ed56879

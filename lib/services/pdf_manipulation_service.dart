@@ -51,7 +51,16 @@ class PdfManipulationService {
         debugPrint('[PdfManipulation] Dart merge failed: $e');
       }
       if (Platform.isAndroid) {
-        throw Exception('Unable to merge these PDFs: $dartMergeError');
+        try {
+          final result = await platform.invokeMethod<String>('mergePdfs', {
+            'inputPaths': pdfPaths,
+            'outputPath': outputPath,
+          });
+          if (result != null && result.isNotEmpty) return result;
+        } catch (nativeError) {
+          debugPrint('[PdfManipulation] Native merge failed: $nativeError');
+          throw Exception('Unable to merge these PDFs: $dartMergeError');
+        }
       }
       if (!Platform.isAndroid) {
         final qpdfResult = await _tryMergeWithQpdf(pdfPaths, outputPath);
@@ -192,7 +201,16 @@ class PdfManipulationService {
         debugPrint('[PdfManipulation] Dart split failed: $e');
       }
       if (Platform.isAndroid) {
-        throw Exception('Unable to split this PDF: $dartSplitError');
+        try {
+          final result = await platform.invokeListMethod<String>('splitPdf', {
+            'inputPath': pdfPath,
+            'outputDir': tempDir.path,
+          });
+          if (result != null && result.isNotEmpty) return result;
+        } catch (nativeError) {
+          debugPrint('[PdfManipulation] Native split failed: $nativeError');
+          throw Exception('Unable to split this PDF: $dartSplitError');
+        }
       }
       if (!Platform.isAndroid) {
         final selectedPages = pages != null && pages.isNotEmpty
@@ -290,7 +308,18 @@ class PdfManipulationService {
         debugPrint('[PdfManipulation] Dart split range failed: $e');
       }
       if (Platform.isAndroid) {
-        throw Exception('Unable to split this PDF range: $dartSplitError');
+        try {
+          final result = await platform.invokeMethod<String>('splitPdfRange', {
+            'inputPath': pdfPath,
+            'outputPath': outputPath,
+            'startPage': startPage,
+            'endPage': endPage,
+          });
+          if (result != null && result.isNotEmpty) return result;
+        } catch (nativeError) {
+          debugPrint('[PdfManipulation] Native split range failed: $nativeError');
+          throw Exception('Unable to split this PDF range: $dartSplitError');
+        }
       }
       if (!Platform.isAndroid) {
         final pages = List.generate(

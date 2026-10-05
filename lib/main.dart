@@ -219,7 +219,7 @@ class _SplashAndHomeWrapperState extends State<_SplashAndHomeWrapper> {
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(seconds: 3), () {
+    Future.delayed(const Duration(milliseconds: 1200), () {
       if (mounted) {
         setState(() {
           _showSplash = false;
@@ -246,9 +246,34 @@ class ResponsiveHomeScreen extends StatefulWidget {
 class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
   int _selectedIndex = 0;
   late List<ModernNavigationItem> _navigationItems;
+  late List<ModernNavigationItem> _mobileNavItems;
+
   @override
   void initState() {
     super.initState();
+    _mobileNavItems = [
+      ModernNavigationItem(
+        icon: Icons.home_rounded,
+        label: 'Home',
+        screen: const DashboardHomeScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.menu_book_rounded,
+        label: 'View PDF',
+        screen: const PdfViewerScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.swap_horiz_rounded,
+        label: 'Convert',
+        screen: const ConvertToPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.history_rounded,
+        label: 'History',
+        screen: const HistoryScreen(),
+      ),
+    ];
+
     _navigationItems = [
       ModernNavigationItem(
         icon: Icons.home,
@@ -312,30 +337,27 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
   }
 
   Widget _buildMobileLayout() {
-    final isHome = _selectedIndex == 0;
+    final effectiveIndex = _selectedIndex.clamp(0, _mobileNavItems.length - 1);
     return Scaffold(
-      appBar: isHome
-          ? AppBar(
-              title: Text(_appTitle),
-              elevation: 0,
-              actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
-            )
-          : null,
-      body: _navigationItems[_selectedIndex].screen,
+      body: IndexedStack(
+        index: effectiveIndex,
+        children: _mobileNavItems.map((item) => item.screen).toList(),
+      ),
       bottomNavigationBar: ModernBottomNavigation(
-        selectedIndex: _selectedIndex,
+        selectedIndex: effectiveIndex,
         onIndexChanged: (index) => setState(() => _selectedIndex = index),
-        items: _navigationItems,
+        items: _mobileNavItems,
       ),
     );
   }
 
   Widget _buildTabletLayout() {
+    final effectiveIndex = _selectedIndex.clamp(0, _navigationItems.length - 1);
     return Scaffold(
       body: Row(
         children: [
           ModernNavigationRail(
-            selectedIndex: _selectedIndex,
+            selectedIndex: effectiveIndex,
             onIndexChanged: (index) => setState(() => _selectedIndex = index),
             items: _navigationItems,
             header: Column(
@@ -358,18 +380,24 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
             ),
             footer: ThemeSwitcher(compact: true),
           ),
-          Expanded(child: _navigationItems[_selectedIndex].screen),
+          Expanded(
+            child: IndexedStack(
+              index: effectiveIndex,
+              children: _navigationItems.map((item) => item.screen).toList(),
+            ),
+          ),
         ],
       ),
     );
   }
 
   Widget _buildDesktopLayout() {
+    final effectiveIndex = _selectedIndex.clamp(0, _navigationItems.length - 1);
     return Scaffold(
       body: Row(
         children: [
           ModernNavigationRail(
-            selectedIndex: _selectedIndex,
+            selectedIndex: effectiveIndex,
             onIndexChanged: (index) => setState(() => _selectedIndex = index),
             items: _navigationItems,
             header: Column(
@@ -395,7 +423,12 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
             ),
             footer: ThemeSwitcher(compact: true),
           ),
-          Expanded(child: _navigationItems[_selectedIndex].screen),
+          Expanded(
+            child: IndexedStack(
+              index: effectiveIndex,
+              children: _navigationItems.map((item) => item.screen).toList(),
+            ),
+          ),
         ],
       ),
     );

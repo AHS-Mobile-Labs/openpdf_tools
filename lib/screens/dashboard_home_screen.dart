@@ -53,36 +53,29 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           ? const Color(0xFF0F0F0F)
           : const Color(0xFFFAFAFA),
       body: SafeArea(
-        child: Column(
-          children: [
-            Expanded(
-              child: SingleChildScrollView(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              _buildHeader(isDark, isMobile),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
-                    _buildHeader(isDark, isMobile),
-                    Padding(
-                      padding: const EdgeInsets.symmetric(horizontal: 16),
-                      child: Column(
-                        children: [
-                          const SizedBox(height: 16),
-                          _buildQuickActions(context, isDark),
-                          const SizedBox(height: 20),
-                          _buildFeatures(context, isDark, isDesktop),
-                          const SizedBox(height: 20),
-                          _buildTips(isDark),
-                          const SizedBox(height: 16),
-                        ],
-                      ),
-                    ),
+                    const SizedBox(height: 16),
+                    _buildQuickActions(context, isDark),
+                    const SizedBox(height: 20),
+                    _buildFeatures(context, isDark, isDesktop),
+                    const SizedBox(height: 20),
+                    _buildTips(isDark),
+                    const SizedBox(height: 20),
+                    _buildFooter(isDark),
+                    const SizedBox(height: 24),
                   ],
                 ),
               ),
-            ),
-            Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 16),
-              child: _buildFooter(isDark),
-            ),
-          ],
+            ],
+          ),
         ),
       ),
     );
@@ -321,26 +314,42 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
             context,
             MaterialPageRoute(builder: (_) => screen),
           ),
-          borderRadius: BorderRadius.circular(10),
+          borderRadius: BorderRadius.circular(12),
           child: Container(
             padding: const EdgeInsets.symmetric(vertical: 12),
             decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(10),
+              borderRadius: BorderRadius.circular(12),
               color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
               border: Border.all(
                 color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
               ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
             ),
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(icon, size: 20, color: color),
-                const SizedBox(height: 5),
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: 0.12),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
+                ),
+                const SizedBox(height: 6),
                 Text(
                   label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                   style: TextStyle(
                     fontSize: 11,
-                    fontWeight: FontWeight.w500,
+                    fontWeight: FontWeight.w600,
                     color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
@@ -471,9 +480,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             crossAxisCount: 2,
-            childAspectRatio: 1.35,
-            mainAxisSpacing: 8,
-            crossAxisSpacing: 8,
+            childAspectRatio: 1.18,
+            mainAxisSpacing: 10,
+            crossAxisSpacing: 10,
             children: features
                 .map((f) => _buildFeatureMobile(context, f, isDark))
                 .toList(),
@@ -494,15 +503,22 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           context,
           MaterialPageRoute(builder: (_) => feature.screen),
         ),
-        borderRadius: BorderRadius.circular(10),
+        borderRadius: BorderRadius.circular(14),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
+            borderRadius: BorderRadius.circular(14),
             color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
             border: Border.all(
-              color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
+              color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade200,
             ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
           ),
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
@@ -510,29 +526,32 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               Container(
                 padding: const EdgeInsets.all(10),
                 decoration: BoxDecoration(
-                  color: feature.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(10),
+                  color: feature.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
                 ),
-                child: Icon(feature.icon, size: 22, color: feature.color),
+                child: Icon(feature.icon, size: 24, color: feature.color),
               ),
-              const SizedBox(height: 7),
+              const SizedBox(height: 8),
               Text(
                 feature.title,
                 textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 12,
+                  fontSize: 13,
                   fontWeight: FontWeight.w600,
                   color: isDark ? Colors.white : Colors.black87,
                 ),
               ),
-              const SizedBox(height: 2),
+              const SizedBox(height: 3),
               Text(
                 feature.description,
                 textAlign: TextAlign.center,
                 maxLines: 2,
                 overflow: TextOverflow.ellipsis,
                 style: TextStyle(
-                  fontSize: 10,
+                  fontSize: 10.5,
+                  height: 1.25,
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                 ),
               ),

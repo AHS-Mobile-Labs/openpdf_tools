@@ -1,7 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
@@ -11,6 +10,8 @@ import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_lib;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:openpdf_tools/services/format_conversion_service.dart';
+import 'package:archive/archive.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 import 'pdf_viewer_screen.dart';
 
@@ -24,7 +25,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   bool _isProcessing = false;
   String? _selectedPdfPath;
   String? _selectedFormat;
-  static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
   static const List<ConversionFormat> conversionFormats = [
     ConversionFormat(
       name: 'PDF to Word',
@@ -299,11 +299,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       _isProcessing = true;
       _selectedFormat = format.format;
     });
-    if (kIsWeb) {
-      _showWebConversionDialog(format);
-      setState(() => _isProcessing = false);
-      return;
-    }
     try {
       final fileName = OutputPathHelper.outputFileName(
         sourcePath: _selectedPdfPath!,
@@ -385,319 +380,110 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     ConversionFormat format,
     String outputPath,
   ) async {
+    final pdfBytes = await File(_selectedPdfPath!).readAsBytes();
+    final outFile = File(outputPath);
+    final outDir = outFile.parent;
+    if (!await outDir.exists()) await outDir.create(recursive: true);
+
     switch (format.format) {
       case 'Text':
-        await _convertToText(outputPath);
+        final text = FormatConversionService.extractFullText(pdfBytes);
+        await outFile.writeAsString(text.isNotEmpty ? text : 'No text content found in PDF.');
         break;
-      case 'Images':
-      case 'JPG':
-      case 'PNG':
-        await _convertToImages(format, outputPath);
-        break;
-      case 'SVG':
-        await _convertToSvg(outputPath);
-        break;
+
       case 'Word':
       case 'DOCX':
+        final docxBytes = FormatConversionService.pdfToDocx(pdfBytes);
+        await outFile.writeAsBytes(docxBytes);
+        break;
+
       case 'PowerPoint':
       case 'PPTX':
+        final pptxBytes = FormatConversionService.pdfToPptx(pdfBytes);
+        await outFile.writeAsBytes(pptxBytes);
+        break;
+
       case 'Excel':
       case 'XLSX':
+        final xlsxBytes = FormatConversionService.pdfToXlsx(pdfBytes);
+        await outFile.writeAsBytes(xlsxBytes);
+        break;
+
       case 'ODT':
+        final odtBytes = FormatConversionService.pdfToOdt(pdfBytes);
+        await outFile.writeAsBytes(odtBytes);
+        break;
+
       case 'ODS':
+        final odsBytes = FormatConversionService.pdfToOds(pdfBytes);
+        await outFile.writeAsBytes(odsBytes);
+        break;
+
       case 'ODP':
+        final odpBytes = FormatConversionService.pdfToOdp(pdfBytes);
+        await outFile.writeAsBytes(odpBytes);
+        break;
+
       case 'HTML':
+        final html = FormatConversionService.pdfToHtml(
+          pdfBytes,
+          title: path_lib.basenameWithoutExtension(_selectedPdfPath!),
+        );
+        await outFile.writeAsString(html);
+        break;
+
       case 'RTF':
+        final rtf = FormatConversionService.pdfToRtf(pdfBytes);
+        await outFile.writeAsString(rtf);
+        break;
+
       case 'EPUB':
-        await _convertUsingLibreOffice(format, outputPath);
+        final epubBytes = FormatConversionService.pdfToEpub(
+          pdfBytes,
+          title: path_lib.basenameWithoutExtension(_selectedPdfPath!),
+        );
+        await outFile.writeAsBytes(epubBytes);
         break;
+
+      case 'SVG':
+        final svg = FormatConversionService.pdfToSvg(pdfBytes);
+        await outFile.writeAsString(svg);
+        break;
+
+      case 'Images':
+        final images = await FormatConversionService.renderPdfToImages(pdfBytes, format: 'png');
+        if (images.isEmpty) throw Exception('No images could be extracted from PDF');
+        final archive = Archive();
+        for (int i = 0; i < images.length; i++) {
+          archive.addFile(ArchiveFile('page_${i + 1}.png', images[i].length, images[i]));
+        }
+        final zipBytes = ZipEncoder().encode(archive);
+        await outFile.writeAsBytes(zipBytes);
+        break;
+
+      case 'JPG':
+      case 'PNG':
+        final images = await FormatConversionService.renderPdfToImages(
+          pdfBytes,
+          format: format.format.toLowerCase(),
+        );
+        if (images.isEmpty) throw Exception('No images could be generated from PDF');
+        await outFile.writeAsBytes(images.first);
+        break;
+
       case 'SecurePDF':
-        await _convertToSecurePdf(outputPath);
+        final secBytes = FormatConversionService.encryptPdf(pdfBytes);
+        await outFile.writeAsBytes(secBytes);
         break;
+
       case 'PDF/A':
-        await _convertToPdfA(outputPath);
+        final pdfABytes = FormatConversionService.createPdfA(pdfBytes);
+        await outFile.writeAsBytes(pdfABytes);
         break;
+
       default:
         throw Exception('Unsupported format: ${format.format}');
     }
-  }
-
-  Future<void> _convertToText(String outputPath) async {
-    final outDir = File(outputPath).parent;
-    if (!await outDir.exists()) await outDir.create(recursive: true);
-
-    if (Platform.isAndroid) {
-      final result = await platform.invokeMethod<String>('extractText', {
-        'inputPath': _selectedPdfPath!,
-        'outputPath': outputPath,
-      });
-      if (result == null || result.isEmpty) {
-        throw Exception('Text extraction failed');
-      }
-    } else {
-      final result = await Process.run('pdftotext', [
-        _selectedPdfPath!,
-        outputPath,
-      ]);
-      if (result.exitCode != 0) {
-        throw Exception('Text conversion failed: ${result.stderr}');
-      }
-    }
-  }
-
-  Future<void> _convertToImages(
-    ConversionFormat format,
-    String outputPath,
-  ) async {
-    final tempDir = await getTemporaryDirectory();
-    final imageDir =
-        '${tempDir.path}/pdf_images_${DateTime.now().millisecondsSinceEpoch}';
-    await Directory(imageDir).create(recursive: true);
-    try {
-      String imageFormat = '';
-      switch (format.format) {
-        case 'JPG':
-          imageFormat = 'jpg';
-          break;
-        case 'PNG':
-          imageFormat = 'png';
-          break;
-        case 'SVG':
-          imageFormat = 'svg';
-          break;
-        default:
-          imageFormat = 'png';
-      }
-      if (Platform.isAndroid) {
-        final result = await platform.invokeMethod('pdfToImages', {
-          'inputPath': _selectedPdfPath!,
-          'outputDir': imageDir,
-          'format': imageFormat,
-          'quality': 150,
-        });
-
-        // Safely cast — pdfToImages returns List<dynamic>
-        if (result == null) throw Exception('pdfToImages returned null');
-        final paths = (result as List).cast<String>();
-        if (paths.isEmpty) throw Exception('No images generated');
-      } else {
-        final result = await Process.run('pdftoppm', [
-          '-$imageFormat',
-          '-r',
-          '150',
-          _selectedPdfPath!,
-          '$imageDir/page',
-        ]);
-        if (result.exitCode != 0) {
-          throw Exception('Image conversion failed: ${result.stderr}');
-        }
-      }
-      if (format.format == 'Images') {
-        if (Platform.isAndroid) {
-          try {
-            await platform.invokeMethod<String>('zipDirectory', {
-              'inputDir': imageDir,
-              'outputPath': outputPath,
-            });
-          } catch (e) {
-            throw Exception('Zip creation failed: $e');
-          }
-        } else {
-          final zipResult = await Process.run('zip', [
-            '-r',
-            outputPath,
-            imageDir,
-          ]);
-          if (zipResult.exitCode != 0) {
-            throw Exception('Zip creation failed: ${zipResult.stderr}');
-          }
-        }
-      } else {
-        final imageFiles =
-            Directory(imageDir).listSync().whereType<File>().toList()
-              ..sort((a, b) => a.path.compareTo(b.path));
-        if (imageFiles.isNotEmpty) {
-          await imageFiles.first.copy(outputPath);
-        } else {
-          throw Exception('No images were generated from the PDF');
-        }
-      }
-    } finally {
-      try {
-        if (await Directory(imageDir).exists()) {
-          await Directory(imageDir).delete(recursive: true);
-        }
-      } catch (_) {}
-    }
-  }
-
-  Future<void> _convertUsingLibreOffice(
-    ConversionFormat format,
-    String outputPath,
-  ) async {
-    if (Platform.isAndroid) {
-      throw Exception(
-        'PDF to ${format.format} requires LibreOffice or another desktop conversion engine. '
-        'This format is not available on Android yet.',
-      );
-    }
-    final outDir = Directory(outputPath).parent.path;
-    if (!await Directory(outDir).exists()) {
-      await Directory(outDir).create(recursive: true);
-    }
-    final outFileName = path_lib
-        .basename(_selectedPdfPath!)
-        .replaceAll(RegExp(r'\.[^.]*$'), '');
-    final formatMap = {
-      'Word': 'docx',
-      'DOCX': 'docx',
-      'PowerPoint': 'pptx',
-      'PPTX': 'pptx',
-      'Excel': 'xlsx',
-      'XLSX': 'xlsx',
-      'ODT': 'odt',
-      'ODS': 'ods',
-      'ODP': 'odp',
-      'HTML': 'html',
-      'RTF': 'rtf',
-      'EPUB': 'epub',
-    };
-    final outFormat = formatMap[format.format] ?? format.fileExtension;
-    try {
-      final result = await Process.run('libreoffice', [
-        '--headless',
-        '--convert-to',
-        outFormat,
-        '--outdir',
-        outDir,
-        _selectedPdfPath!,
-      ]);
-      if (result.exitCode != 0) {
-        throw Exception('LibreOffice conversion failed: ${result.stderr}');
-      }
-      final generatedFile = File('$outDir/$outFileName.$outFormat');
-      if (await generatedFile.exists()) {
-        await generatedFile.rename(outputPath);
-      }
-    } catch (e) {
-      try {
-        if (await File(outputPath).exists()) {
-          await File(outputPath).delete();
-        }
-      } catch (_) {}
-      rethrow;
-    }
-  }
-
-  Future<void> _convertToSvg(String outputPath) async {
-    if (Platform.isAndroid || Platform.isIOS) {
-      throw Exception(
-        'PDF to SVG requires a desktop tool such as poppler/pdftocairo.',
-      );
-    }
-    final outDir = File(outputPath).parent;
-    if (!await outDir.exists()) {
-      await outDir.create(recursive: true);
-    }
-    final result = await Process.run('pdftocairo', [
-      '-svg',
-      _selectedPdfPath!,
-      outputPath,
-    ]);
-    if (result.exitCode != 0) {
-      throw Exception(
-        'SVG conversion failed. Install poppler-utils/pdftocairo and try again. ${result.stderr}',
-      );
-    }
-  }
-
-  Future<void> _convertToSecurePdf(String outputPath) async {
-    final outDir = File(outputPath).parent;
-    if (!await outDir.exists()) {
-      await outDir.create(recursive: true);
-    }
-    if (Platform.isAndroid) {
-      try {
-        final result = await platform.invokeMethod<String>('encryptPdf', {
-          'inputPath': _selectedPdfPath!,
-          'outputPath': outputPath,
-          'userPassword': 'user',
-          'ownerPassword': 'owner',
-        });
-        if (result == null || result.isEmpty) {
-          throw Exception('Failed to create secure PDF');
-        }
-      } catch (e) {
-        throw Exception('Secure PDF creation failed: $e');
-      }
-    } else {
-      final result = await Process.run('qpdf', [
-        '--encrypt',
-        'userpassword',
-        'ownerpassword',
-        '256',
-        '--',
-        _selectedPdfPath!,
-        outputPath,
-      ]);
-      if (result.exitCode != 0) {
-        throw Exception('Secure PDF creation failed: ${result.stderr}');
-      }
-    }
-  }
-
-  Future<void> _convertToPdfA(String outputPath) async {
-    final outDir = File(outputPath).parent;
-    if (!await outDir.exists()) {
-      await outDir.create(recursive: true);
-    }
-    if (Platform.isAndroid) {
-      try {
-        final result = await platform.invokeMethod<String>('createPdfA', {
-          'inputPath': _selectedPdfPath!,
-          'outputPath': outputPath,
-        });
-        if (result == null || result.isEmpty) {
-          throw Exception('Failed to create PDF/A');
-        }
-      } catch (e) {
-        throw Exception('PDF/A conversion failed: $e');
-      }
-    } else {
-      final result = await Process.run('gs', [
-        '-sDEVICE=pdfwrite',
-        '-dPDFA=1',
-        '-sOutputFile=$outputPath',
-        '-f',
-        _selectedPdfPath!,
-      ]);
-      if (result.exitCode != 0) {
-        throw Exception('PDF/A conversion failed: ${result.stderr}');
-      }
-    }
-  }
-
-  void _showWebConversionDialog(ConversionFormat format) {
-    showDialog(
-      context: context,
-      builder: (ctx) => AlertDialog(
-        title: Text('${format.format} Conversion'),
-        content: Text(
-          'PDF to ${format.format} conversion requires a desktop application or online service.\n\n'
-          'Recommended online converters:\n'
-          '• CloudConvert.com\n'
-          '• Zamzar.com\n'
-          '• AnyConv.com\n\n'
-          'Or use LibreOffice on Windows/macOS/Linux.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(ctx),
-            child: const Text('Cancel'),
-          ),
-        ],
-      ),
-    );
   }
 
   @override
