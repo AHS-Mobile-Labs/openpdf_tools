@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <!--
+    If you are serving your web app in a path other than the root, change the
+    href value below to reflect the base path you are serving from.
+
+    The path provided below has to start and end with a slash "/" in order for
+    it to work correctly.
+
+    For more details:
+    * https://developer.mozilla.org/en-US/docs/Web/HTML/Element/base
+
+    This is a placeholder for base href that will be replaced by the value of
+    the `--base-href` argument provided to `flutter build`.
+  -->
+  <base href="/openpdf_tools/">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="OpenPDF Tools - High-performance offline and web PDF tools suite.">
+
+  <!-- iOS meta tags & icons -->
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="OpenPDF Tools">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+
+  <!-- Favicon -->
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>OpenPDF Tools</title>
+  <link rel="manifest" href="manifest.json">
+
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+
+  <!-- PDF.js for custom PDF viewer -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+  <script>
+    // Set the worker source for PDF.js
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  </script>
+
+  <style>
+    body {
+      margin: 0;
+      padding: 0;
+      background-color: #0f172a;
+      color: #ffffff;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      overflow: hidden;
+    }
+
+    #loading-container {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100vw;
+      height: 100vh;
+      display: flex;
+      flex-direction: column;
+      justify-content: center;
+      align-items: center;
+      background: radial-gradient(circle at center, #1e293b 0%, #0f172a 100%);
+      z-index: 999999;
+      transition: opacity 0.4s ease-out;
+    }
+
+    .loading-logo {
+      width: 80px;
+      height: 80px;
+      margin-bottom: 24px;
+      border-radius: 18px;
+      box-shadow: 0 10px 25px rgba(0, 0, 0, 0.4);
+    }
+
+    .loading-spinner {
+      width: 36px;
+      height: 36px;
+      border: 3.5px solid rgba(255, 255, 255, 0.15);
+      border-top-color: #3b82f6;
+      border-radius: 50%;
+      animation: spin 0.8s linear infinite;
+      margin-bottom: 16px;
+    }
+
+    .loading-title {
+      font-size: 1.25rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin-bottom: 6px;
+    }
+
+    .loading-sub {
+      font-size: 0.875rem;
+      color: #94a3b8;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+  </style>
+</head>
+<body>
+  <div id="loading-container">
+    <img src="icons/Icon-192.png" alt="OpenPDF Tools Logo" class="loading-logo" onerror="this.style.display='none'">
+    <div class="loading-spinner"></div>
+    <div class="loading-title">OpenPDF Tools</div>
+    <div class="loading-sub">Loading PDF suite...</div>
+  </div>
+
+  <script>
+    function removeLoader() {
+      var loader = document.getElementById('loading-container');
+      if (loader && !loader.classList.contains('hidden')) {
+        loader.classList.add('hidden');
+        loader.style.opacity = '0';
+        setTimeout(function() {
+          if (loader.parentNode) loader.parentNode.removeChild(loader);
+        }, 450);
+      }
+    }
+
+    window.addEventListener('flutter-first-frame', removeLoader);
+
+    var observer = new MutationObserver(function(mutations, obs) {
+      if (document.querySelector('flutter-view') || document.querySelector('flt-glass-pane')) {
+        removeLoader();
+        obs.disconnect();
+      }
+    });
+    observer.observe(document.body, { childList: true, subtree: true });
+
+    setTimeout(removeLoader, 15000);
+  </script>
+
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
