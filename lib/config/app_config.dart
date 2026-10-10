@@ -6,9 +6,9 @@ class AppConfig {
   static const String appVersion = '1.0.0';
   static const String githubUrl =
       'https://github.com/AHS-Mobile-Labs/openpdf_tools';
-  static const Color primaryColor = Color(0xFFC6302C);
-  static const Color darkRedColor = Color(0xFF9A0000);
-  static const Color accentColor = Color(0xFFFFB81C);
+  static const Color primaryColor = Color(0xFFE1251B);
+  static const Color darkRedColor = Color(0xFFB71C1C);
+  static const Color accentColor = Color(0xFF1473E6);
   static const double mobileMaxWidth = 600;
   static const double tabletMaxWidth = 1200;
   static const double fontSizeSmall = 12;

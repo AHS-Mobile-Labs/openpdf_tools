@@ -1,7 +1,7 @@
 import 'dart:io';
 import 'dart:math' as math;
-import 'dart:typed_data';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
@@ -215,16 +215,21 @@ class _ReaderStatusChip extends StatelessWidget {
   final IconData icon;
   final String label;
   final bool isDark;
+  final bool isCompact;
   const _ReaderStatusChip({
     required this.icon,
     required this.label,
     required this.isDark,
+    this.isCompact = false,
   });
 
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 9, vertical: 7),
+      padding: EdgeInsets.symmetric(
+        horizontal: isCompact ? 7 : 9,
+        vertical: isCompact ? 4 : 7,
+      ),
       decoration: BoxDecoration(
         color: isDark
             ? Colors.white.withValues(alpha: 0.10)
@@ -237,12 +242,15 @@ class _ReaderStatusChip extends StatelessWidget {
           Icon(
             icon,
             color: isDark ? Colors.white70 : PremiumColors.lightTextSecondary,
-            size: 15,
+            size: isCompact ? 13 : 15,
           ),
-          const SizedBox(width: 5),
+          SizedBox(width: isCompact ? 4 : 5),
           Text(
             label,
-            style: PremiumTypography.labelSmall.copyWith(
+            style: (isCompact
+                    ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
+                    : PremiumTypography.labelSmall)
+                .copyWith(
               color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
             ),
           ),
@@ -255,11 +263,13 @@ class _ReaderStatusChip extends StatelessWidget {
 class _ReaderToolButton extends StatelessWidget {
   final IconData icon;
   final String label;
-  final VoidCallback onPressed;
+  final VoidCallback? onPressed;
+  final bool isMobile;
   const _ReaderToolButton({
     required this.icon,
     required this.label,
     required this.onPressed,
+    this.isMobile = false,
   });
 
   @override
@@ -270,8 +280,11 @@ class _ReaderToolButton extends StatelessWidget {
         onPressed: onPressed,
         style: TextButton.styleFrom(
           foregroundColor: Colors.white,
-          minimumSize: const Size(54, 46),
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+          minimumSize: Size(isMobile ? 48 : 54, isMobile ? 40 : 46),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 6 : 10,
+            vertical: isMobile ? 4 : 6,
+          ),
           shape: RoundedRectangleBorder(
             borderRadius: BorderRadius.circular(12),
           ),
@@ -279,13 +292,16 @@ class _ReaderToolButton extends StatelessWidget {
         child: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            Icon(icon, size: 20, color: Colors.white),
+            Icon(icon, size: isMobile ? 18 : 20, color: Colors.white),
             const SizedBox(height: 2),
             Text(
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: PremiumTypography.labelSmall.copyWith(
+              style: (isMobile
+                      ? PremiumTypography.labelSmall.copyWith(fontSize: 10)
+                      : PremiumTypography.labelSmall)
+                  .copyWith(
                 color: Colors.white70,
               ),
             ),
@@ -299,20 +315,31 @@ class _ReaderToolButton extends StatelessWidget {
 class _ZoomReadout extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
-  const _ZoomReadout({required this.label, this.onTap});
+  final bool isMobile;
+  const _ZoomReadout({
+    required this.label,
+    this.onTap,
+    this.isMobile = false,
+  });
 
   @override
   Widget build(BuildContext context) {
     final child = Container(
-      margin: const EdgeInsets.symmetric(horizontal: 4),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+      margin: EdgeInsets.symmetric(horizontal: isMobile ? 2 : 4),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 8 : 12,
+        vertical: isMobile ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.12),
         borderRadius: BorderRadius.circular(999),
       ),
       child: Text(
         label,
-        style: PremiumTypography.labelSmall.copyWith(color: Colors.white),
+        style: (isMobile
+                ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
+                : PremiumTypography.labelSmall)
+            .copyWith(color: Colors.white),
       ),
     );
     if (onTap == null) {
@@ -330,14 +357,15 @@ class _ZoomReadout extends StatelessWidget {
 }
 
 class _ToolbarDivider extends StatelessWidget {
-  const _ToolbarDivider();
+  final bool isMobile;
+  const _ToolbarDivider({this.isMobile = false});
 
   @override
   Widget build(BuildContext context) {
     return Container(
       width: 1,
-      height: 34,
-      margin: const EdgeInsets.symmetric(horizontal: 6),
+      height: isMobile ? 26 : 34,
+      margin: EdgeInsets.symmetric(horizontal: isMobile ? 4 : 6),
       color: Colors.white.withValues(alpha: 0.14),
     );
   }
@@ -401,10 +429,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   bool _isNightMode = false;
   int _rotationAngle = 0;
   String _viewMode = 'fit';
+  PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.single;
+  bool _isPasswordProtected = false;
+  bool _isDocumentLoaded = false;
   String? _webFileName;
   int? _webFileSize;
   String? _viewerError;
-  List<Size> _pageSizes = <Size>[];
   Size? _viewerViewportSize;
   bool _isApplyingControllerZoom = false;
   int _lastPageNumber = 0;
@@ -431,6 +461,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     if ((controllerZoom - _zoomNotifier.value).abs() > 0.01) {
       _zoom = controllerZoom;
       _zoomNotifier.value = controllerZoom;
+      _viewMode = 'custom';
     }
   }
 
@@ -525,8 +556,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     _brightness = 1.0;
     _isNightMode = false;
     _viewMode = 'fit';
+    _pageLayoutMode = PdfPageLayoutMode.single;
+    _isPasswordProtected = false;
+    _isDocumentLoaded = false;
+    _password = null;
     _viewerError = null;
-    _pageSizes = <Size>[];
     _lastPageNumber = 0;
   }
 
@@ -976,18 +1010,15 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _handleDocumentLoaded(PdfDocumentLoadedDetails details) {
-    final pages = details.document.pages;
-    final pageSizes = <Size>[];
-    for (var index = 0; index < pages.count; index++) {
-      pageSizes.add(pages[index].size);
-    }
     if (!mounted) return;
-    _pageCountNotifier.value = pages.count;
+    final pageCount = details.document.pages.count;
+    _pageCountNotifier.value = pageCount;
     _pageNumberNotifier.value =
         _pdfViewerController.pageNumber > 0 ? _pdfViewerController.pageNumber : 1;
     setState(() {
       _viewerError = null;
-      _pageSizes = pageSizes;
+      _isPasswordProtected = false;
+      _isDocumentLoaded = true;
       _lastPageNumber = _pdfViewerController.pageNumber;
     });
     _scheduleViewModeRefresh(force: true);
@@ -999,9 +1030,30 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         : details.error;
     debugPrint('[PdfViewer] Document load failed: ${details.error} $message');
     if (!mounted) return;
+
+    final isPasswordError = details.error.toLowerCase().contains('password') ||
+        details.description.toLowerCase().contains('password');
+    if (isPasswordError) {
+      final isInvalid = details.error.toLowerCase().contains('invalid') ||
+          details.description.toLowerCase().contains('invalid');
+      setState(() {
+        _isPasswordProtected = true;
+      });
+      if (isInvalid) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Incorrect password. Please try again.'),
+            backgroundColor: PremiumColors.brandRed,
+            duration: Duration(seconds: 3),
+          ),
+        );
+      }
+      return;
+    }
+
     setState(() {
       _viewerError = message.isEmpty
-          ? 'Unable to load this PDF. It may be corrupt or password protected.'
+          ? 'Unable to load this PDF. It may be corrupt or unreadable.'
           : message;
     });
     ScaffoldMessenger.of(context).showSnackBar(
@@ -1014,50 +1066,43 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     final controllerZoom = _normaliseZoom(details.newZoomLevel);
     _zoom = controllerZoom;
     _zoomNotifier.value = controllerZoom;
-  }
-
-  Size? get _activePageSize {
-    if (_pageSizes.isEmpty) return null;
-    final pageNumber = _pdfViewerController.pageNumber <= 0
-        ? 1
-        : _pdfViewerController.pageNumber;
-    final index = (pageNumber - 1).clamp(0, _pageSizes.length - 1).toInt();
-    final pageSize = _pageSizes[index];
-    if (_rotationAngle % 180 == 0) {
-      return pageSize;
-    }
-    return Size(pageSize.height, pageSize.width);
+    _viewMode = 'custom';
   }
 
   double? _zoomForViewMode(String mode) {
-    final viewport = _viewerViewportSize;
-    final pageSize = _activePageSize;
-    if (viewport == null ||
-        pageSize == null ||
-        viewport.width <= 0 ||
-        viewport.height <= 0 ||
-        pageSize.width <= 0 ||
-        pageSize.height <= 0) {
-      return null;
-    }
-    final availableWidth = math.max(1.0, viewport.width - 24);
-    final availableHeight = math.max(1.0, viewport.height - 32);
-    switch (mode) {
-      case 'width':
-        return _normaliseZoom(availableWidth / pageSize.width);
-      case 'height':
-        return _normaliseZoom(availableHeight / pageSize.height);
-      default:
-        return _normaliseZoom(
-          math.min(
-            availableWidth / pageSize.width,
-            availableHeight / pageSize.height,
-          ),
-        );
-    }
+    return 1.0;
   }
 
   void _setViewMode(String mode) {
+    if (mode == 'fit') {
+      setState(() {
+        _pageLayoutMode = PdfPageLayoutMode.single;
+        _viewMode = 'fit';
+      });
+      _setZoom(1.0, viewMode: 'fit');
+      return;
+    } else if (mode == 'continuous') {
+      setState(() {
+        _pageLayoutMode = PdfPageLayoutMode.continuous;
+        _viewMode = 'continuous';
+      });
+      _setZoom(1.0, viewMode: 'continuous');
+      return;
+    } else if (mode == 'width') {
+      setState(() {
+        _pageLayoutMode = PdfPageLayoutMode.continuous;
+        _viewMode = 'width';
+      });
+      _setZoom(1.0, viewMode: 'width');
+      return;
+    } else if (mode == 'height') {
+      setState(() {
+        _pageLayoutMode = PdfPageLayoutMode.single;
+        _viewMode = 'height';
+      });
+      _setZoom(1.0, viewMode: 'height');
+      return;
+    }
     final targetZoom = _zoomForViewMode(mode) ?? 1.0;
     _setZoom(targetZoom, viewMode: mode);
   }
@@ -1066,8 +1111,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     if (!force && _viewMode == 'custom') return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted || _viewMode == 'custom') return;
+      if (_viewMode == 'fit') {
+        _setZoom(1.0, viewMode: 'fit');
+        return;
+      }
       final targetZoom = _zoomForViewMode(_viewMode);
-      if (targetZoom == null || (targetZoom - _zoom).abs() <= 0.005) return;
+      if (targetZoom == null || (targetZoom - _zoom).abs() <= 0.01) return;
       _setZoom(targetZoom, viewMode: _viewMode);
     });
   }
@@ -1130,6 +1179,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   void _showViewModeMenu() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -1141,7 +1191,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ),
       builder: (_) => SafeArea(
         child: Padding(
-          padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
+          padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
           child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -1152,33 +1202,33 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
               const SizedBox(height: 10),
               _ViewModeTile(
-                icon: Icons.image_outlined,
-                title: 'Fit Page',
-                subtitle: 'Show the full page in the viewport.',
-                selected: _viewMode == 'fit',
+                icon: Icons.fit_screen,
+                title: 'Fit Page (Single)',
+                subtitle: 'Show one full page fitted to screen with no scrolling required.',
+                selected: _pageLayoutMode == PdfPageLayoutMode.single,
                 onTap: () {
                   Navigator.pop(context);
                   _setViewMode('fit');
                 },
               ),
               _ViewModeTile(
-                icon: Icons.aspect_ratio,
-                title: 'Fit Width',
-                subtitle: 'Make text wider and easier to scan.',
-                selected: _viewMode == 'width',
+                icon: Icons.view_stream_outlined,
+                title: 'Continuous Scroll',
+                subtitle: 'Scroll continuously vertically across all pages.',
+                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode != 'width',
                 onTap: () {
                   Navigator.pop(context);
-                  _setViewMode('width');
+                  _setViewMode('continuous');
                 },
               ),
               _ViewModeTile(
-                icon: Icons.height,
-                title: 'Fit Height',
-                subtitle: 'Keep page height visible when reviewing layouts.',
-                selected: _viewMode == 'height',
+                icon: Icons.aspect_ratio,
+                title: 'Fit Width',
+                subtitle: 'Expand document width to fill the reading viewport.',
+                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode == 'width',
                 onTap: () {
                   Navigator.pop(context);
-                  _setViewMode('height');
+                  _setViewMode('width');
                 },
               ),
             ],
@@ -1300,25 +1350,25 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             children: [
               ChoiceChip(
                 label: const Text('Fit Page'),
-                selected: _viewMode == 'fit',
+                selected: _pageLayoutMode == PdfPageLayoutMode.single,
                 onSelected: (_) {
                   _setViewMode('fit');
                   setSheetState(() {});
                 },
               ),
               ChoiceChip(
-                label: const Text('Fit Width'),
-                selected: _viewMode == 'width',
+                label: const Text('Continuous'),
+                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode != 'width',
                 onSelected: (_) {
-                  _setViewMode('width');
+                  _setViewMode('continuous');
                   setSheetState(() {});
                 },
               ),
               ChoiceChip(
-                label: const Text('Fit Height'),
-                selected: _viewMode == 'height',
+                label: const Text('Fit Width'),
+                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode == 'width',
                 onSelected: (_) {
-                  _setViewMode('height');
+                  _setViewMode('width');
                   setSheetState(() {});
                 },
               ),
@@ -1409,6 +1459,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void _showAdvancedTools() {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final rootContext = context;
+    final bottomInset = MediaQuery.of(context).padding.bottom;
     showModalBottomSheet(
       context: context,
       showDragHandle: true,
@@ -1421,12 +1472,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       ),
       builder: (sheetContext) => StatefulBuilder(
         builder: (context, setSheetState) => SafeArea(
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(16, 0, 16, 16),
-            child: SingleChildScrollView(
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
+          child: ConstrainedBox(
+            constraints: BoxConstraints(
+              maxHeight: MediaQuery.of(context).size.height * 0.85,
+            ),
+            child: Padding(
+              padding: EdgeInsets.fromLTRB(16, 0, 16, 16 + bottomInset),
+              child: SingleChildScrollView(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
                   _SheetHeader(
                     title: 'Advanced Tools',
                     subtitle:
@@ -1575,7 +1630,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
           ),
         ),
       ),
-    );
+    ),
+  );
   }
 
   Future<Uint8List?> _getFileBytes() async {
@@ -1605,13 +1661,18 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   bool get _hasDocument => _pdfFile != null || _pdfBytes != null;
 
   String get _viewModeLabel {
+    if (_pageLayoutMode == PdfPageLayoutMode.single) {
+      return 'Fit page';
+    }
     switch (_viewMode) {
       case 'width':
         return 'Fit width';
+      case 'continuous':
+        return 'Continuous';
       case 'height':
         return 'Fit height';
       default:
-        return 'Fit page';
+        return 'Continuous';
     }
   }
 
@@ -1624,8 +1685,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     }
     final oldSize = _viewerViewportSize;
     if (oldSize != null &&
-        (oldSize.width - size.width).abs() < 2.0 &&
-        (oldSize.height - size.height).abs() < 2.0) {
+        (oldSize.width - size.width).abs() < 20.0 &&
+        (oldSize.height - size.height).abs() < 20.0) {
       return;
     }
     _viewerViewportSize = size;
@@ -1653,46 +1714,49 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         ? const Color(0xFF050505)
         : (isDark ? PremiumColors.darkBg : const Color(0xFFEFF1F5));
 
-    final viewer = _password != null
-        ? SfPdfViewer.file(
-            _pdfFile!,
-            key: ValueKey('sf_pdf_${_pdfFile!.path}'),
-            controller: _pdfViewerController,
-            password: _password!,
-            initialZoomLevel: 1.0,
-            maxZoomLevel: _maxZoom,
-            enableDoubleTapZooming: true,
-            enableTextSelection: true,
-            onTap: (_) => setState(() => _showControls = !_showControls),
-            onHyperlinkClicked: _handleHyperlinkClicked,
-            onDocumentLoaded: _handleDocumentLoaded,
-            onDocumentLoadFailed: _handleDocumentLoadFailed,
-            onZoomLevelChanged: _handlePdfZoomLevelChanged,
-            currentSearchTextHighlightColor: Colors.amber,
-            otherSearchTextHighlightColor: Colors.yellowAccent,
-          )
-        : SfPdfViewer.file(
-            _pdfFile!,
-            key: ValueKey('sf_pdf_${_pdfFile!.path}'),
-            controller: _pdfViewerController,
-            initialZoomLevel: 1.0,
-            maxZoomLevel: _maxZoom,
-            enableDoubleTapZooming: true,
-            enableTextSelection: true,
-            onTap: (_) => setState(() => _showControls = !_showControls),
-            onHyperlinkClicked: _handleHyperlinkClicked,
-            onDocumentLoaded: _handleDocumentLoaded,
-            onDocumentLoadFailed: _handleDocumentLoadFailed,
-            onZoomLevelChanged: _handlePdfZoomLevelChanged,
-            currentSearchTextHighlightColor: Colors.amber,
-            otherSearchTextHighlightColor: Colors.yellowAccent,
-          );
+    final isMobile = MediaQuery.of(context).size.width < 600;
 
-    return SfPdfViewerTheme(
-      data: SfPdfViewerThemeData(
-        backgroundColor: surfaceColor,
+    final viewer = SfPdfViewer.file(
+      _pdfFile!,
+      key: ValueKey('sf_pdf_${_pdfFile!.path}_${_password ?? ''}_$_pageLayoutMode'),
+      controller: _pdfViewerController,
+      password: _password,
+      pageLayoutMode: _pageLayoutMode,
+      scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
+          ? PdfScrollDirection.horizontal
+          : PdfScrollDirection.vertical,
+      initialZoomLevel: 1.0,
+      maxZoomLevel: _maxZoom,
+      enableDoubleTapZooming: true,
+      enableTextSelection: true,
+      interactionMode: PdfInteractionMode.pan,
+      canShowScrollHead: false,
+      canShowScrollStatus: false,
+      canShowPaginationDialog: false,
+      pageSpacing: isMobile ? 10.0 : 8.0,
+      onTap: (_) => setState(() => _showControls = !_showControls),
+      onPageChanged: (PdfPageChangedDetails details) {
+        if (details.newPageNumber > 0 &&
+            details.newPageNumber != _lastPageNumber) {
+          _lastPageNumber = details.newPageNumber;
+          _pageNumberNotifier.value = details.newPageNumber;
+        }
+      },
+      onHyperlinkClicked: _handleHyperlinkClicked,
+      onDocumentLoaded: _handleDocumentLoaded,
+      onDocumentLoadFailed: _handleDocumentLoadFailed,
+      onZoomLevelChanged: _handlePdfZoomLevelChanged,
+      currentSearchTextHighlightColor: Colors.amber,
+      otherSearchTextHighlightColor: Colors.yellowAccent,
+    );
+
+    return RepaintBoundary(
+      child: SfPdfViewerTheme(
+        data: SfPdfViewerThemeData(
+          backgroundColor: surfaceColor,
+        ),
+        child: viewer,
       ),
-      child: viewer,
     );
   }
 
@@ -1740,6 +1804,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     final surfaceColor = _isNightMode
         ? const Color(0xFF050505)
         : (isDark ? PremiumColors.darkBg : const Color(0xFFEFF1F5));
+    final isMobile = MediaQuery.of(context).size.width < 600;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         _rememberViewerViewport(
@@ -1750,26 +1816,39 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             Positioned.fill(
               child: Container(
                 color: surfaceColor,
-                child: _buildTransformedAndFilteredPdfContent(isDark),
-              ),
-            ),
-            if (_viewerError != null) _buildViewerErrorOverlay(),
-            AnimatedPositioned(
-              duration: const Duration(milliseconds: 200),
-              curve: Curves.easeOutCubic,
-              top: _showControls ? 12 : -100,
-              left: 12,
-              right: 12,
-              child: AnimatedOpacity(
-                duration: const Duration(milliseconds: 200),
-                opacity: _showControls ? 1.0 : 0.0,
-                child: _buildViewerStatusBar(
-                  isDark: isDark,
-                  fileName: fileName,
-                  fileSize: fileSize,
+                padding: EdgeInsets.only(
+                  left: isMobile ? 8.0 : 16.0,
+                  right: isMobile ? 8.0 : 16.0,
+                  top: isMobile ? (kIsWeb ? 60.0 : 8.0) : 10.0,
+                  bottom: _showControls ? (isMobile ? 70.0 : 66.0) : 10.0,
+                ),
+                child: RepaintBoundary(
+                  child: _buildTransformedAndFilteredPdfContent(isDark),
                 ),
               ),
             ),
+            if (_isPasswordProtected && !_isDocumentLoaded)
+              _buildPasswordUnlockCard(isDark)
+            else if (_viewerError != null)
+              _buildViewerErrorOverlay(),
+            if (isMobile)
+              AnimatedPositioned(
+                duration: const Duration(milliseconds: 200),
+                curve: Curves.easeOutCubic,
+                top: _showControls ? 8.0 : -100,
+                left: 8.0,
+                right: 8.0,
+                child: AnimatedOpacity(
+                  duration: const Duration(milliseconds: 200),
+                  opacity: _showControls ? 1.0 : 0.0,
+                  child: _buildViewerStatusBar(
+                    isDark: isDark,
+                    fileName: fileName,
+                    fileSize: fileSize,
+                    isMobile: true,
+                  ),
+                ),
+              ),
             AnimatedPositioned(
               duration: const Duration(milliseconds: 200),
               curve: Curves.easeOutCubic,
@@ -1792,6 +1871,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     required bool isDark,
     required String fileName,
     required String fileSize,
+    bool isMobile = false,
   }) {
     final pageCount = _pdfViewerController.pageCount;
     final textColor = isDark || _isNightMode
@@ -1803,7 +1883,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return GestureDetector(
       onTap: () {},
       child: Container(
-        padding: const EdgeInsets.all(12),
+        padding: EdgeInsets.symmetric(
+          horizontal: isMobile ? 10 : 12,
+          vertical: isMobile ? 8 : 12,
+        ),
         decoration: BoxDecoration(
           color: _isNightMode || isDark
               ? Colors.black.withValues(alpha: 0.78)
@@ -1825,19 +1908,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         child: Row(
           children: [
             Container(
-              width: 38,
-              height: 38,
+              width: isMobile ? 32 : 38,
+              height: isMobile ? 32 : 38,
               decoration: BoxDecoration(
                 color: PremiumColors.luxuryRed.withValues(alpha: 0.14),
-                borderRadius: BorderRadius.circular(12),
+                borderRadius: BorderRadius.circular(isMobile ? 10 : 12),
               ),
-              child: const Icon(
+              child: Icon(
                 Icons.picture_as_pdf,
                 color: PremiumColors.luxuryRed,
-                size: 22,
+                size: isMobile ? 18 : 22,
               ),
             ),
-            const SizedBox(width: 10),
+            SizedBox(width: isMobile ? 8 : 10),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -1847,7 +1930,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: PremiumTypography.labelLarge.copyWith(
+                    style: (isMobile
+                            ? PremiumTypography.labelMedium
+                            : PremiumTypography.labelLarge)
+                        .copyWith(
                       color: textColor,
                     ),
                   ),
@@ -1860,12 +1946,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: PremiumTypography.bodySmall.copyWith(
                       color: mutedColor,
+                      fontSize: isMobile ? 11 : null,
                     ),
                   ),
                 ],
               ),
             ),
-            const SizedBox(width: 8),
+            const SizedBox(width: 6),
             ValueListenableBuilder<int>(
               valueListenable: _pageNumberNotifier,
               builder: (context, page, _) {
@@ -1875,26 +1962,30 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                   icon: Icons.description_outlined,
                   label: label,
                   isDark: isDark || _isNightMode,
+                  isCompact: isMobile,
                 );
               },
             ),
-            const SizedBox(width: 6),
-            ValueListenableBuilder<double>(
-              valueListenable: _zoomNotifier,
-              builder: (context, zoom, _) {
-                return _ReaderStatusChip(
-                  icon: Icons.zoom_in,
-                  label: '${(zoom * 100).round()}%',
-                  isDark: isDark || _isNightMode,
-                );
-              },
-            ),
+            if (!isMobile) ...[
+              const SizedBox(width: 6),
+              ValueListenableBuilder<double>(
+                valueListenable: _zoomNotifier,
+                builder: (context, zoom, _) {
+                  return _ReaderStatusChip(
+                    icon: Icons.zoom_in,
+                    label: '${(zoom * 100).round()}%',
+                    isDark: isDark || _isNightMode,
+                  );
+                },
+              ),
+            ],
             if (_searchResult.hasResult) ...[
               const SizedBox(width: 6),
               _ReaderStatusChip(
                 icon: Icons.search,
                 label: 'Search',
                 isDark: isDark || _isNightMode,
+                isCompact: isMobile,
               ),
             ],
           ],
@@ -1904,29 +1995,33 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   Widget _buildReaderControls(bool isDark) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     return GestureDetector(
       onTap: () {},
       child: Padding(
         padding: EdgeInsets.fromLTRB(
-          12,
+          isMobile ? 10 : 12,
           0,
-          12,
-          12 + MediaQuery.of(context).padding.bottom,
+          isMobile ? 10 : 12,
+          (isMobile ? 10 : 12) + MediaQuery.of(context).padding.bottom,
         ),
         child: Align(
           alignment: Alignment.bottomCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
-            child: _buildReaderToolbar(isDark),
+            child: _buildReaderToolbar(isDark, isMobile: isMobile),
           ),
         ),
       ),
     );
   }
 
-  Widget _buildReaderToolbar(bool isDark) {
+  Widget _buildReaderToolbar(bool isDark, {bool isMobile = false}) {
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 8),
+      padding: EdgeInsets.symmetric(
+        horizontal: isMobile ? 6 : 8,
+        vertical: isMobile ? 6 : 8,
+      ),
       decoration: BoxDecoration(
         color: Colors.black.withValues(alpha: _isNightMode ? 0.92 : 0.82),
         borderRadius: BorderRadius.circular(16),
@@ -1942,11 +2037,67 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       child: SingleChildScrollView(
         scrollDirection: Axis.horizontal,
         child: Row(
+          mainAxisAlignment: MainAxisAlignment.center,
           children: [
+            ValueListenableBuilder<int>(
+              valueListenable: _pageCountNotifier,
+              builder: (context, pageCount, _) {
+                if (pageCount <= 1) return const SizedBox.shrink();
+                return ValueListenableBuilder<int>(
+                  valueListenable: _pageNumberNotifier,
+                  builder: (context, currentPage, _) {
+                    return Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        _ReaderToolButton(
+                          icon: Icons.chevron_left_rounded,
+                          label: 'Prev',
+                          onPressed: currentPage > 1
+                              ? () => _pdfViewerController.previousPage()
+                              : null,
+                          isMobile: isMobile,
+                        ),
+                        GestureDetector(
+                          onTap: _jumpToPage,
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 8,
+                              vertical: 4,
+                            ),
+                            decoration: BoxDecoration(
+                              color: Colors.white.withValues(alpha: 0.14),
+                              borderRadius: BorderRadius.circular(6),
+                            ),
+                            child: Text(
+                              '$currentPage / $pageCount',
+                              style: const TextStyle(
+                                color: Colors.white,
+                                fontSize: 12,
+                                fontWeight: FontWeight.w600,
+                              ),
+                            ),
+                          ),
+                        ),
+                        _ReaderToolButton(
+                          icon: Icons.chevron_right_rounded,
+                          label: 'Next',
+                          onPressed: currentPage < pageCount
+                              ? () => _pdfViewerController.nextPage()
+                              : null,
+                          isMobile: isMobile,
+                        ),
+                        _ToolbarDivider(isMobile: isMobile),
+                      ],
+                    );
+                  },
+                );
+              },
+            ),
             _ReaderToolButton(
               icon: Icons.zoom_out,
               label: 'Out',
               onPressed: _zoomOut,
+              isMobile: isMobile,
             ),
             ValueListenableBuilder<double>(
               valueListenable: _zoomNotifier,
@@ -1954,6 +2105,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 return _ZoomReadout(
                   label: '${(zoom * 100).round()}%',
                   onTap: _showCustomZoomDialog,
+                  isMobile: isMobile,
                 );
               },
             ),
@@ -1961,19 +2113,211 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               icon: Icons.zoom_in,
               label: 'In',
               onPressed: _zoomIn,
+              isMobile: isMobile,
             ),
-            const _ToolbarDivider(),
+            _ToolbarDivider(isMobile: isMobile),
             _ReaderToolButton(
               icon: Icons.fit_screen,
               label: _viewModeLabel,
               onPressed: _showViewModeMenu,
+              isMobile: isMobile,
             ),
             _ReaderToolButton(
               icon: Icons.tune,
               label: 'Advanced',
               onPressed: _showAdvancedTools,
+              isMobile: isMobile,
             ),
           ],
+        ),
+      ),
+    );
+  }
+
+  Future<void> _showPasswordPromptDialog() async {
+    final controller = TextEditingController(text: _password ?? '');
+    bool obscure = true;
+    final entered = await showDialog<String>(
+      context: context,
+      barrierDismissible: true,
+      builder: (ctx) => StatefulBuilder(
+        builder: (ctx, setDialogState) => AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(16),
+          ),
+          title: Row(
+            children: [
+              Container(
+                padding: const EdgeInsets.all(8),
+                decoration: BoxDecoration(
+                  color: PremiumColors.brandRed.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                child: const Icon(
+                  Icons.lock_rounded,
+                  color: PremiumColors.brandRed,
+                  size: 22,
+                ),
+              ),
+              const SizedBox(width: 12),
+              const Text(
+                'Password Protected',
+                style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              const Text(
+                'Enter the password to decrypt this PDF document:',
+                style: TextStyle(fontSize: 13, color: Colors.grey),
+              ),
+              const SizedBox(height: 16),
+              TextField(
+                controller: controller,
+                obscureText: obscure,
+                autofocus: true,
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  hintText: 'Enter password',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(10),
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      obscure
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
+                    onPressed: () => setDialogState(() => obscure = !obscure),
+                  ),
+                ),
+                onSubmitted: (val) => Navigator.pop(ctx, val),
+              ),
+            ],
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('Cancel'),
+            ),
+            FilledButton(
+              style: FilledButton.styleFrom(
+                backgroundColor: PremiumColors.brandRed,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+              ),
+              onPressed: () => Navigator.pop(ctx, controller.text),
+              child: const Text('Unlock'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (entered != null && entered.isNotEmpty) {
+      setState(() {
+        _password = entered;
+        _viewerError = null;
+      });
+    }
+  }
+
+  Widget _buildPasswordUnlockCard(bool isDark) {
+    return Positioned.fill(
+      child: Container(
+        color: isDark ? const Color(0xFF141518) : const Color(0xFFF7F8FA),
+        padding: const EdgeInsets.all(24),
+        child: Center(
+          child: ConstrainedBox(
+            constraints: const BoxConstraints(maxWidth: 420),
+            child: Container(
+              padding: const EdgeInsets.symmetric(horizontal: 28, vertical: 32),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? PremiumColors.darkSurfacePrimary
+                    : PremiumColors.lightSurfacePrimary,
+                borderRadius: BorderRadius.circular(16),
+                border: Border.all(
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : PremiumColors.lightDivider,
+                ),
+                boxShadow: [
+                  BoxShadow(
+                    color: Colors.black.withValues(alpha: isDark ? 0.3 : 0.08),
+                    blurRadius: 20,
+                    offset: const Offset(0, 8),
+                  ),
+                ],
+              ),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Container(
+                    width: 58,
+                    height: 58,
+                    decoration: BoxDecoration(
+                      color: PremiumColors.brandRed.withValues(alpha: 0.12),
+                      shape: BoxShape.circle,
+                    ),
+                    child: const Icon(
+                      Icons.lock_outline_rounded,
+                      color: PremiumColors.brandRed,
+                      size: 28,
+                    ),
+                  ),
+                  const SizedBox(height: 18),
+                  Text(
+                    'Password Protected PDF',
+                    textAlign: TextAlign.center,
+                    style: PremiumTypography.headlineSmall.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  Text(
+                    'This document is encrypted. Enter the password to unlock and read.',
+                    textAlign: TextAlign.center,
+                    style: PremiumTypography.bodyMedium.copyWith(
+                      color: isDark
+                          ? PremiumColors.darkTextSecondary
+                          : PremiumColors.lightTextSecondary,
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.center,
+                    children: [
+                      OutlinedButton.icon(
+                        onPressed: _pickPdf,
+                        icon: const Icon(Icons.folder_open, size: 18),
+                        label: const Text('Open Another'),
+                      ),
+                      const SizedBox(width: 12),
+                      ElevatedButton.icon(
+                        onPressed: _showPasswordPromptDialog,
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: PremiumColors.brandRed,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 20,
+                            vertical: 12,
+                          ),
+                        ),
+                        icon: const Icon(Icons.key, size: 18),
+                        label: const Text('Enter Password'),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
         ),
       ),
     );
@@ -2016,6 +2360,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   Widget _buildViewerEmptyState(bool isDark) {
+    final isMobile = MediaQuery.of(context).size.width < 600;
     final textColor = isDark ? PremiumColors.darkText : PremiumColors.lightText;
     final mutedColor = isDark
         ? PremiumColors.darkTextSecondary
@@ -2023,11 +2368,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     return SafeArea(
       child: Center(
         child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
+          padding: EdgeInsets.all(isMobile ? 16 : 24),
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 560),
             child: Container(
-              padding: const EdgeInsets.all(22),
+              padding: EdgeInsets.all(isMobile ? 18 : 22),
               decoration: BoxDecoration(
                 color: isDark
                     ? PremiumColors.darkSurfaceSecondary
@@ -2218,17 +2563,50 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                         ),
               ],
             ),
-      body: _hasDocument
-          ? SafeArea(
-              top: kIsWeb,
-              bottom: false,
-              child: _buildViewerWorkspace(
-                isDark: isDark,
-                fileName: fileName,
-                fileSize: fileSize,
-              ),
-            )
-          : _buildViewerEmptyState(isDark),
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent) {
+            if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
+                event.logicalKey == LogicalKeyboardKey.pageUp) {
+              if (_pageNumberNotifier.value > 1) {
+                _pdfViewerController.previousPage();
+                return KeyEventResult.handled;
+              }
+            } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
+                event.logicalKey == LogicalKeyboardKey.pageDown) {
+              if (_pageNumberNotifier.value < _pageCountNotifier.value) {
+                _pdfViewerController.nextPage();
+                return KeyEventResult.handled;
+              }
+            } else if (event.logicalKey == LogicalKeyboardKey.equal ||
+                event.logicalKey == LogicalKeyboardKey.numpadAdd) {
+              _zoomIn();
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.minus ||
+                event.logicalKey == LogicalKeyboardKey.numpadSubtract) {
+              _zoomOut();
+              return KeyEventResult.handled;
+            } else if (event.logicalKey == LogicalKeyboardKey.digit0 ||
+                event.logicalKey == LogicalKeyboardKey.numpad0) {
+              _resetZoom();
+              return KeyEventResult.handled;
+            }
+          }
+          return KeyEventResult.ignored;
+        },
+        child: _hasDocument
+            ? SafeArea(
+                top: kIsWeb,
+                bottom: false,
+                child: _buildViewerWorkspace(
+                  isDark: isDark,
+                  fileName: fileName,
+                  fileSize: fileSize,
+                ),
+              )
+            : _buildViewerEmptyState(isDark),
+      ),
     );
   }
 }

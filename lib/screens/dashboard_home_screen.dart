@@ -1,21 +1,26 @@
+import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:font_awesome_flutter/font_awesome_flutter.dart';
 import 'package:url_launcher/url_launcher.dart';
 import '../config/app_config.dart';
+import '../config/premium_theme.dart';
+import '../services/file_history_service.dart';
+import '../utils/platform_file_handler.dart';
+import '../utils/platform_helper.dart';
+import '../widgets/workspace_components.dart';
 import 'pdf_viewer_screen.dart';
-import 'compress_pdf_screen.dart';
-import 'convert_to_pdf_screen.dart';
-import 'convert_from_pdf_screen.dart';
-import 'history_screen.dart';
-import 'edit_pdf_screen.dart';
-import 'pdf_from_images_screen.dart';
-import 'merge_pdf_screen.dart';
-import 'split_pdf_screen.dart';
-import 'sign_pdf_screen_refactored.dart';
-import 'repair_pdf_screen.dart';
 
 class DashboardHomeScreen extends StatefulWidget {
-  const DashboardHomeScreen({super.key});
+  final Function(ToolItem tool)? onSelectTool;
+  final Function(String path)? onOpenPdfPath;
+
+  const DashboardHomeScreen({
+    super.key,
+    this.onSelectTool,
+    this.onOpenPdfPath,
+  });
+
   @override
   State<DashboardHomeScreen> createState() => _DashboardHomeScreenState();
 }
@@ -24,21 +29,67 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   Future<void> _launchGitHub() async {
     try {
       final uri = Uri.parse(AppConfig.githubUrl);
-      debugPrint('[GitHub] Attempting to launch: ${AppConfig.githubUrl}');
       if (await canLaunchUrl(uri)) {
         await launchUrl(uri, mode: LaunchMode.externalApplication);
-        debugPrint('[GitHub] URL launched successfully');
       } else {
-        debugPrint('[GitHub] Cannot launch URL, no browser app found');
         await launchUrl(uri, mode: LaunchMode.platformDefault);
       }
     } catch (e) {
-      debugPrint('[GitHub] Error launching URL: $e');
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text('Could not open GitHub: $e')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open GitHub: $e')),
+        );
       }
+    }
+  }
+
+  Future<void> _handlePickPdf() async {
+    try {
+      final file = await PlatformFileHandler.pickFile(
+        dialogTitle: 'Select PDF Document',
+      );
+      if (!mounted) return;
+      if (file != null) {
+        await FileHistoryService.addToHistory(file.path);
+        _openPdfFile(file.path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error opening file: $e')),
+        );
+      }
+    }
+  }
+
+  void _openPdfFile(String path) {
+    if (widget.onOpenPdfPath != null) {
+      widget.onOpenPdfPath!(path);
+    } else {
+      final file = File(path);
+      if (file.existsSync() || kIsWeb) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfViewerScreen(externalFile: file),
+          ),
+        );
+      } else {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('File does not exist')),
+        );
+      }
+    }
+  }
+
+  void _navigateToTool(ToolItem tool) {
+    if (widget.onSelectTool != null) {
+      widget.onSelectTool!(tool);
+    } else {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => tool.screenBuilder()),
+      );
     }
   }
 
@@ -46,34 +97,47 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 600;
-    final isDesktop = width >= 600;
+    final isMobile = width < 768;
+
     return Scaffold(
       backgroundColor: isDark
-          ? const Color(0xFF0F0F0F)
-          : const Color(0xFFFAFAFA),
+          ? PremiumColors.darkBg
+          : PremiumColors.lightBg,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
+          padding: EdgeInsets.symmetric(
+            horizontal: isMobile ? 16 : 28,
+            vertical: isMobile ? 16 : 24,
+          ),
           child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildHeader(isDark, isMobile),
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16),
-                child: Column(
-                  children: [
-                    const SizedBox(height: 16),
-                    _buildQuickActions(context, isDark),
-                    const SizedBox(height: 20),
-                    _buildFeatures(context, isDark, isDesktop),
-                    const SizedBox(height: 20),
-                    _buildTips(isDark),
-                    const SizedBox(height: 20),
-                    _buildFooter(isDark),
-                    const SizedBox(height: 24),
-                  ],
-                ),
+              _buildWelcomeBanner(isDark, isMobile),
+              const SizedBox(height: 20),
+              HeroDropZone(
+                onFileSelected: _handlePickPdf,
+                isCompact: isMobile,
               ),
+              const SizedBox(height: 28),
+              _buildSpotlightSection(isDark, isMobile),
+              const SizedBox(height: 28),
+              _buildCategorizedToolsSection(isDark, isMobile),
+              const SizedBox(height: 28),
+              RecentFilesSection(
+                onOpenFile: _openPdfFile,
+                onViewAll: () {
+                  final historyTool = ToolItem.allTools.firstWhere(
+                    (t) => t.id == 'history',
+                  );
+                  _navigateToTool(historyTool);
+                },
+              ),
+              const SizedBox(height: 24),
+              _buildSecurityBanner(isDark),
+              const SizedBox(height: 24),
+              _buildFooter(isDark),
+              const SizedBox(height: 20),
             ],
           ),
         ),
@@ -81,548 +145,377 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 
-  Widget _buildHeader(bool isDark, bool isMobile) {
-    return Container(
-      width: double.infinity,
-      height: isMobile ? 150.0 : 72.0,
-      clipBehavior: Clip.hardEdge,
-      decoration: const BoxDecoration(
-        gradient: LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [Color(0xFFB71C1C), Color(0xFFC6302C), Color(0xFFD84315)],
-        ),
-      ),
-      child: Stack(
-        children: [
-          Positioned(
-            top: -30,
-            right: -20,
-            child: Container(
-              width: 130,
-              height: 130,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.06),
-              ),
+  Widget _buildWelcomeBanner(bool isDark, bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            AppBrandLogo(
+              size: isMobile ? 28 : 34,
+              showText: false,
+              isDark: isDark,
             ),
-          ),
-          Positioned(
-            bottom: -40,
-            right: 60,
-            child: Container(
-              width: 100,
-              height: 100,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.05),
-              ),
-            ),
-          ),
-          Positioned(
-            top: 10,
-            left: -30,
-            child: Container(
-              width: 80,
-              height: 80,
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                color: Colors.white.withValues(alpha: 0.04),
-              ),
-            ),
-          ),
-          if (isMobile)
-            Positioned.fill(
+            const SizedBox(width: 12),
+            Expanded(
               child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
+                crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Container(
-                    padding: const EdgeInsets.all(3),
-                    decoration: BoxDecoration(
-                      shape: BoxShape.circle,
-                      border: Border.all(
-                        color: Colors.white.withValues(alpha: 0.35),
-                        width: 2,
-                      ),
-                    ),
-                    child: Container(
-                      width: 44,
-                      height: 44,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.15),
-                      ),
-                      padding: const EdgeInsets.all(6),
-                      child: Image.asset(
-                        'asset/app_img/OpenPDF Tools.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                  ),
-                  const SizedBox(height: 10),
-                  const Text(
-                    AppConfig.appTitle,
-                    style: TextStyle(
-                      fontSize: 19,
-                      fontWeight: FontWeight.w800,
-                      color: Colors.white,
-                      letterSpacing: 0.3,
-                    ),
-                  ),
-                  const SizedBox(height: 4),
                   Row(
-                    mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text(
-                        'Fast \u2022 Secure \u2022 Offline',
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: Colors.white.withValues(alpha: 0.75),
-                          letterSpacing: 0.4,
+                      Flexible(
+                        child: Text(
+                          'Welcome to OpenPDF Tools',
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                          style: TextStyle(
+                            fontSize: isMobile ? 18 : 22,
+                            fontWeight: FontWeight.w800,
+                            letterSpacing: -0.4,
+                            color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                          ),
                         ),
                       ),
                       const SizedBox(width: 8),
-                      _versionBadge(),
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: PremiumColors.brandRed.withValues(alpha: 0.12),
+                          borderRadius: BorderRadius.circular(4),
+                          border: Border.all(
+                            color: PremiumColors.brandRed.withValues(alpha: 0.3),
+                            width: 0.8,
+                          ),
+                        ),
+                        child: Text(
+                          'v${AppConfig.appVersion}',
+                          style: const TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: PremiumColors.brandRed,
+                          ),
+                        ),
+                      ),
                     ],
+                  ),
+                  const SizedBox(height: 3),
+                  Text(
+                    'All-in-one PDF workspace \u2022 100% offline & client-side \u2022 Enterprise security',
+                    maxLines: 1,
+                    overflow: TextOverflow.ellipsis,
+                    style: TextStyle(
+                      fontSize: isMobile ? 11.5 : 13,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                    ),
                   ),
                 ],
               ),
             ),
-          if (!isMobile)
-            Positioned.fill(
-              child: Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 20),
-                child: Row(
-                  children: [
-                    Container(
-                      width: 36,
-                      height: 36,
-                      decoration: BoxDecoration(
-                        shape: BoxShape.circle,
-                        color: Colors.white.withValues(alpha: 0.15),
-                        border: Border.all(
-                          color: Colors.white.withValues(alpha: 0.3),
-                          width: 1.5,
-                        ),
-                      ),
-                      padding: const EdgeInsets.all(5),
-                      child: Image.asset(
-                        'asset/app_img/OpenPDF Tools.png',
-                        fit: BoxFit.contain,
-                      ),
-                    ),
-                    const SizedBox(width: 12),
-                    Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        const Text(
-                          AppConfig.appTitle,
-                          style: TextStyle(
-                            fontSize: 15,
-                            fontWeight: FontWeight.w700,
-                            color: Colors.white,
-                            letterSpacing: 0.2,
-                          ),
-                        ),
-                        const SizedBox(height: 2),
-                        Text(
-                          'Fast \u2022 Secure \u2022 Offline',
-                          style: TextStyle(
-                            fontSize: 10,
-                            color: Colors.white.withValues(alpha: 0.7),
-                            letterSpacing: 0.4,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const Spacer(),
-                    _versionBadge(),
-                  ],
-                ),
-              ),
-            ),
-        ],
-      ),
-    );
-  }
-
-  Widget _versionBadge() {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.18),
-        borderRadius: BorderRadius.circular(20),
-        border: Border.all(
-          color: Colors.white.withValues(alpha: 0.3),
-          width: 1,
-        ),
-      ),
-      child: Text(
-        'v${AppConfig.appVersion}',
-        style: const TextStyle(
-          fontSize: 9,
-          fontWeight: FontWeight.w600,
-          color: Colors.white,
-          letterSpacing: 0.3,
-        ),
-      ),
-    );
-  }
-
-  Widget _label(String text, bool isDark) {
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Row(
-        children: [
-          Container(
-            width: 3,
-            height: 14,
-            decoration: BoxDecoration(
-              color: AppConfig.primaryColor,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          const SizedBox(width: 7),
-          Text(
-            text,
-            style: TextStyle(
-              fontSize: 13,
-              fontWeight: FontWeight.w600,
-              color: isDark ? Colors.white : Colors.black87,
-              letterSpacing: 0.1,
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-
-  Widget _buildQA(
-    BuildContext context,
-    String label,
-    IconData icon,
-    Widget screen,
-    Color color,
-    bool isDark,
-  ) {
-    return Expanded(
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: () => Navigator.push(
-            context,
-            MaterialPageRoute(builder: (_) => screen),
-          ),
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.symmetric(vertical: 12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
-              border: Border.all(
-                color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
-              ),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                  blurRadius: 6,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Container(
-                  padding: const EdgeInsets.all(7),
-                  decoration: BoxDecoration(
-                    shape: BoxShape.circle,
-                    color: color.withValues(alpha: 0.12),
-                  ),
-                  child: Icon(icon, size: 20, color: color),
-                ),
-                const SizedBox(height: 6),
-                Text(
-                  label,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 11,
-                    fontWeight: FontWeight.w600,
-                    color: isDark ? Colors.white : Colors.black87,
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-
-  Widget _buildQuickActions(BuildContext context, bool isDark) {
-    return Row(
-      children: [
-        _buildQA(
-          context,
-          'View PDF',
-          Icons.picture_as_pdf,
-          const PdfViewerScreen(),
-          Colors.blue,
-          isDark,
-        ),
-        const SizedBox(width: 8),
-        _buildQA(
-          context,
-          'Edit',
-          Icons.edit,
-          const EditPdfScreen(),
-          Colors.purple,
-          isDark,
-        ),
-        const SizedBox(width: 8),
-        _buildQA(
-          context,
-          'Compress',
-          Icons.compress,
-          const CompressPdfScreen(),
-          Colors.orange,
-          isDark,
-        ),
-        const SizedBox(width: 8),
-        _buildQA(
-          context,
-          'Convert',
-          Icons.transform,
-          const ConvertFromPdfScreen(),
-          Colors.green,
-          isDark,
+          ],
         ),
       ],
     );
   }
 
-  Widget _buildFeatures(BuildContext context, bool isDark, bool isDesktop) {
-    final features = [
-      FeatureItem(
-        title: 'Merge PDF',
-        description: 'Combine PDFs in order',
-        icon: Icons.merge,
-        color: const Color(0xFF1565C0),
-        screen: const MergePdfScreen(),
-      ),
-      FeatureItem(
-        title: 'Split PDF',
-        description: 'Separate pages into PDFs',
-        icon: Icons.cut,
-        color: const Color(0xFF7E57C2),
-        screen: const SplitPdfScreen(),
-      ),
-      FeatureItem(
-        title: 'Convert to PDF',
-        description: 'From images, docs, and more',
-        icon: Icons.file_present,
-        color: const Color(0xFF00796B),
-        screen: const ConvertToPdfScreen(),
-      ),
-      FeatureItem(
-        title: 'PDF from Images',
-        description: 'Create from photo gallery',
-        icon: Icons.image,
-        color: const Color(0xFFE65100),
-        screen: const PdfFromImagesScreen(),
-      ),
-      FeatureItem(
-        title: 'Convert from PDF',
-        description: 'Export to 19+ formats',
-        icon: Icons.transform,
-        color: const Color(0xFF1565C0),
-        screen: const ConvertFromPdfScreen(),
-      ),
-      FeatureItem(
-        title: 'History',
-        description: 'Recent & favorite files',
-        icon: Icons.history,
-        color: const Color(0xFF7E57C2),
-        screen: const HistoryScreen(),
-      ),
-      FeatureItem(
-        title: 'Sign PDF',
-        description: 'Add digital signatures',
-        icon: Icons.edit_document,
-        color: const Color(0xFF0D47A1),
-        screen: const SignPdfScreenRefactored(),
-      ),
-      FeatureItem(
-        title: 'Repair PDF',
-        description: 'Fix corrupted PDFs',
-        icon: Icons.healing,
-        color: const Color(0xFFC62828),
-        screen: const RepairPdfScreen(),
-      ),
-    ];
+  Widget _buildSpotlightSection(bool isDark, bool isMobile) {
+    final spotlight = ToolItem.spotlightTools;
+    final width = MediaQuery.of(context).size.width;
+
+    int cols = 2;
+    double ratio = 1.15;
+    if (width >= 1200) {
+      cols = 6;
+      ratio = 1.05;
+    } else if (width >= 850) {
+      cols = 3;
+      ratio = 1.25;
+    } else if (width >= 600) {
+      cols = 2;
+      ratio = 1.45;
+    }
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _label('All Features', isDark),
-        if (isDesktop)
-          ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: features.length,
-            separatorBuilder: (context, index) => const SizedBox(height: 6),
-            itemBuilder: (context, index) =>
-                _buildFeatureDesktop(context, features[index], isDark),
-          )
-        else
-          GridView.count(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            crossAxisCount: 2,
-            childAspectRatio: 1.18,
+        Row(
+          children: [
+            Container(
+              width: 3.5,
+              height: 16,
+              decoration: BoxDecoration(
+                color: PremiumColors.brandRed,
+                borderRadius: BorderRadius.circular(2),
+              ),
+            ),
+            const SizedBox(width: 8),
+            Text(
+              'Spotlight Workflows',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+              ),
+            ),
+            const Spacer(),
+            Text(
+              'Frequently used',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade500,
+              ),
+            ),
+          ],
+        ),
+        const SizedBox(height: 12),
+        GridView.builder(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          itemCount: spotlight.length,
+          gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: cols,
             mainAxisSpacing: 10,
             crossAxisSpacing: 10,
-            children: features
-                .map((f) => _buildFeatureMobile(context, f, isDark))
-                .toList(),
+            childAspectRatio: ratio,
           ),
+          itemBuilder: (context, index) {
+            final tool = spotlight[index];
+            return ToolCard(
+              tool: tool,
+              onTap: () => _navigateToTool(tool),
+            );
+          },
+        ),
       ],
     );
   }
 
-  Widget _buildFeatureMobile(
-    BuildContext context,
-    FeatureItem feature,
-    bool isDark,
-  ) {
-    return Material(
-      color: Colors.transparent,
-      child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => feature.screen),
-        ),
-        borderRadius: BorderRadius.circular(14),
-        child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
-            border: Border.all(
-              color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade200,
+  Widget _buildCategorizedToolsSection(bool isDark, bool isMobile) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            Container(
+              width: 3.5,
+              height: 16,
+              decoration: BoxDecoration(
+                color: PremiumColors.brandRed,
+                borderRadius: BorderRadius.circular(2),
+              ),
             ),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
-                blurRadius: 8,
-                offset: const Offset(0, 2),
+            const SizedBox(width: 8),
+            Text(
+              'PDF Tools Directory',
+              style: TextStyle(
+                fontSize: 15,
+                fontWeight: FontWeight.w700,
+                letterSpacing: -0.2,
+                color: isDark ? Colors.white : const Color(0xFF1E1E1E),
               ),
-            ],
-          ),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              Container(
-                padding: const EdgeInsets.all(10),
-                decoration: BoxDecoration(
-                  color: feature.color.withValues(alpha: 0.12),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: Icon(feature.icon, size: 24, color: feature.color),
-              ),
-              const SizedBox(height: 8),
-              Text(
-                feature.title,
-                textAlign: TextAlign.center,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.white : Colors.black87,
-                ),
-              ),
-              const SizedBox(height: 3),
-              Text(
-                feature.description,
-                textAlign: TextAlign.center,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(
-                  fontSize: 10.5,
-                  height: 1.25,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-                ),
-              ),
-            ],
-          ),
+            ),
+          ],
         ),
+        const SizedBox(height: 16),
+        _buildCategoryGroup(
+          category: ToolCategory.viewAnnotate,
+          isDark: isDark,
+          isMobile: isMobile,
+        ),
+        const SizedBox(height: 16),
+        _buildCategoryGroup(
+          category: ToolCategory.combineOrganize,
+          isDark: isDark,
+          isMobile: isMobile,
+        ),
+        const SizedBox(height: 16),
+        _buildCategoryGroup(
+          category: ToolCategory.convertExport,
+          isDark: isDark,
+          isMobile: isMobile,
+        ),
+        const SizedBox(height: 16),
+        _buildCategoryGroup(
+          category: ToolCategory.optimizeFix,
+          isDark: isDark,
+          isMobile: isMobile,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildCategoryGroup({
+    required ToolCategory category,
+    required bool isDark,
+    required bool isMobile,
+  }) {
+    final tools = ToolItem.allTools.where((t) => t.category == category).toList();
+    final width = MediaQuery.of(context).size.width;
+
+    int cols = 1;
+    double ratio = 3.2;
+    if (width >= 1200) {
+      cols = tools.length > 2 ? 3 : 2;
+      ratio = 2.6;
+    } else if (width >= 700) {
+      cols = 2;
+      ratio = 2.8;
+    }
+
+    return Container(
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary.withValues(alpha: 0.6)
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
+        ),
+      ),
+      padding: const EdgeInsets.all(14),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Icon(category.icon, size: 17, color: category.color),
+              const SizedBox(width: 8),
+              Text(
+                category.label,
+                style: TextStyle(
+                  fontSize: 13.5,
+                  fontWeight: FontWeight.w700,
+                  color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                decoration: BoxDecoration(
+                  color: category.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(4),
+                ),
+                child: Text(
+                  '${tools.length}',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: category.color,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: 12),
+          GridView.builder(
+            shrinkWrap: true,
+            physics: const NeverScrollableScrollPhysics(),
+            itemCount: tools.length,
+            gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+              crossAxisCount: cols,
+              mainAxisSpacing: 10,
+              crossAxisSpacing: 10,
+              childAspectRatio: ratio,
+            ),
+            itemBuilder: (context, index) {
+              final tool = tools[index];
+              return _buildHorizontalToolTile(tool, isDark);
+            },
+          ),
+        ],
       ),
     );
   }
 
-  Widget _buildFeatureDesktop(
-    BuildContext context,
-    FeatureItem feature,
-    bool isDark,
-  ) {
+  Widget _buildHorizontalToolTile(ToolItem tool, bool isDark) {
     return Material(
       color: Colors.transparent,
       child: InkWell(
-        onTap: () => Navigator.push(
-          context,
-          MaterialPageRoute(builder: (_) => feature.screen),
-        ),
-        borderRadius: BorderRadius.circular(10),
+        onTap: () => _navigateToTool(tool),
+        borderRadius: BorderRadius.circular(8),
         child: Container(
-          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 11),
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(10),
-            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+            color: isDark
+                ? PremiumColors.darkSurfaceSecondary
+                : PremiumColors.lightSurfaceSecondary,
+            borderRadius: BorderRadius.circular(8),
             border: Border.all(
-              color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
+              color: isDark
+                  ? PremiumColors.darkDivider
+                  : PremiumColors.lightDivider,
+              width: 0.8,
             ),
           ),
           child: Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(9),
+                width: 36,
+                height: 36,
                 decoration: BoxDecoration(
-                  color: feature.color.withValues(alpha: 0.1),
-                  borderRadius: BorderRadius.circular(9),
+                  color: tool.accentColor.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(8),
                 ),
-                child: Icon(feature.icon, size: 18, color: feature.color),
+                child: Icon(tool.icon, size: 20, color: tool.accentColor),
               ),
-              const SizedBox(width: 11),
+              const SizedBox(width: 12),
               Expanded(
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
                   children: [
-                    Text(
-                      feature.title,
-                      style: TextStyle(
-                        fontSize: 13,
-                        fontWeight: FontWeight.w600,
-                        color: isDark ? Colors.white : Colors.black87,
-                      ),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            tool.title,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                            style: TextStyle(
+                              fontSize: 13,
+                              fontWeight: FontWeight.w700,
+                              color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                            ),
+                          ),
+                        ),
+                        if (tool.badge != null) ...[
+                          const SizedBox(width: 6),
+                          Container(
+                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            decoration: BoxDecoration(
+                              color: tool.accentColor.withValues(alpha: 0.15),
+                              borderRadius: BorderRadius.circular(3),
+                            ),
+                            child: Text(
+                              tool.badge!,
+                              style: TextStyle(
+                                fontSize: 9,
+                                fontWeight: FontWeight.w700,
+                                color: tool.accentColor,
+                              ),
+                            ),
+                          ),
+                        ],
+                      ],
                     ),
-                    const SizedBox(height: 1),
+                    const SizedBox(height: 2),
                     Text(
-                      feature.description,
+                      tool.description,
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                       style: TextStyle(
-                        fontSize: 11,
-                        color: isDark
-                            ? Colors.grey.shade400
-                            : Colors.grey.shade600,
+                        fontSize: 10.5,
+                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                       ),
                     ),
                   ],
                 ),
               ),
               Icon(
-                Icons.arrow_forward_ios,
-                size: 12,
+                Icons.arrow_forward_ios_rounded,
+                size: 13,
                 color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
               ),
             ],
@@ -632,33 +525,54 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 
-  Widget _buildTips(bool isDark) {
+  Widget _buildSecurityBanner(bool isDark) {
     return Container(
       padding: const EdgeInsets.all(14),
       decoration: BoxDecoration(
+        color: PremiumColors.brandRed.withValues(alpha: isDark ? 0.08 : 0.05),
         borderRadius: BorderRadius.circular(10),
-        color: AppConfig.primaryColor.withValues(alpha: 0.07),
         border: Border.all(
-          color: AppConfig.primaryColor.withValues(alpha: 0.2),
+          color: PremiumColors.brandRed.withValues(alpha: 0.22),
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Icon(
-            Icons.lightbulb_outline,
-            size: 16,
-            color: AppConfig.primaryColor,
+          Container(
+            padding: const EdgeInsets.all(6),
+            decoration: BoxDecoration(
+              color: PremiumColors.brandRed.withValues(alpha: 0.12),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.verified_user_rounded,
+              size: 18,
+              color: PremiumColors.brandRed,
+            ),
           ),
-          const SizedBox(width: 10),
+          const SizedBox(width: 12),
           Expanded(
-            child: Text(
-              'Compress, convert, edit and merge PDFs \u2014 all offline, all free.',
-              style: TextStyle(
-                fontSize: 12,
-                height: 1.5,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
-              ),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  '100% Client-Side Privacy Guarantee',
+                  style: TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                    color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                  ),
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  'Your PDF documents never leave this device. All reading, editing, cryptographic signing, compression, and format conversion occur locally.',
+                  style: TextStyle(
+                    fontSize: 11.5,
+                    height: 1.35,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                  ),
+                ),
+              ],
             ),
           ),
         ],
@@ -670,37 +584,39 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       children: [
-        Text(
-          'v${AppConfig.appVersion}  \u00b7  Made with \u2764\ufe0f',
-          style: TextStyle(
-            fontSize: 11,
-            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-          ),
+        Row(
+          children: [
+            Text(
+              'OpenPDF Tools v${AppConfig.appVersion}  \u2022  ${PlatformHelper.platformName}',
+              style: TextStyle(
+                fontSize: 11.5,
+                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+              ),
+            ),
+          ],
         ),
         GestureDetector(
           onTap: _launchGitHub,
-          child: Icon(
-            FontAwesomeIcons.github,
-            size: 16,
-            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          child: Row(
+            children: [
+              Icon(
+                FontAwesomeIcons.github,
+                size: 15,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+              const SizedBox(width: 6),
+              Text(
+                'GitHub',
+                style: TextStyle(
+                  fontSize: 11.5,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ],
           ),
         ),
       ],
     );
   }
-}
-
-class FeatureItem {
-  final String title;
-  final String description;
-  final IconData icon;
-  final Color color;
-  final Widget screen;
-  FeatureItem({
-    required this.title,
-    required this.description,
-    required this.icon,
-    required this.color,
-    required this.screen,
-  });
 }

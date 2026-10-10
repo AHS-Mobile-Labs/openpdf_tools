@@ -1,29 +1,36 @@
 import 'package:flutter/material.dart';
 
 class PremiumColors {
-  static const Color lightBg = Color(0xFFFAFAFA);
+  // Modern Spectrum Light Palette
+  static const Color lightBg = Color(0xFFF7F8FA);
   static const Color lightSurfacePrimary = Color(0xFFFFFFFF);
-  static const Color lightSurfaceSecondary = Color(0xFFF5F5F5);
-  static const Color lightText = Color(0xFF1A1A1A);
-  static const Color lightTextSecondary = Color(0xFF666666);
-  static const Color lightTextTertiary = Color(0xFF999999);
-  static const Color lightDivider = Color(0xFFE8E8E8);
-  static const Color darkBg = Color(0xFF0F0F0F);
-  static const Color darkSurfacePrimary = Color(0xFF1A1A1A);
-  static const Color darkSurfaceSecondary = Color(0xFF252525);
-  static const Color darkText = Color(0xFFFAFAFA);
-  static const Color darkTextSecondary = Color(0xFFB3B3B3);
-  static const Color darkTextTertiary = Color(0xFF808080);
-  static const Color darkDivider = Color(0xFF333333);
-  static const Color luxuryRed = Color(0xFFD4465F);
-  static const Color luxuryGold = Color(0xFFD4AF37);
-  static const Color luxuryBlue = Color(0xFF4A7BA7);
-  static const Color luxuryPurple = Color(0xFF6B5B95);
-  static const Color luxuryGreen = Color(0xFF6B8E47);
-  static const Color success = Color(0xFF52C41A);
-  static const Color warning = Color(0xFFFAA61A);
-  static const Color error = Color(0xFFFF4D4F);
-  static const Color info = Color(0xFF1890FF);
+  static const Color lightSurfaceSecondary = Color(0xFFEFF1F4);
+  static const Color lightText = Color(0xFF1E1E1E);
+  static const Color lightTextSecondary = Color(0xFF5F6368);
+  static const Color lightTextTertiary = Color(0xFF9CA3AF);
+  static const Color lightDivider = Color(0xFFE5E7EB);
+
+  // Modern Spectrum Dark Palette
+  static const Color darkBg = Color(0xFF141518);
+  static const Color darkSurfacePrimary = Color(0xFF1E2024);
+  static const Color darkSurfaceSecondary = Color(0xFF282A2F);
+  static const Color darkText = Color(0xFFF3F4F6);
+  static const Color darkTextSecondary = Color(0xFF9CA3AF);
+  static const Color darkTextTertiary = Color(0xFF6B7280);
+  static const Color darkDivider = Color(0xFF32353B);
+
+  // Brand & Accent Colors
+  static const Color brandRed = Color(0xFFE1251B);
+  static const Color brandRedHover = Color(0xFFC71A11);
+  static const Color luxuryRed = Color(0xFFE1251B);
+  static const Color luxuryGold = Color(0xFFE58300);
+  static const Color luxuryBlue = Color(0xFF1473E6);
+  static const Color luxuryPurple = Color(0xFF7E57C2);
+  static const Color luxuryGreen = Color(0xFF2D9D78);
+  static const Color success = Color(0xFF2D9D78);
+  static const Color warning = Color(0xFFE58300);
+  static const Color error = Color(0xFFD32F2F);
+  static const Color info = Color(0xFF1473E6);
 }
 
 class PremiumTypography {

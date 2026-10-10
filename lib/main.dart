@@ -1,8 +1,11 @@
 import 'dart:io' show File;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:receive_sharing_intent/receive_sharing_intent.dart';
 import 'package:provider/provider.dart';
+import 'package:font_awesome_flutter/font_awesome_flutter.dart';
+import 'package:url_launcher/url_launcher.dart';
 import 'dart:async';
 import 'screens/splash_screen.dart';
 import 'screens/pdf_viewer_screen.dart';
@@ -14,8 +17,13 @@ import 'screens/edit_pdf_screen.dart';
 import 'screens/pdf_from_images_screen.dart';
 import 'screens/dashboard_home_screen.dart';
 import 'screens/repair_pdf_screen.dart';
+import 'screens/merge_pdf_screen.dart';
+import 'screens/split_pdf_screen.dart';
+import 'screens/sign_pdf_screen_refactored.dart';
+import 'screens/all_tools_screen.dart';
 import 'widgets/theme_switcher.dart';
 import 'widgets/modern_navigation.dart';
+import 'widgets/workspace_components.dart';
 import 'config/app_config.dart';
 import 'config/premium_theme.dart';
 import 'utils/platform_helper.dart';
@@ -23,6 +31,7 @@ import 'utils/platform_file_handler.dart';
 import 'utils/responsive_helper.dart';
 import 'utils/uri_to_file.dart';
 import 'services/pdf_opener_service.dart';
+import 'services/file_history_service.dart';
 import 'services/theme_service.dart' as theme_service;
 
 const String _appTitle = AppConfig.appTitle;
@@ -245,27 +254,49 @@ class ResponsiveHomeScreen extends StatefulWidget {
 
 class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
   int _selectedIndex = 0;
+  bool _isSidebarExpanded = true;
   late List<ModernNavigationItem> _navigationItems;
   late List<ModernNavigationItem> _mobileNavItems;
+  late Map<String, int> _toolIdToIndex;
 
   @override
   void initState() {
     super.initState();
+
+    _toolIdToIndex = {
+      'home': 0,
+      'all_tools': 1,
+      'viewer': 2,
+      'edit': 3,
+      'merge': 4,
+      'split': 5,
+      'compress': 6,
+      'convert_to': 7,
+      'convert_from': 8,
+      'images_to_pdf': 9,
+      'sign': 10,
+      'repair': 11,
+      'history': 12,
+    };
+
     _mobileNavItems = [
       ModernNavigationItem(
         icon: Icons.home_rounded,
         label: 'Home',
-        screen: const DashboardHomeScreen(),
+        screen: DashboardHomeScreen(
+          onSelectTool: _handleToolSelected,
+          onOpenPdfPath: _openPdfFile,
+        ),
       ),
       ModernNavigationItem(
-        icon: Icons.menu_book_rounded,
+        icon: Icons.grid_view_rounded,
+        label: 'All Tools',
+        screen: AllToolsScreen(onSelectTool: _handleToolSelected),
+      ),
+      ModernNavigationItem(
+        icon: Icons.picture_as_pdf_rounded,
         label: 'View PDF',
         screen: const PdfViewerScreen(),
-      ),
-      ModernNavigationItem(
-        icon: Icons.swap_horiz_rounded,
-        label: 'Convert',
-        screen: const ConvertToPdfScreen(),
       ),
       ModernNavigationItem(
         icon: Icons.history_rounded,
@@ -276,69 +307,220 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
 
     _navigationItems = [
       ModernNavigationItem(
-        icon: Icons.home,
+        icon: Icons.home_rounded,
         label: 'Home',
-        screen: const DashboardHomeScreen(),
+        section: 'Workspace',
+        screen: DashboardHomeScreen(
+          onSelectTool: _handleToolSelected,
+          onOpenPdfPath: _openPdfFile,
+        ),
       ),
       ModernNavigationItem(
-        icon: Icons.picture_as_pdf,
+        icon: Icons.grid_view_rounded,
+        label: 'All Tools',
+        section: 'Workspace',
+        screen: AllToolsScreen(onSelectTool: _handleToolSelected),
+      ),
+      ModernNavigationItem(
+        icon: Icons.picture_as_pdf_rounded,
         label: 'View PDF',
+        section: 'Workspace',
         screen: const PdfViewerScreen(),
       ),
       ModernNavigationItem(
-        icon: Icons.compress,
-        label: 'Compress',
-        screen: const CompressPdfScreen(),
-      ),
-      ModernNavigationItem(
-        icon: Icons.history,
-        label: 'History',
-        screen: const HistoryScreen(),
-      ),
-      ModernNavigationItem(
-        icon: Icons.file_present,
-        label: 'Convert to PDF',
-        screen: const ConvertToPdfScreen(),
-      ),
-      ModernNavigationItem(
-        icon: Icons.transform,
-        label: 'Convert from PDF',
-        screen: const ConvertFromPdfScreen(),
-      ),
-      ModernNavigationItem(
-        icon: Icons.edit,
+        icon: Icons.edit_note_rounded,
         label: 'Edit PDF',
+        section: 'Document Tools',
         screen: const EditPdfScreen(),
       ),
       ModernNavigationItem(
-        icon: Icons.image,
+        icon: Icons.call_merge_rounded,
+        label: 'Merge PDFs',
+        section: 'Document Tools',
+        badge: 'Hot',
+        screen: const MergePdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.content_cut_rounded,
+        label: 'Split PDF',
+        section: 'Document Tools',
+        screen: const SplitPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.compress_rounded,
+        label: 'Compress PDF',
+        section: 'Document Tools',
+        screen: const CompressPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.file_upload_outlined,
+        label: 'Convert to PDF',
+        section: 'Document Tools',
+        screen: const ConvertToPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.transform_rounded,
+        label: 'Export from PDF',
+        section: 'Document Tools',
+        screen: const ConvertFromPdfScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.photo_library_rounded,
         label: 'PDF from Images',
+        section: 'Document Tools',
         screen: const PdfFromImagesScreen(),
       ),
       ModernNavigationItem(
-        icon: Icons.healing,
+        icon: Icons.draw_rounded,
+        label: 'Fill & Sign',
+        section: 'Document Tools',
+        badge: 'PKCS#7',
+        screen: const SignPdfScreenRefactored(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.healing_rounded,
         label: 'Repair PDF',
+        section: 'Document Tools',
         screen: const RepairPdfScreen(),
       ),
+      ModernNavigationItem(
+        icon: Icons.history_rounded,
+        label: 'Recent & History',
+        section: 'Library',
+        screen: const HistoryScreen(),
+      ),
     ];
+  }
+
+  void _handleToolSelected(ToolItem tool) {
+    final targetIndex = _toolIdToIndex[tool.id];
+    if (context.isMobile || targetIndex == null) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(builder: (_) => tool.screenBuilder()),
+      );
+    } else {
+      setState(() {
+        _selectedIndex = targetIndex;
+      });
+    }
+  }
+
+  void _openPdfFile(String filePath) {
+    final file = File(filePath);
+    if (file.existsSync() || kIsWeb) {
+      Navigator.push(
+        context,
+        MaterialPageRoute(
+          builder: (_) => PdfViewerScreen(externalFile: file),
+        ),
+      );
+    } else {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('File does not exist')),
+      );
+    }
+  }
+
+  Future<void> _handleGlobalOpenPdf() async {
+    try {
+      final file = await PlatformFileHandler.pickFile(
+        dialogTitle: 'Select PDF Document',
+      );
+      if (!mounted) return;
+      if (file != null) {
+        await FileHistoryService.addToHistory(file.path);
+        _openPdfFile(file.path);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Error selecting PDF: $e')),
+        );
+      }
+    }
+  }
+
+  Future<void> _launchGitHub() async {
+    try {
+      final uri = Uri.parse(AppConfig.githubUrl);
+      if (await canLaunchUrl(uri)) {
+        await launchUrl(uri, mode: LaunchMode.externalApplication);
+      } else {
+        await launchUrl(uri, mode: LaunchMode.platformDefault);
+      }
+    } catch (e) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Could not open GitHub: $e')),
+        );
+      }
+    }
+  }
+
+  void _openToolSearch() {
+    showDialog(
+      context: context,
+      builder: (ctx) => ToolSearchDialog(
+        onSelectTool: _handleToolSelected,
+      ),
+    );
   }
 
   @override
   Widget build(BuildContext context) {
     final isMobile = context.isMobile;
-    final isTablet = context.isTablet;
-    if (isMobile) {
-      return _buildMobileLayout();
-    } else if (isTablet) {
-      return _buildTabletLayout();
-    } else {
-      return _buildDesktopLayout();
-    }
+
+    return CallbackShortcuts(
+      bindings: <ShortcutActivator, VoidCallback>{
+        const SingleActivator(LogicalKeyboardKey.keyK, control: true):
+            _openToolSearch,
+        const SingleActivator(LogicalKeyboardKey.keyK, meta: true):
+            _openToolSearch,
+      },
+      child: Focus(
+        autofocus: true,
+        child: isMobile ? _buildMobileLayout() : _buildDesktopLayout(),
+      ),
+    );
   }
 
   Widget _buildMobileLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveIndex = _selectedIndex.clamp(0, _mobileNavItems.length - 1);
+
     return Scaffold(
+      appBar: AppBar(
+        title: const AppBrandLogo(size: 26, showText: true),
+        backgroundColor: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfacePrimary,
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        bottom: PreferredSize(
+          preferredSize: const Size.fromHeight(1),
+          child: Container(
+            color: isDark
+                ? PremiumColors.darkDivider
+                : PremiumColors.lightDivider,
+            height: 1,
+          ),
+        ),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.search_rounded),
+            tooltip: 'Search Tools',
+            onPressed: _openToolSearch,
+          ),
+          IconButton(
+            icon: const Icon(Icons.folder_open_rounded),
+            tooltip: 'Open PDF',
+            onPressed: _handleGlobalOpenPdf,
+          ),
+          ThemeSwitcher(compact: true),
+          const SizedBox(width: 4),
+        ],
+      ),
       body: IndexedStack(
         index: effectiveIndex,
         children: _mobileNavItems.map((item) => item.screen).toList(),
@@ -351,39 +533,36 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
     );
   }
 
-  Widget _buildTabletLayout() {
+  Widget _buildDesktopLayout() {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveIndex = _selectedIndex.clamp(0, _navigationItems.length - 1);
+    final currentItem = _navigationItems[effectiveIndex];
+
     return Scaffold(
-      body: Row(
+      backgroundColor: isDark ? PremiumColors.darkBg : PremiumColors.lightBg,
+      body: Column(
         children: [
-          ModernNavigationRail(
-            selectedIndex: effectiveIndex,
-            onIndexChanged: (index) => setState(() => _selectedIndex = index),
-            items: _navigationItems,
-            header: Column(
-              mainAxisSize: MainAxisSize.min,
+          _buildDesktopTopBar(isDark, currentItem),
+          Expanded(
+            child: Row(
               children: [
-                SizedBox(
-                  height: 40,
-                  width: 40,
-                  child: Image.asset(
-                    'asset/app_img/OpenPDF Tools.png',
-                    fit: BoxFit.contain,
+                ModernNavigationRail(
+                  selectedIndex: effectiveIndex,
+                  onIndexChanged: (index) => setState(() => _selectedIndex = index),
+                  items: _navigationItems,
+                  isExpanded: _isSidebarExpanded,
+                  onToggleExpanded: () {
+                    setState(() => _isSidebarExpanded = !_isSidebarExpanded);
+                  },
+                ),
+                Expanded(
+                  child: IndexedStack(
+                    index: effectiveIndex,
+                    children:
+                        _navigationItems.map((item) => item.screen).toList(),
                   ),
                 ),
-                const SizedBox(height: 8),
-                const Text(
-                  _appTitle,
-                  style: TextStyle(fontSize: 13, fontWeight: FontWeight.w600),
-                ),
               ],
-            ),
-            footer: ThemeSwitcher(compact: true),
-          ),
-          Expanded(
-            child: IndexedStack(
-              index: effectiveIndex,
-              children: _navigationItems.map((item) => item.screen).toList(),
             ),
           ),
         ],
@@ -391,43 +570,189 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
     );
   }
 
-  Widget _buildDesktopLayout() {
-    final effectiveIndex = _selectedIndex.clamp(0, _navigationItems.length - 1);
-    return Scaffold(
-      body: Row(
-        children: [
-          ModernNavigationRail(
-            selectedIndex: effectiveIndex,
-            onIndexChanged: (index) => setState(() => _selectedIndex = index),
-            items: _navigationItems,
-            header: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                SizedBox(
-                  height: 48,
-                  width: 48,
-                  child: Image.asset(
-                    'asset/app_img/OpenPDF Tools.png',
-                    fit: BoxFit.contain,
-                  ),
-                ),
-                const SizedBox(height: 12),
-                Text(
-                  _appTitle,
-                  style: const TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ),
-            footer: ThemeSwitcher(compact: true),
+  Widget _buildDesktopTopBar(bool isDark, ModernNavigationItem currentItem) {
+    final isHome = _selectedIndex == 0;
+
+    return Container(
+      height: 52,
+      padding: const EdgeInsets.symmetric(horizontal: 16),
+      decoration: BoxDecoration(
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfacePrimary,
+        border: Border(
+          bottom: BorderSide(
+            color: isDark
+                ? PremiumColors.darkDivider
+                : PremiumColors.lightDivider,
+            width: 1.0,
           ),
-          Expanded(
-            child: IndexedStack(
-              index: effectiveIndex,
-              children: _navigationItems.map((item) => item.screen).toList(),
+        ),
+      ),
+      child: Row(
+        children: [
+          const AppBrandLogo(size: 28, showText: true),
+          const SizedBox(width: 16),
+          Container(
+            height: 20,
+            width: 1,
+            color: isDark
+                ? PremiumColors.darkDivider
+                : PremiumColors.lightDivider,
+          ),
+          const SizedBox(width: 16),
+          if (isHome)
+            Text(
+              'Home',
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w600,
+                color: isDark ? Colors.grey.shade300 : const Color(0xFF1E1E1E),
+              ),
+            )
+          else ...[
+            TextButton.icon(
+              onPressed: () => setState(() => _selectedIndex = 0),
+              icon: Icon(
+                Icons.arrow_back_rounded,
+                size: 14,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+              label: Text(
+                'Home',
+                style: TextStyle(
+                  fontSize: 12.5,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+              style: TextButton.styleFrom(
+                padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 4),
+                minimumSize: const Size(0, 32),
+              ),
             ),
+            Text(
+              ' / ',
+              style: TextStyle(
+                fontSize: 12.5,
+                color: isDark ? Colors.grey.shade600 : Colors.grey.shade400,
+              ),
+            ),
+            Text(
+              currentItem.label,
+              style: TextStyle(
+                fontSize: 13.5,
+                fontWeight: FontWeight.w700,
+                color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+              ),
+            ),
+          ],
+          const Spacer(),
+          // Omnisearch Box
+          if (MediaQuery.of(context).size.width >= 960)
+            InkWell(
+              onTap: _openToolSearch,
+              borderRadius: BorderRadius.circular(8),
+              child: Container(
+                height: 34,
+                width: 260,
+                padding: const EdgeInsets.symmetric(horizontal: 10),
+                decoration: BoxDecoration(
+                  color: isDark
+                      ? PremiumColors.darkSurfaceSecondary
+                      : PremiumColors.lightSurfaceSecondary,
+                  borderRadius: BorderRadius.circular(8),
+                  border: Border.all(
+                    color: isDark
+                        ? PremiumColors.darkDivider
+                        : PremiumColors.lightDivider,
+                  ),
+                ),
+                child: Row(
+                  children: [
+                    Icon(
+                      Icons.search_rounded,
+                      size: 16,
+                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        'Search tools (Ctrl+K)...',
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade500,
+                        ),
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 5,
+                        vertical: 1.5,
+                      ),
+                      decoration: BoxDecoration(
+                        color: isDark
+                            ? Colors.white.withValues(alpha: 0.08)
+                            : Colors.black.withValues(alpha: 0.06),
+                        borderRadius: BorderRadius.circular(4),
+                      ),
+                      child: Text(
+                        'Ctrl+K',
+                        style: TextStyle(
+                          fontSize: 9.5,
+                          fontWeight: FontWeight.w600,
+                          color: isDark
+                              ? Colors.grey.shade400
+                              : Colors.grey.shade600,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            )
+          else
+            IconButton(
+              icon: Icon(
+                Icons.search_rounded,
+                size: 20,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+              ),
+              tooltip: 'Search tools (Ctrl+K)',
+              onPressed: _openToolSearch,
+            ),
+          const SizedBox(width: 12),
+          ElevatedButton.icon(
+            onPressed: _handleGlobalOpenPdf,
+            icon: const Icon(Icons.folder_open_rounded, size: 16),
+            label: const Text('Open PDF'),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: PremiumColors.brandRed,
+              foregroundColor: Colors.white,
+              elevation: 0,
+              padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: const Size(0, 34),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w600,
+              ),
+            ),
+          ),
+          const SizedBox(width: 10),
+          ThemeSwitcher(compact: true),
+          const SizedBox(width: 4),
+          IconButton(
+            icon: Icon(
+              FontAwesomeIcons.github,
+              size: 16,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+            tooltip: 'GitHub Repository',
+            onPressed: _launchGitHub,
           ),
         ],
       ),
