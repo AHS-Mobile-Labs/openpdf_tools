@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'dart:async';
 import 'dart:ui' as ui;
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfEditingService {
@@ -332,7 +333,7 @@ class PdfEditingService {
     _checkWebSupport('PDF compression');
     try {
       final outputPath = await _ensureOutputPath('compressed');
-      if (Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         try {
           final result = await _platform.invokeMethod<String>('compressPdf', {
             'inputPath': inputPath,
@@ -347,6 +348,10 @@ class PdfEditingService {
       final bytes = await File(inputPath).readAsBytes();
       final document = PdfDocument(inputBytes: bytes);
       try {
+        document.compressionLevel = PdfCompressionLevel.best;
+        document.fileStructure.crossReferenceType =
+            PdfCrossReferenceType.crossReferenceStream;
+        document.fileStructure.incrementalUpdate = false;
         final savedBytes = await document.save();
         await File(outputPath).writeAsBytes(savedBytes, flush: true);
         return outputPath;

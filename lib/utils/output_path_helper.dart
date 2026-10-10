@@ -197,19 +197,21 @@ class OutputPathHelper {
       }
     }
 
-    final home = Platform.environment['HOME'];
-    if (home != null && home.isNotEmpty) {
-      switch (category) {
-        case OutputCategory.documents:
-          return Directory(p.join(home, 'Documents', 'OpenPDF Tools'));
-        case OutputCategory.pictures:
-          return Directory(p.join(home, 'Pictures', 'OpenPDF Tools'));
-        case OutputCategory.downloads:
-          return Directory(p.join(home, 'Downloads', 'OpenPDF Tools'));
-        case OutputCategory.exports:
-          return Directory(
-            p.join(home, 'Downloads', 'OpenPDF Tools', 'Exports'),
-          );
+    if (!kIsWeb && (PlatformHelper.isLinux || PlatformHelper.isMacOS)) {
+      final home = Platform.environment['HOME'];
+      if (home != null && home.isNotEmpty) {
+        switch (category) {
+          case OutputCategory.documents:
+            return Directory(p.join(home, 'Documents', 'OpenPDF Tools'));
+          case OutputCategory.pictures:
+            return Directory(p.join(home, 'Pictures', 'OpenPDF Tools'));
+          case OutputCategory.downloads:
+            return Directory(p.join(home, 'Downloads', 'OpenPDF Tools'));
+          case OutputCategory.exports:
+            return Directory(
+              p.join(home, 'Downloads', 'OpenPDF Tools', 'Exports'),
+            );
+        }
       }
     }
 

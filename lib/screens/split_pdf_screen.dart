@@ -132,7 +132,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         savedFiles.add(
           await OutputPathHelper.exportGeneratedFile(
             sourcePath: outputPath,
-            fileName: outputPath.split(Platform.pathSeparator).last,
+            fileName: p.basename(outputPath),
             category: OutputCategory.exports,
           ),
         );

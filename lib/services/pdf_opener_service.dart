@@ -1,7 +1,7 @@
-import 'dart:io' as io;
 import 'package:flutter/services.dart';
 import 'package:flutter/foundation.dart';
 import 'package:app_links/app_links.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 
 class PDFOpenerService {
   static const platform = MethodChannel('com.openpdf.tools/pdfOpener');
@@ -91,15 +91,15 @@ class PDFOpenerService {
       if (kIsWeb) {
         return false;
       }
-      if (io.Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         return await _registerAndroidPdfOpener();
-      } else if (io.Platform.isIOS) {
+      } else if (PlatformHelper.isIOS) {
         return await _registerIOSPdfOpener();
-      } else if (io.Platform.isMacOS) {
+      } else if (PlatformHelper.isMacOS) {
         return await _registerMacOSPdfOpener();
-      } else if (io.Platform.isWindows) {
+      } else if (PlatformHelper.isWindows) {
         return await _registerWindowsPdfOpener();
-      } else if (io.Platform.isLinux) {
+      } else if (PlatformHelper.isLinux) {
         return await _registerLinuxPdfOpener();
       }
       return false;

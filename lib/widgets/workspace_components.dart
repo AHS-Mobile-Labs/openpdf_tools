@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import '../config/premium_theme.dart';
@@ -685,7 +686,7 @@ class _RecentFilesSectionState extends State<RecentFilesSection> {
   String _formatItemSize(String filePath) {
     try {
       final file = File(filePath);
-      if (file.existsSync()) {
+      if (!kIsWeb && file.existsSync()) {
         final sizeInBytes = file.lengthSync();
         if (sizeInBytes < 1024) return '$sizeInBytes B';
         if (sizeInBytes < 1024 * 1024) {

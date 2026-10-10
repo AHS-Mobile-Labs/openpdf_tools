@@ -156,7 +156,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       final outputPath = await PdfManipulationService.mergePdfs(pdfPaths);
       final savedFile = await OutputPathHelper.exportGeneratedFile(
         sourcePath: outputPath,
-        fileName: outputPath.split(Platform.pathSeparator).last,
+        fileName: p.basename(outputPath),
         category: OutputCategory.exports,
       );
       if (!mounted) return;

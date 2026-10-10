@@ -10,6 +10,8 @@ import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:openpdf_tools/widgets/theme_switcher.dart';
+import 'package:path/path.dart' as p;
+import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'pdf_viewer_screen.dart';
 
 class CompressPdfScreen extends StatefulWidget {
@@ -148,9 +150,25 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       debugPrint('[CompressPdf] Output path: $outputPath');
       debugPrint('[CompressPdf] Platform: ${PlatformHelper.platformName}');
       if (PlatformHelper.isAndroid) {
-        await _compressPdfAndroid(outputPath);
+        try {
+          await _compressPdfAndroid(outputPath);
+        } catch (e) {
+          debugPrint(
+            '[CompressPdf] Android native compression failed, falling back to Dart: $e',
+          );
+          await _compressPdfDart(_pdfPath!, outputPath, _quality);
+        }
+      } else if (PlatformHelper.isDesktop) {
+        try {
+          await _compressPdfDesktop(outputPath);
+        } catch (e) {
+          debugPrint(
+            '[CompressPdf] Desktop GS compression failed, falling back to Dart: $e',
+          );
+          await _compressPdfDart(_pdfPath!, outputPath, _quality);
+        }
       } else {
-        await _compressPdfDesktop(outputPath);
+        await _compressPdfDart(_pdfPath!, outputPath, _quality);
       }
       final compressedFile = File(outputPath);
       if (!await compressedFile.exists()) {
@@ -158,7 +176,7 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       }
       final savedFile = await OutputPathHelper.exportGeneratedFile(
         sourcePath: outputPath,
-        fileName: outputPath.split(Platform.pathSeparator).last,
+        fileName: p.basename(outputPath),
         category: OutputCategory.exports,
       );
       final originalSize = File(_pdfPath!).lengthSync();
@@ -278,6 +296,29 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         );
       }
       rethrow;
+    }
+  }
+
+  Future<void> _compressPdfDart(
+    String inputPath,
+    String outputPath,
+    int quality,
+  ) async {
+    final inputBytes = await File(inputPath).readAsBytes();
+    final document = PdfDocument(inputBytes: inputBytes);
+    try {
+      document.compressionLevel = PdfCompressionLevel.best;
+      document.fileStructure.crossReferenceType =
+          PdfCrossReferenceType.crossReferenceStream;
+      document.fileStructure.incrementalUpdate = false;
+      final savedBytes = await document.save();
+      final outputFile = File(outputPath);
+      if (!await outputFile.parent.exists()) {
+        await outputFile.parent.create(recursive: true);
+      }
+      await outputFile.writeAsBytes(savedBytes, flush: true);
+    } finally {
+      document.dispose();
     }
   }
 

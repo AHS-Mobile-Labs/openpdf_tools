@@ -4,6 +4,7 @@ import 'package:flutter/services.dart';
 import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 
 class PdfManipulationService {
@@ -50,7 +51,7 @@ class PdfManipulationService {
         dartMergeError = e;
         debugPrint('[PdfManipulation] Dart merge failed: $e');
       }
-      if (Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         try {
           final result = await platform.invokeMethod<String>('mergePdfs', {
             'inputPaths': pdfPaths,
@@ -62,7 +63,7 @@ class PdfManipulationService {
           throw Exception('Unable to merge these PDFs: $dartMergeError');
         }
       }
-      if (!Platform.isAndroid) {
+      if (PlatformHelper.isDesktop) {
         final qpdfResult = await _tryMergeWithQpdf(pdfPaths, outputPath);
         if (qpdfResult != null) {
           return qpdfResult;
@@ -111,6 +112,7 @@ class PdfManipulationService {
     List<String> pdfPaths,
     String outputPath,
   ) async {
+    if (!PlatformHelper.isDesktop) return null;
     try {
       final args = ['--empty', '--pages'];
       for (final pdfPath in pdfPaths) {
@@ -129,6 +131,7 @@ class PdfManipulationService {
     List<String> pdfPaths,
     String outputPath,
   ) async {
+    if (!PlatformHelper.isDesktop) return null;
     try {
       final args = [...pdfPaths, 'cat', 'output', outputPath];
       final result = await Process.run('pdftk', args);
@@ -143,6 +146,7 @@ class PdfManipulationService {
     List<String> pdfPaths,
     String outputPath,
   ) async {
+    if (!PlatformHelper.isDesktop) return null;
     try {
       final outDir = File(outputPath).parent;
       if (!await outDir.exists()) {
@@ -200,7 +204,7 @@ class PdfManipulationService {
         dartSplitError = e;
         debugPrint('[PdfManipulation] Dart split failed: $e');
       }
-      if (Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         try {
           final result = await platform.invokeListMethod<String>('splitPdf', {
             'inputPath': pdfPath,
@@ -212,7 +216,7 @@ class PdfManipulationService {
           throw Exception('Unable to split this PDF: $dartSplitError');
         }
       }
-      if (!Platform.isAndroid) {
+      if (PlatformHelper.isDesktop) {
         final selectedPages = pages != null && pages.isNotEmpty
             ? pages
             : List.generate(await _getPageCount(pdfPath), (i) => i + 1);
@@ -307,7 +311,7 @@ class PdfManipulationService {
         dartSplitError = e;
         debugPrint('[PdfManipulation] Dart split range failed: $e');
       }
-      if (Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         try {
           final result = await platform.invokeMethod<String>('splitPdfRange', {
             'inputPath': pdfPath,
@@ -321,7 +325,7 @@ class PdfManipulationService {
           throw Exception('Unable to split this PDF range: $dartSplitError');
         }
       }
-      if (!Platform.isAndroid) {
+      if (PlatformHelper.isDesktop) {
         final pages = List.generate(
           endPage - startPage + 1,
           (i) => startPage + i,
@@ -390,6 +394,7 @@ class PdfManipulationService {
     String outputPath,
     List<int> pages,
   ) async {
+    if (!PlatformHelper.isDesktop) return false;
     try {
       if (await _tryQpdfExtract(inputPath, outputPath, pages)) {
         return true;
@@ -484,7 +489,7 @@ class PdfManipulationService {
       } catch (e) {
         debugPrint('[PdfManipulation] Dart page count failed: $e');
       }
-      if (Platform.isAndroid) {
+      if (PlatformHelper.isAndroid) {
         try {
           final result = await platform.invokeMethod<int>('getPageCount', {
             'inputPath': pdfPath,
@@ -495,7 +500,7 @@ class PdfManipulationService {
         } catch (e) {
           debugPrint('[PdfManipulation] Native page count failed: $e');
         }
-      } else {
+      } else if (PlatformHelper.isDesktop) {
         final result = await Process.run('pdfinfo', [pdfPath]);
         if (result.exitCode == 0) {
           final lines = result.stdout.toString().split('\n');

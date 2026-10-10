@@ -9,6 +9,7 @@ import 'package:openpdf_tools/utils/uri_to_file.dart';
 
 class PlatformFileHandler {
   static int? get _androidSdkInt {
+    if (!PlatformHelper.isAndroid) return null;
     final match = RegExp(
       r'SDK\s+(\d+)',
     ).firstMatch(Platform.operatingSystemVersion);
@@ -134,11 +135,14 @@ class PlatformFileHandler {
             allowedExtensions: allowedExtensions,
             allowMultiple: allowMultiple,
             dialogTitle: dialogTitle,
-            withData: false,
-            withReadStream: true,
+            withData: PlatformHelper.isWeb,
+            withReadStream: !PlatformHelper.isWeb,
           )
           .timeout(const Duration(seconds: 30), onTimeout: () => null);
       if (result != null && result.files.isNotEmpty) {
+        if (PlatformHelper.isWeb) {
+          return null;
+        }
         final filePath = result.files.first.path;
         if (filePath != null && filePath.isNotEmpty) {
           final realPath = await resolveToRealPath(filePath);
@@ -167,11 +171,14 @@ class PlatformFileHandler {
             allowedExtensions: allowedExtensions,
             allowMultiple: true,
             dialogTitle: dialogTitle,
-            withData: false,
-            withReadStream: true,
+            withData: PlatformHelper.isWeb,
+            withReadStream: !PlatformHelper.isWeb,
           )
           .timeout(const Duration(seconds: 30), onTimeout: () => null);
       if (result != null && result.files.isNotEmpty) {
+        if (PlatformHelper.isWeb) {
+          return [];
+        }
         final files = <File>[];
         for (final file in result.files) {
           final filePath = file.path;

@@ -23,7 +23,14 @@ import 'history_screen.dart';
 
 class PdfViewerScreen extends StatefulWidget {
   final File? externalFile;
-  const PdfViewerScreen({super.key, this.externalFile});
+  final Uint8List? externalBytes;
+  final String? externalFileName;
+  const PdfViewerScreen({
+    super.key,
+    this.externalFile,
+    this.externalBytes,
+    this.externalFileName,
+  });
   @override
   State<PdfViewerScreen> createState() => _PdfViewerScreenState();
 }
@@ -443,7 +450,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   void initState() {
     super.initState();
     _pdfViewerController.addListener(_onPdfViewerControllerChanged);
-    if (widget.externalFile != null) {
+    if (widget.externalBytes != null) {
+      _pdfBytes = widget.externalBytes;
+      _webFileName = widget.externalFileName ?? 'Document.pdf';
+      _webFileSize = widget.externalBytes!.length;
+    } else if (widget.externalFile != null) {
       _pdfFile = widget.externalFile;
       _loadPdfBytes();
       _addToHistoryAndCheckFavorite();
@@ -585,18 +596,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         allowedExtensions: ['pdf'],
         withData: kIsWeb,
       );
-      if (result != null && result.files.single.path != null) {
+      if (result != null && result.files.isNotEmpty) {
+        final pickedFile = result.files.single;
         if (kIsWeb) {
           setState(() {
             _pdfFile = null;
-            _webFileName = result.files.single.name;
-            _webFileSize = result.files.single.size;
-            _pdfBytes = result.files.single.bytes;
+            _webFileName = pickedFile.name;
+            _webFileSize = pickedFile.size;
+            _pdfBytes = pickedFile.bytes;
             _isLoadingBytes = false;
             _resetReaderStateForNewDocument();
           });
-        } else {
-          final realPath = await resolveToRealPath(result.files.single.path!);
+        } else if (pickedFile.path != null && pickedFile.path!.isNotEmpty) {
+          final realPath = await resolveToRealPath(pickedFile.path!);
           if (!mounted) return;
           setState(() {
             _pdfFile = File(realPath);
@@ -729,7 +741,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       return;
     }
     try {
-      if (Platform.isAndroid || Platform.isIOS) {
+      if (PlatformHelper.isAndroid || PlatformHelper.isIOS) {
         await share_plus.SharePlus.instance.share(
           share_plus.ShareParams(files: [share_plus.XFile(_pdfFile!.path)]),
         );
@@ -737,7 +749,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         await Process.run('open', [_pdfFile!.parent.path]);
       } else if (PlatformHelper.isWindows) {
         await Process.run('explorer', [_pdfFile!.parent.path]);
-      } else {
+      } else if (PlatformHelper.isLinux) {
         await Process.run('xdg-open', [_pdfFile!.parent.path]);
       }
     } catch (e) {
@@ -1651,7 +1663,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   String _safeFileSizeMb(File? file) {
     if (file == null) return '0';
     try {
-      if (!file.existsSync()) return '0';
+      if (kIsWeb || !file.existsSync()) return '0';
       return (file.lengthSync() / (1024 * 1024)).toStringAsFixed(2);
     } catch (_) {
       return '0';
@@ -1841,11 +1853,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 child: AnimatedOpacity(
                   duration: const Duration(milliseconds: 200),
                   opacity: _showControls ? 1.0 : 0.0,
-                  child: _buildViewerStatusBar(
-                    isDark: isDark,
-                    fileName: fileName,
-                    fileSize: fileSize,
-                    isMobile: true,
+                  child: RepaintBoundary(
+                    child: _buildViewerStatusBar(
+                      isDark: isDark,
+                      fileName: fileName,
+                      fileSize: fileSize,
+                      isMobile: true,
+                    ),
                   ),
                 ),
               ),
@@ -1858,7 +1872,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: _showControls ? 1.0 : 0.0,
-                child: _buildReaderControls(isDark),
+                child: RepaintBoundary(
+                  child: _buildReaderControls(isDark),
+                ),
               ),
             ),
           ],

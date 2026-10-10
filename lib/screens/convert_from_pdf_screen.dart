@@ -169,7 +169,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       }
     } catch (_) {}
     try {
-      if (PlatformHelper.isLinux || PlatformHelper.isMacOS) {
+      if (!kIsWeb && (PlatformHelper.isLinux || PlatformHelper.isMacOS)) {
         final homeDir = Platform.environment['HOME'];
         if (homeDir != null && await Directory(homeDir).exists()) {
           return homeDir;
@@ -347,7 +347,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                 Process.run('open', [savedFile.workingPath]);
               } else if (PlatformHelper.isWindows) {
                 Process.run('explorer', [savedFile.workingPath]);
-              } else {
+              } else if (PlatformHelper.isLinux) {
                 Process.run('xdg-open', [savedFile.workingPath]);
               }
             },

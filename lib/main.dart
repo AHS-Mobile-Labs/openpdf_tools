@@ -408,7 +408,7 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
 
   void _openPdfFile(String filePath) {
     final file = File(filePath);
-    if (file.existsSync() || kIsWeb) {
+    if (kIsWeb || file.existsSync()) {
       Navigator.push(
         context,
         MaterialPageRoute(

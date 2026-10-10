@@ -67,7 +67,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       widget.onOpenPdfPath!(path);
     } else {
       final file = File(path);
-      if (file.existsSync() || kIsWeb) {
+      if (kIsWeb || file.existsSync()) {
         Navigator.push(
           context,
           MaterialPageRoute(

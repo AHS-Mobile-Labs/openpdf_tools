@@ -1,6 +1,8 @@
 import 'dart:io';
 
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/services.dart';
+import 'package:openpdf_tools/utils/platform_helper.dart';
 
 /// Resolves Android content/file URIs into app-readable filesystem paths.
 ///
@@ -8,7 +10,7 @@ import 'package:flutter/services.dart';
 /// and Flutter's File APIs need a real path, so content URIs are copied into
 /// the app cache through the PDF manipulation channel.
 Future<String> resolveToRealPath(String pickedPath) async {
-  if (!Platform.isAndroid) return pickedPath;
+  if (kIsWeb || !PlatformHelper.isAndroid) return pickedPath;
 
   if (pickedPath.startsWith('file://')) {
     try {
