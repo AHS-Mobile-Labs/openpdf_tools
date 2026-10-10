@@ -44,24 +44,6 @@ class PdfManipulationService {
           throw Exception('File not found: $pdfPath');
         }
       }
-      if (PlatformHelper.isAndroid) {
-        try {
-          final result = await platform.invokeMethod<String>('mergePdfs', {
-            'inputPaths': pdfPaths,
-            'outputPath': outputPath,
-          });
-          if (result != null && result.isNotEmpty) return result;
-        } catch (nativeError) {
-          debugPrint('[PdfManipulation] Native merge failed: $nativeError');
-        }
-      }
-      Object? dartMergeError;
-      try {
-        return await _mergeWithSyncfusion(pdfPaths, outputPath);
-      } catch (e) {
-        dartMergeError = e;
-        debugPrint('[PdfManipulation] Dart merge failed: $e');
-      }
       if (PlatformHelper.isDesktop) {
         final qpdfResult = await _tryMergeWithQpdf(pdfPaths, outputPath);
         if (qpdfResult != null) {
@@ -76,7 +58,7 @@ class PdfManipulationService {
           return gsResult;
         }
       }
-      throw Exception('Unable to merge these PDFs: $dartMergeError');
+      return await _mergeWithSyncfusion(pdfPaths, outputPath);
     } catch (e) {
       throw Exception('Failed to merge PDFs: $e');
     }
@@ -196,47 +178,26 @@ class PdfManipulationService {
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
-      if (PlatformHelper.isAndroid && (pages == null || pages.isEmpty)) {
-        try {
-          final result = await platform.invokeListMethod<String>('splitPdf', {
-            'inputPath': pdfPath,
-            'outputDir': tempDir.path,
-          });
-          if (result != null && result.isNotEmpty) return result;
-        } catch (nativeError) {
-          debugPrint('[PdfManipulation] Native split failed: $nativeError');
-        }
-      }
-      Object? dartSplitError;
-      try {
-        return await _splitWithSyncfusion(pdfPath, pages: pages);
-      } catch (e) {
-        dartSplitError = e;
-        debugPrint('[PdfManipulation] Dart split failed: $e');
-      }
       if (PlatformHelper.isDesktop) {
         final selectedPages = pages != null && pages.isNotEmpty
             ? pages
             : List.generate(await _getPageCount(pdfPath), (i) => i + 1);
-        if (selectedPages.isEmpty) {
-          throw Exception(
-            'Could not determine PDF page count. Install pdfinfo or qpdf, then try again.',
-          );
-        }
-        final outputPaths = <String>[];
-        for (final pageNum in selectedPages) {
-          final outputPath =
-              '${tempDir.path}/page_${pageNum}_${DateTime.now().millisecondsSinceEpoch}.pdf';
-          final success = await _extractPagesTool(pdfPath, outputPath, [
-            pageNum,
-          ]);
-          if (success) {
-            outputPaths.add(outputPath);
+        if (selectedPages.isNotEmpty) {
+          final outputPaths = <String>[];
+          for (final pageNum in selectedPages) {
+            final outputPath =
+                '${tempDir.path}/page_${pageNum}_${DateTime.now().millisecondsSinceEpoch}.pdf';
+            final success = await _extractPagesTool(pdfPath, outputPath, [
+              pageNum,
+            ]);
+            if (success) {
+              outputPaths.add(outputPath);
+            }
           }
+          if (outputPaths.isNotEmpty) return outputPaths;
         }
-        if (outputPaths.isNotEmpty) return outputPaths;
       }
-      throw Exception('Unable to split PDF: $dartSplitError');
+      return await _splitWithSyncfusion(pdfPath, pages: pages);
     } catch (e) {
       throw Exception('Failed to split PDF: $e');
     }
@@ -297,43 +258,22 @@ class PdfManipulationService {
         fileName: 'extracted_${DateTime.now().millisecondsSinceEpoch}.pdf',
         category: OutputCategory.exports,
       );
-      if (PlatformHelper.isAndroid) {
-        try {
-          final result = await platform.invokeMethod<String>('splitPdfRange', {
-            'inputPath': pdfPath,
-            'outputPath': outputPath,
-            'startPage': startPage,
-            'endPage': endPage,
-          });
-          if (result != null && result.isNotEmpty) return result;
-        } catch (nativeError) {
-          debugPrint('[PdfManipulation] Native split range failed: $nativeError');
-        }
-      }
-      Object? dartSplitError;
-      try {
-        return await _splitRangeWithSyncfusion(
-          pdfPath,
-          startPage: startPage,
-          endPage: endPage,
-          outputPath: outputPath,
-        );
-      } catch (e) {
-        dartSplitError = e;
-        debugPrint('[PdfManipulation] Dart split range failed: $e');
-      }
       if (PlatformHelper.isDesktop) {
         final pages = List.generate(
           endPage - startPage + 1,
           (i) => startPage + i,
         );
         final success = await _extractPagesTool(pdfPath, outputPath, pages);
-        if (!success) {
-          throw Exception('Failed to extract page range');
+        if (success) {
+          return outputPath;
         }
-        return outputPath;
       }
-      throw Exception('Unable to extract page range: $dartSplitError');
+      return await _splitRangeWithSyncfusion(
+        pdfPath,
+        startPage: startPage,
+        endPage: endPage,
+        outputPath: outputPath,
+      );
     } catch (e) {
       throw Exception('Failed to split PDF range: $e');
     }

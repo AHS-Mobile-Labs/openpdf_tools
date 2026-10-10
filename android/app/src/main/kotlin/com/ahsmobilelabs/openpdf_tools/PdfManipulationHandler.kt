@@ -72,10 +72,11 @@ class PdfManipulationHandler(private val context: Context) {
             ?: return result.error("INVALID_ARGS", "outputPath required", null)
 
         Thread {
-            val merged = PDDocument()
+            var merged: PDDocument? = null
             val sourceDocs = mutableListOf<PDDocument>()
             try {
                 ensureParentDir(outputPath)
+                merged = PDDocument()
 
                 for (path in inputPaths) {
                     val file = File(path)
@@ -93,7 +94,7 @@ class PdfManipulationHandler(private val context: Context) {
             } catch (e: Throwable) {
                 mainHandler.post { result.error("MERGE_FAILED", e.message, e.stackTraceToString()) }
             } finally {
-                try { merged.close() } catch (_: Exception) {}
+                try { merged?.close() } catch (_: Exception) {}
                 sourceDocs.forEach { try { it.close() } catch (_: Exception) {} }
             }
         }.start()
@@ -256,7 +257,7 @@ class PdfManipulationHandler(private val context: Context) {
                 ensureParentDir(outputPath)
                 File(outputPath).writeText(text)
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("EXTRACT_TEXT_FAILED", e.message, null) }
             }
         }.start()
@@ -308,7 +309,7 @@ class PdfManipulationHandler(private val context: Context) {
                 renderer.close()
                 pfd.close()
                 mainHandler.post { result.success(outputPaths) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("PDF_TO_IMAGES_FAILED", e.message, null) }
             }
         }.start()
@@ -334,7 +335,7 @@ class PdfManipulationHandler(private val context: Context) {
                     }
                 }
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("ZIP_FAILED", e.message, null) }
             }
         }.start()
@@ -360,7 +361,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("ENCRYPT_FAILED", e.message, null) }
             }
         }.start()
@@ -381,7 +382,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("PDFA_FAILED", e.message, null) }
             }
         }.start()
@@ -399,7 +400,7 @@ class PdfManipulationHandler(private val context: Context) {
                 val count = doc.numberOfPages
                 doc.close()
                 mainHandler.post { result.success(count) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("PAGE_COUNT_FAILED", e.message, null) }
             }
         }.start()
@@ -424,7 +425,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("ROTATE_FAILED", e.message, null) }
             }
         }.start()
@@ -462,7 +463,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("ADD_TEXT_FAILED", e.message, null) }
             }
         }.start()
@@ -511,7 +512,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("WATERMARK_FAILED", e.message, null) }
             }
         }.start()
@@ -540,7 +541,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("CROP_FAILED", e.message, null) }
             }
         }.start()
@@ -580,7 +581,7 @@ class PdfManipulationHandler(private val context: Context) {
                 doc.save(outputPath)
                 doc.close()
                 mainHandler.post { result.success(outputPath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("BG_COLOR_FAILED", e.message, null) }
             }
         }.start()
@@ -609,7 +610,7 @@ class PdfManipulationHandler(private val context: Context) {
                 }
 
                 mainHandler.post { result.success(outFile.absolutePath) }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("COPY_FAILED", e.message, null) }
             }
         }.start()
@@ -692,7 +693,7 @@ class PdfManipulationHandler(private val context: Context) {
                         )
                     }
                 }
-            } catch (e: Exception) {
+            } catch (e: Throwable) {
                 mainHandler.post { result.error("EXPORT_FAILED", e.message, e.stackTraceToString()) }
             }
         }.start()
