@@ -618,7 +618,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
         ),
         GestureDetector(
           onTap: _launchGitHub,
-          child: Icon(
+          child: FaIcon(
             FontAwesomeIcons.github,
             size: 16,
             color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
@@ -1141,7 +1141,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
             child: Row(
               mainAxisSize: MainAxisSize.min,
               children: [
-                Icon(
+                FaIcon(
                   FontAwesomeIcons.github,
                   size: 14,
                   color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,

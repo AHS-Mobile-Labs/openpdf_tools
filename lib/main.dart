@@ -761,7 +761,7 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
           ),
           const SizedBox(width: 4),
           IconButton(
-            icon: Icon(
+            icon: FaIcon(
               FontAwesomeIcons.github,
               size: 16,
               color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,

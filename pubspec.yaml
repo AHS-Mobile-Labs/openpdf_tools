@@ -74,7 +74,7 @@ dependencies:
   crypto: ^3.0.3
   
   # Icons including GitHub mark
-  font_awesome_flutter: ^10.7.0
+  font_awesome_flutter: ^11.0.0
 
 dev_dependencies:
   flutter_test:

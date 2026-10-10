@@ -915,7 +915,7 @@ class _SettingsScreenState extends State<SettingsScreen> {
               padding: const EdgeInsets.symmetric(vertical: 4),
               child: Row(
                 children: [
-                  const Icon(FontAwesomeIcons.github, size: 16),
+                  const FaIcon(FontAwesomeIcons.github, size: 16),
                   const SizedBox(width: 10),
                   const Text('GitHub Repository', style: TextStyle(fontSize: 12, fontWeight: FontWeight.w600)),
                   const Spacer(),
