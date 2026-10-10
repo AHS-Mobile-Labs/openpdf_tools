@@ -158,9 +158,11 @@ class PdfEditingService {
           final srcPage = srcDoc.pages[i];
           final template = srcPage.createTemplate();
           final section = destDoc.sections!.add();
-          section.pageSettings
-            ..size = ui.Size(cropW, cropH)
-            ..setMargins(0);
+          section.pageSettings.setMargins(0);
+          section.pageSettings.orientation = cropW > cropH
+              ? PdfPageOrientation.landscape
+              : PdfPageOrientation.portrait;
+          section.pageSettings.size = ui.Size(cropW, cropH);
           final newPage = section.pages.add();
           newPage.graphics.drawPdfTemplate(
             template,
@@ -296,10 +298,19 @@ class PdfEditingService {
         for (var i = 0; i < srcDoc.pages.count; i++) {
           final srcPage = srcDoc.pages[i];
           final section = destDoc.sections!.add();
-          section.pageSettings
-            ..size = srcPage.size
-            ..setMargins(0);
+          section.pageSettings.setMargins(0);
+          section.pageSettings.orientation =
+              srcPage.size.width > srcPage.size.height
+                  ? PdfPageOrientation.landscape
+                  : PdfPageOrientation.portrait;
+          section.pageSettings.size = srcPage.size;
+          try {
+            section.pageSettings.rotate = srcPage.rotation;
+          } catch (_) {}
           final newPage = section.pages.add();
+          try {
+            newPage.rotation = srcPage.rotation;
+          } catch (_) {}
 
           // Draw solid background color
           newPage.graphics.drawRectangle(

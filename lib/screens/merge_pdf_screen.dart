@@ -18,19 +18,39 @@ class _PdfFileInfo {
   final String path;
   final String name;
   final int sizeInBytes;
+  final int? pageCount;
   final DateTime addedAt;
   _PdfFileInfo({
     required this.path,
     required this.name,
     required this.sizeInBytes,
+    this.pageCount,
     required this.addedAt,
   });
+
+  _PdfFileInfo copyWith({int? pageCount}) {
+    return _PdfFileInfo(
+      path: path,
+      name: name,
+      sizeInBytes: sizeInBytes,
+      pageCount: pageCount ?? this.pageCount,
+      addedAt: addedAt,
+    );
+  }
+
   String get sizeDisplay {
-    if (sizeInBytes < 1024) return '$sizeInBytes B';
-    if (sizeInBytes < 1024 * 1024) {
-      return '${(sizeInBytes / 1024).toStringAsFixed(1)} KB';
+    final String sizeStr;
+    if (sizeInBytes < 1024) {
+      sizeStr = '$sizeInBytes B';
+    } else if (sizeInBytes < 1024 * 1024) {
+      sizeStr = '${(sizeInBytes / 1024).toStringAsFixed(1)} KB';
+    } else {
+      sizeStr = '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
     }
-    return '${(sizeInBytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+    if (pageCount != null && pageCount! > 0) {
+      return '$pageCount ${pageCount == 1 ? 'page' : 'pages'} • $sizeStr';
+    }
+    return sizeStr;
   }
 }
 
@@ -108,6 +128,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
         );
         _errorMessage = null;
       });
+      _loadPageCount(file.path);
       if (showSnackBar) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -122,6 +143,18 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       _showErrorMessage('Error adding file: $e');
       return false;
     }
+  }
+
+  void _loadPageCount(String path) {
+    PdfManipulationService.getPageCount(path).then((count) {
+      if (!mounted || count <= 0) return;
+      setState(() {
+        final idx = _selectedPdfs.indexWhere((p) => p.path == path);
+        if (idx != -1) {
+          _selectedPdfs[idx] = _selectedPdfs[idx].copyWith(pageCount: count);
+        }
+      });
+    }).catchError((_) {});
   }
 
   void _showErrorMessage(String message) {
@@ -185,6 +218,18 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
   }
 
   void _showSuccessDialog(ExportedFile savedFile) {
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    int savedBytes = 0;
+    try {
+      final f = File(savedFile.workingPath);
+      if (f.existsSync()) {
+        savedBytes = f.lengthSync();
+      }
+    } catch (_) {}
+    final sizeDisplay = savedBytes > 0
+        ? PlatformFileHandler.getHumanReadableFileSize(savedBytes)
+        : _getTotalSizeDisplay();
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
@@ -207,14 +252,43 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
             ),
             const SizedBox(height: 16),
             Container(
+              width: double.infinity,
               padding: const EdgeInsets.all(12),
               decoration: BoxDecoration(
-                color: Colors.blue.shade50,
+                color: isDark
+                    ? PremiumColors.darkSurfaceSecondary
+                    : Colors.blue.shade50,
                 borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : Colors.blue.shade100,
+                ),
               ),
-              child: Text(
-                'Saved to: ${savedFile.displayPath}\nTotal size: ${_getTotalSizeDisplay()}',
-                style: TextStyle(color: Colors.blue.shade900, fontSize: 12),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'File Size: $sizeDisplay',
+                    style: TextStyle(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : Colors.blue.shade900,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Saved to: ${savedFile.displayPath}',
+                    style: TextStyle(
+                      color: isDark
+                          ? PremiumColors.darkTextSecondary
+                          : Colors.blue.shade800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -231,7 +305,6 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
             },
             icon: const Icon(Icons.visibility),
             label: const Text('View'),
-            style: ElevatedButton.styleFrom(backgroundColor: Colors.blue),
           ),
         ],
       ),
@@ -629,6 +702,19 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                         label: '${_selectedPdfs.length} selected',
                         isDark: isDark,
                       ),
+                      if (_selectedPdfs.any((p) => p.pageCount != null && p.pageCount! > 0)) ...[
+                        _buildStatusChip(
+                          icon: Icons.layers_outlined,
+                          label: () {
+                            final totalPages = _selectedPdfs.fold<int>(
+                              0,
+                              (sum, p) => sum + (p.pageCount ?? 0),
+                            );
+                            return '$totalPages ${totalPages == 1 ? 'page' : 'pages'}';
+                          }(),
+                          isDark: isDark,
+                        ),
+                      ],
                       _buildStatusChip(
                         icon: Icons.storage,
                         label: _getTotalSizeDisplay(),

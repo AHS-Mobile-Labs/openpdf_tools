@@ -44,13 +44,6 @@ class PdfManipulationService {
           throw Exception('File not found: $pdfPath');
         }
       }
-      Object? dartMergeError;
-      try {
-        return await _mergeWithSyncfusion(pdfPaths, outputPath);
-      } catch (e) {
-        dartMergeError = e;
-        debugPrint('[PdfManipulation] Dart merge failed: $e');
-      }
       if (PlatformHelper.isAndroid) {
         try {
           final result = await platform.invokeMethod<String>('mergePdfs', {
@@ -60,8 +53,14 @@ class PdfManipulationService {
           if (result != null && result.isNotEmpty) return result;
         } catch (nativeError) {
           debugPrint('[PdfManipulation] Native merge failed: $nativeError');
-          throw Exception('Unable to merge these PDFs: $dartMergeError');
         }
+      }
+      Object? dartMergeError;
+      try {
+        return await _mergeWithSyncfusion(pdfPaths, outputPath);
+      } catch (e) {
+        dartMergeError = e;
+        debugPrint('[PdfManipulation] Dart merge failed: $e');
       }
       if (PlatformHelper.isDesktop) {
         final qpdfResult = await _tryMergeWithQpdf(pdfPaths, outputPath);
@@ -77,7 +76,7 @@ class PdfManipulationService {
           return gsResult;
         }
       }
-      throw Exception(_missingToolsMessage('merge PDFs'));
+      throw Exception('Unable to merge these PDFs: $dartMergeError');
     } catch (e) {
       throw Exception('Failed to merge PDFs: $e');
     }
@@ -197,14 +196,7 @@ class PdfManipulationService {
       if (!await tempDir.exists()) {
         await tempDir.create(recursive: true);
       }
-      Object? dartSplitError;
-      try {
-        return await _splitWithSyncfusion(pdfPath, pages: pages);
-      } catch (e) {
-        dartSplitError = e;
-        debugPrint('[PdfManipulation] Dart split failed: $e');
-      }
-      if (PlatformHelper.isAndroid) {
+      if (PlatformHelper.isAndroid && (pages == null || pages.isEmpty)) {
         try {
           final result = await platform.invokeListMethod<String>('splitPdf', {
             'inputPath': pdfPath,
@@ -213,8 +205,14 @@ class PdfManipulationService {
           if (result != null && result.isNotEmpty) return result;
         } catch (nativeError) {
           debugPrint('[PdfManipulation] Native split failed: $nativeError');
-          throw Exception('Unable to split this PDF: $dartSplitError');
         }
+      }
+      Object? dartSplitError;
+      try {
+        return await _splitWithSyncfusion(pdfPath, pages: pages);
+      } catch (e) {
+        dartSplitError = e;
+        debugPrint('[PdfManipulation] Dart split failed: $e');
       }
       if (PlatformHelper.isDesktop) {
         final selectedPages = pages != null && pages.isNotEmpty
@@ -238,7 +236,7 @@ class PdfManipulationService {
         }
         if (outputPaths.isNotEmpty) return outputPaths;
       }
-      throw Exception('Failed to extract pages');
+      throw Exception('Unable to split PDF: $dartSplitError');
     } catch (e) {
       throw Exception('Failed to split PDF: $e');
     }
@@ -299,6 +297,19 @@ class PdfManipulationService {
         fileName: 'extracted_${DateTime.now().millisecondsSinceEpoch}.pdf',
         category: OutputCategory.exports,
       );
+      if (PlatformHelper.isAndroid) {
+        try {
+          final result = await platform.invokeMethod<String>('splitPdfRange', {
+            'inputPath': pdfPath,
+            'outputPath': outputPath,
+            'startPage': startPage,
+            'endPage': endPage,
+          });
+          if (result != null && result.isNotEmpty) return result;
+        } catch (nativeError) {
+          debugPrint('[PdfManipulation] Native split range failed: $nativeError');
+        }
+      }
       Object? dartSplitError;
       try {
         return await _splitRangeWithSyncfusion(
@@ -311,20 +322,6 @@ class PdfManipulationService {
         dartSplitError = e;
         debugPrint('[PdfManipulation] Dart split range failed: $e');
       }
-      if (PlatformHelper.isAndroid) {
-        try {
-          final result = await platform.invokeMethod<String>('splitPdfRange', {
-            'inputPath': pdfPath,
-            'outputPath': outputPath,
-            'startPage': startPage,
-            'endPage': endPage,
-          });
-          if (result != null && result.isNotEmpty) return result;
-        } catch (nativeError) {
-          debugPrint('[PdfManipulation] Native split range failed: $nativeError');
-          throw Exception('Unable to split this PDF range: $dartSplitError');
-        }
-      }
       if (PlatformHelper.isDesktop) {
         final pages = List.generate(
           endPage - startPage + 1,
@@ -336,7 +333,7 @@ class PdfManipulationService {
         }
         return outputPath;
       }
-      throw Exception('Failed to extract page range');
+      throw Exception('Unable to extract page range: $dartSplitError');
     } catch (e) {
       throw Exception('Failed to split PDF range: $e');
     }
@@ -369,12 +366,22 @@ class PdfManipulationService {
 
   static void _copyPage(PdfPage sourcePage, PdfDocument outputDocument) {
     final pageSize = sourcePage.size;
-    final template = sourcePage.createTemplate();
+    final isLandscape = pageSize.width > pageSize.height;
     final section = outputDocument.sections!.add();
-    section.pageSettings
-      ..size = Size(pageSize.width, pageSize.height)
-      ..setMargins(0);
+    section.pageSettings.setMargins(0);
+    section.pageSettings.orientation = isLandscape
+        ? PdfPageOrientation.landscape
+        : PdfPageOrientation.portrait;
+    section.pageSettings.size = Size(pageSize.width, pageSize.height);
+    try {
+      section.pageSettings.rotate = sourcePage.rotation;
+    } catch (_) {}
+
+    final template = sourcePage.createTemplate();
     final outputPage = section.pages.add();
+    try {
+      outputPage.rotation = sourcePage.rotation;
+    } catch (_) {}
     outputPage.graphics.drawPdfTemplate(
       template,
       Offset.zero,
@@ -533,10 +540,5 @@ class PdfManipulationService {
     } catch (e) {
       return 0;
     }
-  }
-
-  static String _missingToolsMessage(String operation) {
-    return 'No PDF manipulation tools found to $operation. Install one of: '
-        'qpdf, pdftk, or ghostscript.';
   }
 }

@@ -177,12 +177,82 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
 
   void _showSuccessDialog(List<ExportedFile> savedFiles) {
     final firstFile = savedFiles.first;
+    final isDark = Theme.of(context).brightness == Brightness.dark;
+    int totalBytes = 0;
+    for (final f in savedFiles) {
+      try {
+        final file = File(f.workingPath);
+        if (file.existsSync()) {
+          totalBytes += file.lengthSync();
+        }
+      } catch (_) {}
+    }
+    final sizeDisplay = totalBytes > 0
+        ? PlatformFileHandler.getHumanReadableFileSize(totalBytes)
+        : _sizeDisplay(_pdfSizeInBytes);
+
     showDialog(
       context: context,
       builder: (context) => AlertDialog(
         title: const Text('Split Complete'),
-        content: Text(
-          'Created ${savedFiles.length} PDF file(s).\nSaved to: ${firstFile.displayPath}',
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              children: [
+                const Icon(Icons.check_circle, color: Colors.green, size: 28),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: Text(
+                    'Created ${savedFiles.length} PDF file(s)',
+                    style: const TextStyle(fontWeight: FontWeight.w600),
+                  ),
+                ),
+              ],
+            ),
+            const SizedBox(height: 16),
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(12),
+              decoration: BoxDecoration(
+                color: isDark
+                    ? PremiumColors.darkSurfaceSecondary
+                    : Colors.blue.shade50,
+                borderRadius: BorderRadius.circular(8),
+                border: Border.all(
+                  color: isDark
+                      ? PremiumColors.darkDivider
+                      : Colors.blue.shade100,
+                ),
+              ),
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Total Output Size: $sizeDisplay',
+                    style: TextStyle(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : Colors.blue.shade900,
+                      fontWeight: FontWeight.w600,
+                      fontSize: 13,
+                    ),
+                  ),
+                  const SizedBox(height: 4),
+                  Text(
+                    'Saved to: ${firstFile.displayPath}',
+                    style: TextStyle(
+                      color: isDark
+                          ? PremiumColors.darkTextSecondary
+                          : Colors.blue.shade800,
+                      fontSize: 12,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
         ),
         actions: [
           TextButton(
@@ -294,7 +364,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                 const SizedBox(height: 4),
                 Text(
                   hasFile
-                      ? '${_pageCount ?? 0} pages - ${_sizeDisplay(_pdfSizeInBytes)}'
+                      ? '${_pageCount ?? 0} ${_pageCount == 1 ? 'page' : 'pages'} • ${_sizeDisplay(_pdfSizeInBytes)}'
                       : 'Choose one PDF, then split all pages or a page range.',
                   maxLines: 2,
                   overflow: TextOverflow.ellipsis,
