@@ -21,7 +21,7 @@ import 'screens/merge_pdf_screen.dart';
 import 'screens/split_pdf_screen.dart';
 import 'screens/sign_pdf_screen_refactored.dart';
 import 'screens/all_tools_screen.dart';
-import 'widgets/theme_switcher.dart';
+import 'screens/settings_screen.dart';
 import 'widgets/modern_navigation.dart';
 import 'widgets/workspace_components.dart';
 import 'config/app_config.dart';
@@ -196,9 +196,20 @@ class _OpenPDFToolsAppState extends State<OpenPDFToolsApp> {
           navigatorKey: _navigatorKey,
           title: _appTitle,
           debugShowCheckedModeBanner: false,
-          theme: createLightTheme(),
-          darkTheme: createDarkTheme(),
+          theme: createLightTheme(highContrast: themeService.highContrast),
+          darkTheme: createDarkTheme(
+            trueBlack: themeService.trueBlack,
+            highContrast: themeService.highContrast,
+          ),
           themeMode: _convertThemeMode(themeService),
+          builder: (context, child) {
+            return MediaQuery(
+              data: MediaQuery.of(context).copyWith(
+                textScaler: TextScaler.linear(themeService.textScaleFactor),
+              ),
+              child: child!,
+            );
+          },
           home: const _SplashAndHomeWrapper(),
         );
       },
@@ -277,6 +288,7 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       'sign': 10,
       'repair': 11,
       'history': 12,
+      'settings': 13,
     };
 
     _mobileNavItems = [
@@ -289,19 +301,24 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         ),
       ),
       ModernNavigationItem(
-        icon: Icons.grid_view_rounded,
-        label: 'All Tools',
-        screen: AllToolsScreen(onSelectTool: _handleToolSelected),
-      ),
-      ModernNavigationItem(
         icon: Icons.picture_as_pdf_rounded,
         label: 'View PDF',
         screen: const PdfViewerScreen(),
       ),
       ModernNavigationItem(
+        icon: Icons.swap_horiz_rounded,
+        label: 'Convert',
+        screen: const ConvertToPdfScreen(),
+      ),
+      ModernNavigationItem(
         icon: Icons.history_rounded,
         label: 'History',
         screen: const HistoryScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.settings_rounded,
+        label: 'Settings',
+        screen: const SettingsScreen(),
       ),
     ];
 
@@ -388,6 +405,12 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         label: 'Recent & History',
         section: 'Library',
         screen: const HistoryScreen(),
+      ),
+      ModernNavigationItem(
+        icon: Icons.settings_rounded,
+        label: 'Settings',
+        section: 'System',
+        screen: const SettingsScreen(),
       ),
     ];
   }
@@ -486,41 +509,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
   }
 
   Widget _buildMobileLayout() {
-    final isDark = Theme.of(context).brightness == Brightness.dark;
     final effectiveIndex = _selectedIndex.clamp(0, _mobileNavItems.length - 1);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const AppBrandLogo(size: 26, showText: true),
-        backgroundColor: isDark
-            ? PremiumColors.darkSurfacePrimary
-            : PremiumColors.lightSurfacePrimary,
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        bottom: PreferredSize(
-          preferredSize: const Size.fromHeight(1),
-          child: Container(
-            color: isDark
-                ? PremiumColors.darkDivider
-                : PremiumColors.lightDivider,
-            height: 1,
-          ),
-        ),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.search_rounded),
-            tooltip: 'Search Tools',
-            onPressed: _openToolSearch,
-          ),
-          IconButton(
-            icon: const Icon(Icons.folder_open_rounded),
-            tooltip: 'Open PDF',
-            onPressed: _handleGlobalOpenPdf,
-          ),
-          ThemeSwitcher(compact: true),
-          const SizedBox(width: 4),
-        ],
-      ),
       body: IndexedStack(
         index: effectiveIndex,
         children: _mobileNavItems.map((item) => item.screen).toList(),
@@ -742,8 +733,18 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
               ),
             ),
           ),
-          const SizedBox(width: 10),
-          ThemeSwitcher(compact: true),
+          const SizedBox(width: 8),
+          IconButton(
+            icon: Icon(
+              Icons.settings_outlined,
+              size: 19,
+              color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+            ),
+            tooltip: 'Settings & Preferences',
+            onPressed: () {
+              setState(() => _selectedIndex = 13);
+            },
+          ),
           const SizedBox(width: 4),
           IconButton(
             icon: Icon(

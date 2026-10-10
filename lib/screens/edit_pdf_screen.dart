@@ -8,7 +8,6 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -1480,7 +1479,6 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
               ),
             ),
           ],
-          ThemeSwitcher(compact: true),
           const SizedBox(width: 8),
         ],
       ),

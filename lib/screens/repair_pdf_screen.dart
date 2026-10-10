@@ -9,7 +9,6 @@ import 'package:share_plus/share_plus.dart' show XFile;
 import 'package:share_plus/share_plus.dart' as share_plus;
 import '../services/pdf_repair_service.dart';
 import '../config/app_config.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 
 class RepairPdfScreen extends StatefulWidget {
   const RepairPdfScreen({super.key});
@@ -368,7 +367,6 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
         title: const Text('Repair PDF'),
         elevation: 0,
         backgroundColor: AppConfig.primaryColor,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
       body: _isProcessing
           ? _buildProcessingScreen()

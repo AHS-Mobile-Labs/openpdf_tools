@@ -17,7 +17,6 @@ import 'package:syncfusion_flutter_core/theme.dart';
 import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'history_screen.dart';
 
@@ -2410,11 +2409,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 children: [
-                  if (kIsWeb)
-                    Align(
-                      alignment: Alignment.centerRight,
-                      child: ThemeSwitcher(compact: true),
-                    ),
                   Container(
                     width: 82,
                     height: 82,
@@ -2555,8 +2549,6 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
               elevation: 0,
               actions: [
-                ThemeSwitcher(compact: true),
-                const SizedBox(width: 4),
                 IconButton(
                   icon: const Icon(Icons.folder_open),
                   tooltip: 'Open PDF',

@@ -5,7 +5,6 @@ import '../models/signing_models.dart';
 import '../services/certificate_service.dart';
 import '../services/secure_file_picker_service.dart';
 import '../services/production_pdf_signing_service.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
 
 class SignPdfScreenRefactored extends StatefulWidget {
@@ -59,7 +58,6 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
         elevation: 0,
         backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
       body: _isProcessing
           ? _buildProcessingState()

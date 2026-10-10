@@ -9,7 +9,6 @@ import 'package:openpdf_tools/utils/uri_to_file.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_lib;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'package:openpdf_tools/services/format_conversion_service.dart';
 import 'package:archive/archive.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -498,7 +497,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black87,
         elevation: 0,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
       body: Column(
         children: [

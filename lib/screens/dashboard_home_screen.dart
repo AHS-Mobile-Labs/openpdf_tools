@@ -10,6 +10,15 @@ import '../utils/platform_file_handler.dart';
 import '../utils/platform_helper.dart';
 import '../widgets/workspace_components.dart';
 import 'pdf_viewer_screen.dart';
+import 'compress_pdf_screen.dart';
+import 'convert_to_pdf_screen.dart';
+import 'convert_from_pdf_screen.dart';
+import 'edit_pdf_screen.dart';
+import 'pdf_from_images_screen.dart';
+import 'merge_pdf_screen.dart';
+import 'split_pdf_screen.dart';
+import 'sign_pdf_screen_refactored.dart';
+import 'repair_pdf_screen.dart';
 
 class DashboardHomeScreen extends StatefulWidget {
   final Function(ToolItem tool)? onSelectTool;
@@ -96,33 +105,545 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
   @override
   Widget build(BuildContext context) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
+
+    // Classic Mobile UI/UX for Android & iOS
+    if (PlatformHelper.isMobile) {
+      return _buildClassicMobileDashboard(context, isDark);
+    }
+
+    // Modern Workspace UI/UX for Windows, macOS, Linux, and Web
+    return _buildDesktopWorkspaceDashboard(context, isDark);
+  }
+
+  // ===========================================================================
+  // CLASSIC MOBILE UI/UX (FOR ANDROID & IOS)
+  // ===========================================================================
+
+  Widget _buildClassicMobileDashboard(BuildContext context, bool isDark) {
+    return Scaffold(
+      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFFAFAFA),
+      body: SafeArea(
+        child: SingleChildScrollView(
+          physics: const BouncingScrollPhysics(),
+          child: Column(
+            children: [
+              _buildClassicHeader(isDark),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+                child: Column(
+                  children: [
+                    const SizedBox(height: 16),
+                    _buildClassicQuickActions(context, isDark),
+                    const SizedBox(height: 20),
+                    _buildClassicFeatures(context, isDark),
+                    const SizedBox(height: 20),
+                    _buildClassicTips(isDark),
+                    const SizedBox(height: 20),
+                    _buildClassicFooter(isDark),
+                    const SizedBox(height: 24),
+                  ],
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicHeader(bool isDark) {
+    return Container(
+      width: double.infinity,
+      height: 150.0,
+      clipBehavior: Clip.hardEdge,
+      decoration: const BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: [Color(0xFFB71C1C), Color(0xFFC6302C), Color(0xFFD84315)],
+        ),
+      ),
+      child: Stack(
+        children: [
+          Positioned(
+            top: -30,
+            right: -20,
+            child: Container(
+              width: 130,
+              height: 130,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.06),
+              ),
+            ),
+          ),
+          Positioned(
+            bottom: -40,
+            right: 60,
+            child: Container(
+              width: 100,
+              height: 100,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.05),
+              ),
+            ),
+          ),
+          Positioned(
+            top: 10,
+            left: -30,
+            child: Container(
+              width: 80,
+              height: 80,
+              decoration: BoxDecoration(
+                shape: BoxShape.circle,
+                color: Colors.white.withValues(alpha: 0.04),
+              ),
+            ),
+          ),
+          Positioned.fill(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(3),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    border: Border.all(
+                      color: Colors.white.withValues(alpha: 0.35),
+                      width: 2,
+                    ),
+                  ),
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      shape: BoxShape.circle,
+                      color: Colors.white.withValues(alpha: 0.15),
+                    ),
+                    padding: const EdgeInsets.all(6),
+                    child: Image.asset(
+                      'asset/app_img/OpenPDF Tools.png',
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
+                const SizedBox(height: 10),
+                const Text(
+                  AppConfig.appTitle,
+                  style: TextStyle(
+                    fontSize: 19,
+                    fontWeight: FontWeight.w800,
+                    color: Colors.white,
+                    letterSpacing: 0.3,
+                  ),
+                ),
+                const SizedBox(height: 4),
+                Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Text(
+                      'Fast \u2022 Secure \u2022 Offline',
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: Colors.white.withValues(alpha: 0.75),
+                        letterSpacing: 0.4,
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white.withValues(alpha: 0.18),
+                        borderRadius: BorderRadius.circular(20),
+                        border: Border.all(
+                          color: Colors.white.withValues(alpha: 0.3),
+                          width: 1,
+                        ),
+                      ),
+                      child: Text(
+                        'v${AppConfig.appVersion}',
+                        style: const TextStyle(
+                          fontSize: 9,
+                          fontWeight: FontWeight.w600,
+                          color: Colors.white,
+                          letterSpacing: 0.3,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassicQuickActions(BuildContext context, bool isDark) {
+    return Row(
+      children: [
+        _buildQA(
+          context,
+          'View PDF',
+          Icons.picture_as_pdf,
+          const PdfViewerScreen(),
+          Colors.blue,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Edit',
+          Icons.edit,
+          const EditPdfScreen(),
+          Colors.purple,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Compress',
+          Icons.compress,
+          const CompressPdfScreen(),
+          Colors.orange,
+          isDark,
+        ),
+        const SizedBox(width: 8),
+        _buildQA(
+          context,
+          'Convert',
+          Icons.transform,
+          const ConvertFromPdfScreen(),
+          Colors.green,
+          isDark,
+        ),
+      ],
+    );
+  }
+
+  Widget _buildQA(
+    BuildContext context,
+    String label,
+    IconData icon,
+    Widget screen,
+    Color color,
+    bool isDark,
+  ) {
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        child: InkWell(
+          onTap: () => Navigator.push(
+            context,
+            MaterialPageRoute(builder: (_) => screen),
+          ),
+          borderRadius: BorderRadius.circular(12),
+          child: Container(
+            padding: const EdgeInsets.symmetric(vertical: 12),
+            decoration: BoxDecoration(
+              borderRadius: BorderRadius.circular(12),
+              color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+              border: Border.all(
+                color: isDark ? const Color(0xFF2E2E2E) : Colors.grey.shade200,
+              ),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                  blurRadius: 6,
+                  offset: const Offset(0, 2),
+                ),
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Container(
+                  padding: const EdgeInsets.all(7),
+                  decoration: BoxDecoration(
+                    shape: BoxShape.circle,
+                    color: color.withValues(alpha: 0.12),
+                  ),
+                  child: Icon(icon, size: 20, color: color),
+                ),
+                const SizedBox(height: 6),
+                Text(
+                  label,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.white : Colors.black87,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicFeatures(BuildContext context, bool isDark) {
+    final features = [
+      _ClassicFeatureItem(
+        title: 'Merge PDF',
+        description: 'Combine PDFs in order',
+        icon: Icons.merge,
+        color: const Color(0xFF1565C0),
+        screen: const MergePdfScreen(),
+      ),
+      _ClassicFeatureItem(
+        title: 'Split PDF',
+        description: 'Separate pages into PDFs',
+        icon: Icons.cut,
+        color: const Color(0xFF7E57C2),
+        screen: const SplitPdfScreen(),
+      ),
+      _ClassicFeatureItem(
+        title: 'Convert to PDF',
+        description: 'From images, docs, and more',
+        icon: Icons.file_present,
+        color: const Color(0xFF00796B),
+        screen: const ConvertToPdfScreen(),
+      ),
+      _ClassicFeatureItem(
+        title: 'PDF from Images',
+        description: 'Create from photo gallery',
+        icon: Icons.image,
+        color: const Color(0xFFE65100),
+        screen: const PdfFromImagesScreen(),
+      ),
+      _ClassicFeatureItem(
+        title: 'Convert from PDF',
+        description: 'Export to 19+ formats',
+        icon: Icons.transform,
+        color: const Color(0xFF1565C0),
+        screen: const ConvertFromPdfScreen(),
+      ),
+      _ClassicFeatureItem(
+        title: 'Fill & Sign',
+        description: 'Sign & fill forms',
+        icon: Icons.edit_document,
+        color: const Color(0xFF0D47A1),
+        screen: const SignPdfScreenRefactored(),
+      ),
+      _ClassicFeatureItem(
+        title: 'Repair PDF',
+        description: 'Fix corrupted PDFs',
+        icon: Icons.healing,
+        color: const Color(0xFFC62828),
+        screen: const RepairPdfScreen(),
+      ),
+    ];
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _classicLabel('All Features', isDark),
+        GridView.count(
+          shrinkWrap: true,
+          physics: const NeverScrollableScrollPhysics(),
+          crossAxisCount: 2,
+          childAspectRatio: 1.18,
+          mainAxisSpacing: 10,
+          crossAxisSpacing: 10,
+          children: features
+              .map((f) => _buildFeatureCard(context, f, isDark))
+              .toList(),
+        ),
+      ],
+    );
+  }
+
+  Widget _classicLabel(String text, bool isDark) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: Row(
+        children: [
+          Container(
+            width: 3,
+            height: 14,
+            decoration: BoxDecoration(
+              color: AppConfig.primaryColor,
+              borderRadius: BorderRadius.circular(2),
+            ),
+          ),
+          const SizedBox(width: 7),
+          Text(
+            text,
+            style: TextStyle(
+              fontSize: 13,
+              fontWeight: FontWeight.w600,
+              color: isDark ? Colors.white : Colors.black87,
+              letterSpacing: 0.1,
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildFeatureCard(
+    BuildContext context,
+    _ClassicFeatureItem feature,
+    bool isDark,
+  ) {
+    return Material(
+      color: Colors.transparent,
+      child: InkWell(
+        onTap: () => Navigator.push(
+          context,
+          MaterialPageRoute(builder: (_) => feature.screen),
+        ),
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            color: isDark ? const Color(0xFF1C1C1C) : Colors.white,
+            border: Border.all(
+              color: isDark ? const Color(0xFF2C2C2C) : Colors.grey.shade200,
+            ),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withValues(alpha: isDark ? 0.2 : 0.04),
+                blurRadius: 8,
+                offset: const Offset(0, 2),
+              ),
+            ],
+          ),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                padding: const EdgeInsets.all(10),
+                decoration: BoxDecoration(
+                  color: feature.color.withValues(alpha: 0.12),
+                  borderRadius: BorderRadius.circular(12),
+                ),
+                child: Icon(feature.icon, size: 24, color: feature.color),
+              ),
+              const SizedBox(height: 8),
+              Text(
+                feature.title,
+                textAlign: TextAlign.center,
+                maxLines: 1,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: isDark ? Colors.white : Colors.black87,
+                ),
+              ),
+              const SizedBox(height: 3),
+              Text(
+                feature.description,
+                textAlign: TextAlign.center,
+                maxLines: 2,
+                overflow: TextOverflow.ellipsis,
+                style: TextStyle(
+                  fontSize: 10.5,
+                  height: 1.25,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicTips(bool isDark) {
+    return Container(
+      padding: const EdgeInsets.all(14),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(10),
+        color: AppConfig.primaryColor.withValues(alpha: 0.07),
+        border: Border.all(
+          color: AppConfig.primaryColor.withValues(alpha: 0.2),
+        ),
+      ),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Icon(
+            Icons.lightbulb_outline,
+            size: 16,
+            color: AppConfig.primaryColor,
+          ),
+          const SizedBox(width: 10),
+          Expanded(
+            child: Text(
+              'Compress, convert, edit and merge PDFs \u2014 all offline, all free.',
+              style: TextStyle(
+                fontSize: 12,
+                height: 1.5,
+                color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildClassicFooter(bool isDark) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+      children: [
+        Text(
+          'v${AppConfig.appVersion}  \u00b7  Made with \u2764\ufe0f',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          ),
+        ),
+        GestureDetector(
+          onTap: _launchGitHub,
+          child: Icon(
+            FontAwesomeIcons.github,
+            size: 16,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          ),
+        ),
+      ],
+    );
+  }
+
+  // ===========================================================================
+  // MODERN DESKTOP WORKSPACE UI/UX (FOR WINDOWS, MAC, LINUX, WEB)
+  // ===========================================================================
+
+  Widget _buildDesktopWorkspaceDashboard(BuildContext context, bool isDark) {
     final width = MediaQuery.of(context).size.width;
-    final isMobile = width < 768;
+    final isCompact = width < 768;
 
     return Scaffold(
-      backgroundColor: isDark
-          ? PremiumColors.darkBg
-          : PremiumColors.lightBg,
+      backgroundColor: isDark ? PremiumColors.darkBg : PremiumColors.lightBg,
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
           padding: EdgeInsets.symmetric(
-            horizontal: isMobile ? 16 : 28,
-            vertical: isMobile ? 16 : 24,
+            horizontal: isCompact ? 16 : 28,
+            vertical: isCompact ? 16 : 24,
           ),
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              _buildWelcomeBanner(isDark, isMobile),
+              _buildWelcomeBanner(isDark, isCompact),
               const SizedBox(height: 20),
               HeroDropZone(
                 onFileSelected: _handlePickPdf,
-                isCompact: isMobile,
+                isCompact: isCompact,
               ),
               const SizedBox(height: 28),
-              _buildSpotlightSection(isDark, isMobile),
+              _buildSpotlightSection(isDark, isCompact),
               const SizedBox(height: 28),
-              _buildCategorizedToolsSection(isDark, isMobile),
+              _buildCategorizedToolsSection(isDark, isCompact),
               const SizedBox(height: 28),
               RecentFilesSection(
                 onOpenFile: _openPdfFile,
@@ -136,7 +657,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               const SizedBox(height: 24),
               _buildSecurityBanner(isDark),
               const SizedBox(height: 24),
-              _buildFooter(isDark),
+              _buildDesktopFooter(isDark),
               const SizedBox(height: 20),
             ],
           ),
@@ -145,14 +666,14 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 
-  Widget _buildWelcomeBanner(bool isDark, bool isMobile) {
+  Widget _buildWelcomeBanner(bool isDark, bool isCompact) {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           children: [
             AppBrandLogo(
-              size: isMobile ? 28 : 34,
+              size: isCompact ? 28 : 34,
               showText: false,
               isDark: isDark,
             ),
@@ -169,7 +690,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: TextStyle(
-                            fontSize: isMobile ? 18 : 22,
+                            fontSize: isCompact ? 18 : 22,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.4,
                             color: isDark ? Colors.white : const Color(0xFF1E1E1E),
@@ -204,7 +725,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
-                      fontSize: isMobile ? 11.5 : 13,
+                      fontSize: isCompact ? 11.5 : 13,
                       color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                     ),
                   ),
@@ -527,48 +1048,52 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   Widget _buildSecurityBanner(bool isDark) {
     return Container(
-      padding: const EdgeInsets.all(14),
+      padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(
-        color: PremiumColors.brandRed.withValues(alpha: isDark ? 0.08 : 0.05),
-        borderRadius: BorderRadius.circular(10),
+        color: isDark
+            ? PremiumColors.darkSurfacePrimary
+            : PremiumColors.lightSurfacePrimary,
+        borderRadius: BorderRadius.circular(16),
         border: Border.all(
-          color: PremiumColors.brandRed.withValues(alpha: 0.22),
+          color: isDark
+              ? PremiumColors.darkDivider
+              : PremiumColors.lightDivider,
         ),
       ),
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Container(
-            padding: const EdgeInsets.all(6),
+            padding: const EdgeInsets.all(10),
             decoration: BoxDecoration(
-              color: PremiumColors.brandRed.withValues(alpha: 0.12),
-              shape: BoxShape.circle,
+              color: Colors.green.withValues(alpha: 0.12),
+              borderRadius: BorderRadius.circular(12),
             ),
             child: const Icon(
-              Icons.verified_user_rounded,
-              size: 18,
-              color: PremiumColors.brandRed,
+              Icons.lock_outline_rounded,
+              color: Colors.green,
+              size: 22,
             ),
           ),
-          const SizedBox(width: 12),
+          const SizedBox(width: 14),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
                 Text(
-                  '100% Client-Side Privacy Guarantee',
+                  'Air-Gapped Local Privacy',
                   style: TextStyle(
-                    fontSize: 13,
+                    fontSize: 14,
                     fontWeight: FontWeight.w700,
-                    color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                    color: isDark ? Colors.white : Colors.black87,
                   ),
                 ),
-                const SizedBox(height: 2),
+                const SizedBox(height: 4),
                 Text(
-                  'Your PDF documents never leave this device. All reading, editing, cryptographic signing, compression, and format conversion occur locally.',
+                  'All PDF processing executes 100% locally on your device. No files are uploaded to remote servers or third-party clouds.',
                   style: TextStyle(
-                    fontSize: 11.5,
-                    height: 1.35,
+                    fontSize: 12,
+                    height: 1.4,
                     color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
                   ),
                 ),
@@ -580,43 +1105,63 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     );
   }
 
-  Widget _buildFooter(bool isDark) {
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+  Widget _buildDesktopFooter(bool isDark) {
+    return Wrap(
+      alignment: WrapAlignment.spaceBetween,
+      crossAxisAlignment: WrapCrossAlignment.center,
+      spacing: 8,
+      runSpacing: 8,
       children: [
-        Row(
-          children: [
-            Text(
-              'OpenPDF Tools v${AppConfig.appVersion}  \u2022  ${PlatformHelper.platformName}',
-              style: TextStyle(
-                fontSize: 11.5,
-                color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
-              ),
-            ),
-          ],
+        Text(
+          'OpenPDF Tools v${AppConfig.appVersion} \u2022 Open-Source PDF Suite',
+          style: TextStyle(
+            fontSize: 11,
+            color: isDark ? Colors.grey.shade500 : Colors.grey.shade600,
+          ),
         ),
-        GestureDetector(
+        InkWell(
           onTap: _launchGitHub,
-          child: Row(
-            children: [
-              Icon(
-                FontAwesomeIcons.github,
-                size: 15,
-                color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
-              ),
-              const SizedBox(width: 6),
-              Text(
-                'GitHub',
-                style: TextStyle(
-                  fontSize: 11.5,
-                  fontWeight: FontWeight.w600,
-                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+          borderRadius: BorderRadius.circular(4),
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Icon(
+                  FontAwesomeIcons.github,
+                  size: 14,
+                  color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
                 ),
-              ),
-            ],
+                const SizedBox(width: 6),
+                Text(
+                  'GitHub',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w600,
+                    color: isDark ? Colors.grey.shade400 : Colors.grey.shade700,
+                  ),
+                ),
+              ],
+            ),
           ),
         ),
       ],
     );
   }
+}
+
+class _ClassicFeatureItem {
+  final String title;
+  final String description;
+  final IconData icon;
+  final Color color;
+  final Widget screen;
+
+  _ClassicFeatureItem({
+    required this.title,
+    required this.description,
+    required this.icon,
+    required this.color,
+    required this.screen,
+  });
 }

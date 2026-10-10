@@ -9,7 +9,6 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'package:path/path.dart' as p;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'pdf_viewer_screen.dart';
@@ -333,7 +332,6 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
         title: const Text('Compress PDF'),
         backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
         foregroundColor: isDark ? Colors.white : Colors.black87,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
       body: SafeArea(
         child: Column(

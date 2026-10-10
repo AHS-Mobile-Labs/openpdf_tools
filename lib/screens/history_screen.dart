@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
 
 class HistoryScreen extends StatefulWidget {
@@ -81,7 +80,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
           title: const Text('History & Favorites'),
           backgroundColor: isDark ? const Color(0xFF1C1C1C) : Colors.white,
           foregroundColor: isDark ? Colors.white : Colors.black87,
-          actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
           bottom: TabBar(
             labelColor: isDark ? Colors.white : Colors.black87,
             unselectedLabelColor: isDark ? Colors.grey : Colors.grey.shade600,

@@ -6,7 +6,6 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:path/path.dart' as p;
 import '../services/pdf_manipulation_service.dart';
-import 'package:openpdf_tools/widgets/theme_switcher.dart';
 import 'pdf_viewer_screen.dart';
 
 class SplitPdfScreen extends StatefulWidget {
@@ -443,7 +442,6 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       appBar: AppBar(
         title: const Text('Split PDF'),
         elevation: 0,
-        actions: [ThemeSwitcher(compact: true), const SizedBox(width: 8)],
       ),
       bottomNavigationBar: _buildBottomBar(isDark),
       body: Container(

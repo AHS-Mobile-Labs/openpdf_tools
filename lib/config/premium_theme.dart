@@ -149,13 +149,14 @@ class PremiumShadows {
   static List<BoxShadow> get elevatedShadow => [shadowLg];
 }
 
-ThemeData createLightTheme() {
+ThemeData createLightTheme({bool highContrast = false}) {
+  final outlineColor = highContrast ? const Color(0xFF1E1E1E) : PremiumColors.lightDivider;
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.light,
     primaryColor: PremiumColors.luxuryRed,
     scaffoldBackgroundColor: PremiumColors.lightBg,
-    colorScheme: const ColorScheme.light(
+    colorScheme: ColorScheme.light(
       primary: PremiumColors.luxuryRed,
       onPrimary: Colors.white,
       secondary: PremiumColors.luxuryGold,
@@ -164,7 +165,7 @@ ThemeData createLightTheme() {
       onSurface: PremiumColors.lightText,
       error: PremiumColors.error,
       onError: Colors.white,
-      outline: PremiumColors.lightDivider,
+      outline: outlineColor,
     ),
     appBarTheme: const AppBarTheme(
       backgroundColor: PremiumColors.lightSurfacePrimary,
@@ -307,33 +308,38 @@ ThemeData createLightTheme() {
   );
 }
 
-ThemeData createDarkTheme() {
+ThemeData createDarkTheme({bool trueBlack = false, bool highContrast = false}) {
+  final bgColor = trueBlack ? Colors.black : PremiumColors.darkBg;
+  final surfacePrimary = trueBlack ? const Color(0xFF101010) : PremiumColors.darkSurfacePrimary;
+  final surfaceSecondary = trueBlack ? const Color(0xFF181818) : PremiumColors.darkSurfaceSecondary;
+  final outlineColor = highContrast ? const Color(0xFFE0E0E0) : PremiumColors.darkDivider;
+
   return ThemeData(
     useMaterial3: true,
     brightness: Brightness.dark,
     primaryColor: PremiumColors.luxuryRed,
-    scaffoldBackgroundColor: PremiumColors.darkBg,
-    colorScheme: const ColorScheme.dark(
+    scaffoldBackgroundColor: bgColor,
+    colorScheme: ColorScheme.dark(
       primary: PremiumColors.luxuryRed,
       onPrimary: Colors.white,
       secondary: PremiumColors.luxuryGold,
       onSecondary: PremiumColors.darkText,
-      surface: PremiumColors.darkSurfaceSecondary,
+      surface: surfaceSecondary,
       onSurface: PremiumColors.darkText,
       error: PremiumColors.error,
       onError: Colors.white,
-      outline: PremiumColors.darkDivider,
+      outline: outlineColor,
     ),
-    appBarTheme: const AppBarTheme(
-      backgroundColor: PremiumColors.darkSurfacePrimary,
+    appBarTheme: AppBarTheme(
+      backgroundColor: surfacePrimary,
       foregroundColor: PremiumColors.darkText,
       elevation: 0,
       centerTitle: false,
       scrolledUnderElevation: 0.5,
-      surfaceTintColor: PremiumColors.darkBg,
+      surfaceTintColor: bgColor,
     ),
-    bottomNavigationBarTheme: const BottomNavigationBarThemeData(
-      backgroundColor: PremiumColors.darkSurfacePrimary,
+    bottomNavigationBarTheme: BottomNavigationBarThemeData(
+      backgroundColor: surfacePrimary,
       selectedItemColor: PremiumColors.luxuryRed,
       unselectedItemColor: PremiumColors.darkTextTertiary,
       elevation: 0,
