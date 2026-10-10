@@ -10,37 +10,29 @@ class CertificateService {
     '.pfx',
     '.pem',
   ];
-  static Future<CertificateValidationResult> validateCertificateFile(
-    File certificateFile,
-  ) async {
+  static Future<CertificateValidationResult> validateCertificateBytes({
+    required Uint8List fileBytes,
+    required String fileName,
+  }) async {
     try {
       final errors = <String>[];
       final warnings = <String>[];
-      if (!certificateFile.existsSync()) {
-        errors.add('Certificate file does not exist');
-        return CertificateValidationResult(
-          isValid: false,
-          isExpired: false,
-          errors: errors,
-        );
-      }
-      final fileName = certificateFile.path.toLowerCase();
+      final lowerName = fileName.toLowerCase();
       final hasValidExtension = allowedCertificateFormats.any(
-        (ext) => fileName.endsWith(ext),
+        (ext) => lowerName.endsWith(ext),
       );
       if (!hasValidExtension) {
         errors.add(
           'Invalid certificate format. Supported formats: ${allowedCertificateFormats.join(", ")}',
         );
       }
-      final fileSizeBytes = await certificateFile.length();
+      final fileSizeBytes = fileBytes.length;
       if (fileSizeBytes == 0) {
         errors.add('Certificate file is empty');
       }
       if (fileSizeBytes > maxCertificateFileSize) {
         errors.add('Certificate file exceeds maximum size (5 MB)');
       }
-      final fileBytes = await certificateFile.readAsBytes();
       if (!_isBinaryDataValid(fileBytes)) {
         errors.add('Certificate file appears to be corrupted or invalid');
       }
@@ -62,25 +54,42 @@ class CertificateService {
     }
   }
 
-  static Future<CertificateInfo?> parseCertificate(
+  static Future<CertificateValidationResult> validateCertificateFile(
     File certificateFile,
-    String password,
   ) async {
+    if (!certificateFile.existsSync()) {
+      return CertificateValidationResult(
+        isValid: false,
+        isExpired: false,
+        errors: ['Certificate file does not exist'],
+      );
+    }
+    final fileBytes = await certificateFile.readAsBytes();
+    final fileName = certificateFile.path.split('/').last;
+    return validateCertificateBytes(fileBytes: fileBytes, fileName: fileName);
+  }
+
+  static Future<CertificateInfo?> parseCertificateFromBytes({
+    required Uint8List fileBytes,
+    required String fileName,
+    required String password,
+  }) async {
     try {
-      final validation = await validateCertificateFile(certificateFile);
+      final validation = await validateCertificateBytes(
+        fileBytes: fileBytes,
+        fileName: fileName,
+      );
       if (!validation.isValid) {
         debugPrint(
           '[CertificateService] Certificate validation failed: ${validation.errors}',
         );
         return null;
       }
-      final fileBytes = await certificateFile.readAsBytes();
-      final fileName = certificateFile.path.split('/').last;
       final isExpired = await _checkCertificateExpiry(fileBytes, password);
       final certInfo = await _extractCertificateInfo(
         fileBytes,
         fileName,
-        certificateFile.path,
+        fileName,
       );
       if (certInfo == null) {
         return null;
@@ -96,24 +105,46 @@ class CertificateService {
     }
   }
 
-  static Future<bool> verifyCertificatePassword(
+  static Future<CertificateInfo?> parseCertificate(
     File certificateFile,
     String password,
   ) async {
+    if (!certificateFile.existsSync()) return null;
+    final fileBytes = await certificateFile.readAsBytes();
+    final fileName = certificateFile.path.split('/').last;
+    return parseCertificateFromBytes(
+      fileBytes: fileBytes,
+      fileName: fileName,
+      password: password,
+    );
+  }
+
+  static Future<bool> verifyCertificatePasswordFromBytes({
+    required Uint8List fileBytes,
+    required String password,
+  }) async {
     try {
-      if (!certificateFile.existsSync()) {
-        return false;
-      }
       if (password.isEmpty) {
         debugPrint('[CertificateService] Password is empty');
         return false;
       }
-      final fileBytes = await certificateFile.readAsBytes();
       return await _verifyPassword(fileBytes, password);
     } catch (e) {
       debugPrint('[CertificateService] Password verification failed');
       return false;
     }
+  }
+
+  static Future<bool> verifyCertificatePassword(
+    File certificateFile,
+    String password,
+  ) async {
+    if (!certificateFile.existsSync()) return false;
+    final fileBytes = await certificateFile.readAsBytes();
+    return verifyCertificatePasswordFromBytes(
+      fileBytes: fileBytes,
+      password: password,
+    );
   }
 
   static Future<bool> _checkCertificateExpiry(

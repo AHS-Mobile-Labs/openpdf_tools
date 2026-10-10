@@ -9,6 +9,7 @@ import 'package:flutter_image_compress/flutter_image_compress.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 
 class PdfFromImagesScreen extends StatefulWidget {
   const PdfFromImagesScreen({super.key});
@@ -129,7 +130,15 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
       );
       if (action == 'download') {
         if (kIsWeb) {
-          await Printing.sharePdf(bytes: bytes, filename: 'openpdf_images.pdf');
+          await WebFileSaver.saveFile(
+            bytes: bytes,
+            fileName: 'openpdf_images.pdf',
+          );
+          if (mounted) {
+            ScaffoldMessenger.of(context).showSnackBar(
+              const SnackBar(content: Text('Downloaded openpdf_images.pdf')),
+            );
+          }
         } else {
           final outputPath = await OutputPathHelper.createWorkingOutputPath(
             fileName: 'openpdf_images.pdf',

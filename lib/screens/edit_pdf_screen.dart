@@ -1,13 +1,14 @@
 import 'dart:io';
 import 'dart:typed_data';
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
-import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:printing/printing.dart';
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
@@ -213,19 +214,68 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
           );
         }
       }
-      final result = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+      final picked = await PlatformFileHandler.pickPlatformFile(
+        dialogTitle: 'Select PDF to edit',
       );
-      if (result != null && result.files.single.path != null) {
-        final realPath = await resolveToRealPath(result.files.single.path!);
-        await _loadPdfFile(realPath);
+      if (!mounted || picked == null) return;
+      if (kIsWeb) {
+        if (picked.bytes != null) {
+          await _loadPdfFromBytes(picked.name, picked.bytes!);
+        }
+        return;
+      }
+      if (picked.path != null) {
+        await _loadPdfFile(picked.path!);
       }
     } catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
           context,
         ).showSnackBar(SnackBar(content: Text('Failed to open PDF: $e')));
+      }
+    }
+  }
+
+  Future<void> _loadPdfFromBytes(String name, Uint8List bytes) async {
+    setState(() {
+      _isLoadingDoc = true;
+      _pdfPath = name;
+      _renderedPageCache.clear();
+      _pageEdits.clear();
+      _selectedTextId = null;
+      _selectedImageId = null;
+    });
+
+    try {
+      final doc = PdfDocument(inputBytes: bytes);
+      final count = doc.pages.count;
+      final sizes = <Size>[];
+      for (var i = 0; i < count; i++) {
+        final page = doc.pages[i];
+        sizes.add(Size(page.size.width, page.size.height));
+      }
+      doc.dispose();
+
+      if (count == 0) {
+        throw Exception('The selected PDF contains no pages.');
+      }
+
+      setState(() {
+        _pdfBytes = bytes;
+        _originalPageCount = count;
+        _activeOriginalIndices = List.generate(count, (i) => i);
+        _originalPageSizes = sizes;
+        _currentPageIndex = 0;
+        _isLoadingDoc = false;
+      });
+
+      await _renderCurrentPage();
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isLoadingDoc = false);
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error loading PDF: $e')));
       }
     }
   }
@@ -1339,6 +1389,25 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
       // Write to working path and export to public directory
       final baseName = p.basenameWithoutExtension(_pdfPath ?? 'document');
       final fileName = '${baseName}_edited_${DateTime.now().millisecondsSinceEpoch}.pdf';
+
+      if (kIsWeb) {
+        final outBytes = Uint8List.fromList(savedBytes);
+        await WebFileSaver.saveFile(
+          bytes: outBytes,
+          fileName: fileName,
+        );
+        setState(() => _isSaving = false);
+        if (!mounted) return;
+        _showSavedDialog(
+          workingPath: fileName,
+          displayPath: fileName,
+          fileName: fileName,
+          byteCount: savedBytes.length,
+          webBytes: outBytes,
+        );
+        return;
+      }
+
       final workingPath = await OutputPathHelper.createWorkingOutputPath(
         fileName: fileName,
         category: OutputCategory.exports,
@@ -1374,6 +1443,7 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
     required String displayPath,
     required String fileName,
     required int byteCount,
+    Uint8List? webBytes,
   }) {
     final sizeKb = (byteCount / 1024).toStringAsFixed(1);
     showDialog(
@@ -1406,25 +1476,26 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
                 borderRadius: BorderRadius.circular(8),
               ),
               child: Text(
-                displayPath,
+                kIsWeb ? 'Downloaded to browser' : displayPath,
                 style: const TextStyle(fontSize: 12, fontFamily: 'monospace'),
               ),
             ),
           ],
         ),
         actions: [
-          TextButton.icon(
-            onPressed: () {
-              Navigator.pop(ctx);
-              share_plus.SharePlus.instance.share(
-                share_plus.ShareParams(
-                  files: [share_plus.XFile(workingPath)],
-                ),
-              );
-            },
-            icon: const Icon(Icons.share),
-            label: const Text('Share'),
-          ),
+          if (!kIsWeb)
+            TextButton.icon(
+              onPressed: () {
+                Navigator.pop(ctx);
+                share_plus.SharePlus.instance.share(
+                  share_plus.ShareParams(
+                    files: [share_plus.XFile(workingPath)],
+                  ),
+                );
+              },
+              icon: const Icon(Icons.share),
+              label: const Text('Share'),
+            ),
           ElevatedButton.icon(
             style: ElevatedButton.styleFrom(
               backgroundColor: const Color(0xFFC6302C),
@@ -1432,14 +1503,28 @@ class _EditPdfScreenState extends State<EditPdfScreen> {
             ),
             onPressed: () {
               Navigator.pop(ctx);
-              Navigator.push(
-                context,
-                MaterialPageRoute(
-                  builder: (_) => PdfViewerScreen(
-                    externalFile: File(workingPath),
+              if (kIsWeb) {
+                if (webBytes != null) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PdfViewerScreen(
+                        externalBytes: webBytes,
+                        externalFileName: fileName,
+                      ),
+                    ),
+                  );
+                }
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PdfViewerScreen(
+                      externalFile: File(workingPath),
+                    ),
                   ),
-                ),
-              );
+                );
+              }
             },
             icon: const Icon(Icons.picture_as_pdf),
             label: const Text('Open Viewer'),

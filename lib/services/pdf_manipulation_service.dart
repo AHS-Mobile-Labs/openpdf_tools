@@ -10,6 +10,41 @@ import 'package:syncfusion_flutter_pdf/pdf.dart';
 class PdfManipulationService {
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
 
+  static Future<Uint8List> mergePdfBytes(List<Uint8List> pdfBytesList) async {
+    if (pdfBytesList.length < 2) {
+      throw Exception('Please select at least 2 PDF files to merge');
+    }
+    final output = PdfDocument();
+    final loadedDocuments = <PdfDocument>[];
+    try {
+      for (final inputBytes in pdfBytesList) {
+        final input = PdfDocument(inputBytes: inputBytes);
+        loadedDocuments.add(input);
+        for (var pageIndex = 0; pageIndex < input.pages.count; pageIndex++) {
+          _copyPage(input.pages[pageIndex], output);
+        }
+      }
+      final bytes = await output.save();
+      return Uint8List.fromList(bytes);
+    } finally {
+      output.dispose();
+      for (final document in loadedDocuments) {
+        document.dispose();
+      }
+    }
+  }
+
+  static int getPageCountFromBytes(Uint8List bytes) {
+    try {
+      final doc = PdfDocument(inputBytes: bytes);
+      final count = doc.pages.count;
+      doc.dispose();
+      return count;
+    } catch (_) {
+      return 0;
+    }
+  }
+
   static Future<String> mergePdfs(List<String> pdfPaths) async {
     if (pdfPaths.isEmpty) {
       throw Exception('No PDF files provided for merging');
@@ -20,7 +55,7 @@ class PdfManipulationService {
     try {
       if (kIsWeb) {
         throw Exception(
-          'PDF merging is not available on web. Please use the desktop or mobile app.',
+          'PDF merging via file paths is not supported on web. Use mergePdfBytes instead.',
         );
       }
       final tempDir = await getTemporaryDirectory();
@@ -160,6 +195,63 @@ class PdfManipulationService {
     return null;
   }
 
+  static Future<List<Uint8List>> splitPdfBytes(
+    Uint8List inputBytes, {
+    List<int>? pages,
+  }) async {
+    final input = PdfDocument(inputBytes: inputBytes);
+    try {
+      final pageCount = input.pages.count;
+      if (pageCount <= 0) {
+        throw Exception('PDF has no pages');
+      }
+      final selectedPages = pages != null && pages.isNotEmpty
+          ? pages
+          : List.generate(pageCount, (i) => i + 1);
+      final results = <Uint8List>[];
+      for (final pageNumber in selectedPages) {
+        if (pageNumber < 1 || pageNumber > pageCount) {
+          throw Exception('Page $pageNumber is outside 1-$pageCount');
+        }
+        final output = PdfDocument();
+        try {
+          _copyPage(input.pages[pageNumber - 1], output);
+          final bytes = await output.save();
+          results.add(Uint8List.fromList(bytes));
+        } finally {
+          output.dispose();
+        }
+      }
+      return results;
+    } finally {
+      input.dispose();
+    }
+  }
+
+  static Future<Uint8List> splitPdfRangeBytes(
+    Uint8List inputBytes, {
+    required int startPage,
+    required int endPage,
+  }) async {
+    final input = PdfDocument(inputBytes: inputBytes);
+    final output = PdfDocument();
+    try {
+      final pageCount = input.pages.count;
+      if (startPage > pageCount) {
+        throw Exception('Start page is outside the PDF page count');
+      }
+      final end = endPage.clamp(1, pageCount).toInt();
+      for (var pageNumber = startPage; pageNumber <= end; pageNumber++) {
+        _copyPage(input.pages[pageNumber - 1], output);
+      }
+      final bytes = await output.save();
+      return Uint8List.fromList(bytes);
+    } finally {
+      output.dispose();
+      input.dispose();
+    }
+  }
+
   static Future<List<String>> splitPdf(
     String pdfPath, {
     List<int>? pages,
@@ -167,7 +259,7 @@ class PdfManipulationService {
     try {
       if (kIsWeb) {
         throw Exception(
-          'PDF splitting is not available on web. Please use the desktop or mobile app.',
+          'PDF splitting via file paths is not supported on web. Use splitPdfBytes instead.',
         );
       }
       final file = File(pdfPath);

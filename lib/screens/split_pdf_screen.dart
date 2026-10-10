@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:path/path.dart' as p;
 import '../services/pdf_manipulation_service.dart';
 import 'pdf_viewer_screen.dart';
@@ -17,6 +19,7 @@ class SplitPdfScreen extends StatefulWidget {
 class _SplitPdfScreenState extends State<SplitPdfScreen> {
   String? _pdfPath;
   String? _pdfName;
+  Uint8List? _pdfBytes;
   int? _pdfSizeInBytes;
   int? _pageCount;
   bool _isProcessing = false;
@@ -40,12 +43,17 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
 
   Future<void> _pickPdf() async {
     try {
-      final file = await PlatformFileHandler.pickFile(
+      final picked = await PlatformFileHandler.pickPlatformFile(
         dialogTitle: 'Choose a PDF to split',
       );
-      if (!mounted) return;
-      if (file == null) return;
-      final pageCount = await PdfManipulationService.getPageCount(file.path);
+      if (!mounted || picked == null) return;
+      int pageCount = 0;
+      if (kIsWeb) {
+        if (picked.bytes == null) return;
+        pageCount = PdfManipulationService.getPageCountFromBytes(picked.bytes!);
+      } else if (picked.path != null) {
+        pageCount = await PdfManipulationService.getPageCount(picked.path!);
+      }
       if (!mounted) return;
       if (pageCount <= 0) {
         setState(() {
@@ -55,9 +63,10 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
         return;
       }
       setState(() {
-        _pdfPath = file.path;
-        _pdfName = p.basename(file.path);
-        _pdfSizeInBytes = file.lengthSync();
+        _pdfPath = picked.path ?? picked.name;
+        _pdfName = picked.name;
+        _pdfBytes = picked.bytes;
+        _pdfSizeInBytes = picked.size;
         _pageCount = pageCount;
         _errorMessage = null;
         _startPageController.text = '1';
@@ -65,7 +74,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       });
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
-          content: Text('Selected: ${p.basename(file.path)}'),
+          content: Text('Selected: ${picked.name}'),
           backgroundColor: PremiumColors.success,
         ),
       );
@@ -76,15 +85,8 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
   }
 
   Future<void> _splitPdf() async {
-    if (_pdfPath == null) {
+    if (_pdfPath == null && _pdfBytes == null) {
       setState(() => _errorMessage = 'Please select a PDF file');
-      return;
-    }
-    if (kIsWeb) {
-      setState(
-        () => _errorMessage =
-            'PDF splitting is not available on web. Please use the desktop or mobile app.',
-      );
       return;
     }
     setState(() {
@@ -92,6 +94,82 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
       _errorMessage = null;
     });
     try {
+      if (kIsWeb) {
+        if (_pdfBytes == null) {
+          setState(() {
+            _isProcessing = false;
+            _errorMessage = 'No PDF data found. Please select file again.';
+          });
+          return;
+        }
+        final baseName = (_pdfName ?? 'document').replaceAll(
+          RegExp(r'\.pdf$', caseSensitive: false),
+          '',
+        );
+        final savedFiles = <ExportedFile>[];
+        final webBytesList = <Uint8List>[];
+
+        if (_extractAllPages) {
+          final pagesBytes = await PdfManipulationService.splitPdfBytes(
+            _pdfBytes!,
+          );
+          for (var i = 0; i < pagesBytes.length; i++) {
+            final outName = '${baseName}_page_${i + 1}.pdf';
+            await WebFileSaver.saveFile(bytes: pagesBytes[i], fileName: outName);
+            savedFiles.add(
+              ExportedFile(
+                workingPath: outName,
+                displayPath: outName,
+                fileName: outName,
+                isUserVisible: true,
+              ),
+            );
+            webBytesList.add(pagesBytes[i]);
+          }
+        } else {
+          final startPage = int.tryParse(_startPageController.text.trim());
+          final endPage = int.tryParse(_endPageController.text.trim());
+          if (startPage == null ||
+              endPage == null ||
+              startPage < 1 ||
+              endPage < startPage) {
+            setState(() {
+              _isProcessing = false;
+              _errorMessage =
+                  'Invalid page range. Start must be >= 1 and <= End';
+            });
+            return;
+          }
+          if (_pageCount != null && endPage > _pageCount!) {
+            setState(() {
+              _isProcessing = false;
+              _errorMessage = 'End page must be ${_pageCount!} or less';
+            });
+            return;
+          }
+          final rangeBytes = await PdfManipulationService.splitPdfRangeBytes(
+            _pdfBytes!,
+            startPage: startPage,
+            endPage: endPage,
+          );
+          final outName = '${baseName}_pages_${startPage}_$endPage.pdf';
+          await WebFileSaver.saveFile(bytes: rangeBytes, fileName: outName);
+          savedFiles.add(
+            ExportedFile(
+              workingPath: outName,
+              displayPath: outName,
+              fileName: outName,
+              isUserVisible: true,
+            ),
+          );
+          webBytesList.add(rangeBytes);
+        }
+        if (!mounted) return;
+        setState(() => _isProcessing = false);
+        _showSuccessDialog(savedFiles, webBytesList: webBytesList);
+        return;
+      }
+
       late List<String> outputPaths;
       if (_extractAllPages) {
         outputPaths = await PdfManipulationService.splitPdf(_pdfPath!);
@@ -166,6 +244,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
     setState(() {
       _pdfPath = null;
       _pdfName = null;
+      _pdfBytes = null;
       _pdfSizeInBytes = null;
       _pageCount = null;
       _errorMessage = null;
@@ -175,17 +254,26 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
     });
   }
 
-  void _showSuccessDialog(List<ExportedFile> savedFiles) {
+  void _showSuccessDialog(
+    List<ExportedFile> savedFiles, {
+    List<Uint8List>? webBytesList,
+  }) {
     final firstFile = savedFiles.first;
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int totalBytes = 0;
-    for (final f in savedFiles) {
-      try {
-        final file = File(f.workingPath);
-        if (file.existsSync()) {
-          totalBytes += file.lengthSync();
-        }
-      } catch (_) {}
+    if (webBytesList != null) {
+      for (final b in webBytesList) {
+        totalBytes += b.length;
+      }
+    } else {
+      for (final f in savedFiles) {
+        try {
+          final file = File(f.workingPath);
+          if (file.existsSync()) {
+            totalBytes += file.lengthSync();
+          }
+        } catch (_) {}
+      }
     }
     final sizeDisplay = totalBytes > 0
         ? PlatformFileHandler.getHumanReadableFileSize(totalBytes)
@@ -241,7 +329,7 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Saved to: ${firstFile.displayPath}',
+                    kIsWeb ? 'Downloaded to browser' : 'Saved to: ${firstFile.displayPath}',
                     style: TextStyle(
                       color: isDark
                           ? PremiumColors.darkTextSecondary
@@ -260,19 +348,31 @@ class _SplitPdfScreenState extends State<SplitPdfScreen> {
             child: const Text('Close'),
           ),
           ElevatedButton.icon(
-            onPressed: kIsWeb
-                ? null
-                : () {
-                    Navigator.pop(context);
-                    Navigator.push(
-                      context,
-                      MaterialPageRoute(
-                        builder: (_) => PdfViewerScreen(
-                          externalFile: File(firstFile.workingPath),
-                        ),
+            onPressed: () {
+              Navigator.pop(context);
+              if (kIsWeb) {
+                if (webBytesList != null && webBytesList.isNotEmpty) {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PdfViewerScreen(
+                        externalBytes: webBytesList.first,
+                        externalFileName: firstFile.fileName,
                       ),
-                    );
-                  },
+                    ),
+                  );
+                }
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(
+                    builder: (_) => PdfViewerScreen(
+                      externalFile: File(firstFile.workingPath),
+                    ),
+                  ),
+                );
+              }
+            },
             icon: const Icon(Icons.visibility),
             label: const Text('View First'),
           ),

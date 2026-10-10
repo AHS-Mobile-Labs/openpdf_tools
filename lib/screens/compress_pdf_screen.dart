@@ -3,12 +3,11 @@ import 'dart:async';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
-import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:path/path.dart' as p;
 import 'package:syncfusion_flutter_pdf/pdf.dart';
 import 'pdf_viewer_screen.dart';
@@ -22,6 +21,9 @@ class CompressPdfScreen extends StatefulWidget {
 class _CompressPdfScreenState extends State<CompressPdfScreen> {
   static const platform = MethodChannel('com.openpdf.tools/pdfManipulation');
   String? _pdfPath;
+  String? _pdfName;
+  Uint8List? _pdfBytes;
+  int? _pdfSize;
   bool _isProcessing = false;
   int _quality = 60;
   Future<void> pickPdf() async {
@@ -29,17 +31,22 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
       if (PlatformHelper.isAndroid) {
         await PlatformFileHandler.requestFilePermissions();
       }
-      final res = await FilePicker.platform.pickFiles(
-        type: FileType.custom,
-        allowedExtensions: ['pdf'],
+      final picked = await PlatformFileHandler.pickPlatformFile(
+        dialogTitle: 'Select PDF to compress',
       );
-      if (!mounted) return;
-      if (res == null || res.files.isEmpty) return;
-      final pickedPath = res.files.single.path;
-      if (pickedPath == null || pickedPath.isEmpty) return;
-      final realPath = await resolveToRealPath(pickedPath);
-      if (!mounted) return;
-      setState(() => _pdfPath = realPath);
+      if (!mounted || picked == null) return;
+      setState(() {
+        _pdfPath = picked.path ?? picked.name;
+        _pdfName = picked.name;
+        _pdfBytes = picked.bytes;
+        _pdfSize = picked.size;
+      });
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Selected: ${picked.name}'),
+          backgroundColor: Colors.green,
+        ),
+      );
     } catch (e) {
       final choice = await showDialog<String>(
         context: context,
@@ -121,17 +128,64 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
     }
   }
 
+  Future<Uint8List> _compressPdfBytes(Uint8List inputBytes, int quality) async {
+    final document = PdfDocument(inputBytes: inputBytes);
+    try {
+      document.compressionLevel = PdfCompressionLevel.best;
+      document.fileStructure.crossReferenceType =
+          PdfCrossReferenceType.crossReferenceStream;
+      document.fileStructure.incrementalUpdate = false;
+      final savedBytes = await document.save();
+      return Uint8List.fromList(savedBytes);
+    } finally {
+      document.dispose();
+    }
+  }
+
   Future<void> compressPdf() async {
-    if (_pdfPath == null) return;
+    if (_pdfPath == null && _pdfBytes == null) return;
     if (kIsWeb) {
-      if (mounted) {
+      if (_pdfBytes == null) {
         ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text(
-              'PDF compression is not available on web. Please use the desktop or mobile app.',
-            ),
-          ),
+          const SnackBar(content: Text('Please select a PDF file first')),
         );
+        return;
+      }
+      setState(() => _isProcessing = true);
+      try {
+        final compressedBytes = await _compressPdfBytes(_pdfBytes!, _quality);
+        final outName = 'compressed_${_pdfName ?? "document.pdf"}';
+        await WebFileSaver.saveFile(bytes: compressedBytes, fileName: outName);
+        final originalSize = _pdfBytes!.length;
+        final compressedSize = compressedBytes.length;
+        final reduction = ((1 - compressedSize / originalSize) * 100).toStringAsFixed(1);
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                'Compressed: ${(compressedSize / 1024).toStringAsFixed(2)} KB (reduced by $reduction%). Downloaded to browser!',
+              ),
+              backgroundColor: Colors.green,
+            ),
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PdfViewerScreen(
+                externalBytes: compressedBytes,
+                externalFileName: outName,
+              ),
+            ),
+          );
+        }
+      } catch (e) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(content: Text('Compression failed: $e')),
+          );
+        }
+      } finally {
+        if (mounted) setState(() => _isProcessing = false);
       }
       return;
     }
@@ -350,7 +404,9 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
                     ),
                     const SizedBox(height: 12),
                     if (_pdfPath != null)
-                      Text('Selected: ${_pdfPath!.split('/').last}'),
+                      Text(
+                        'Selected: ${_pdfName ?? _pdfPath!.split('/').last}${_pdfSize != null ? ' (${(_pdfSize! / 1024).toStringAsFixed(1)} KB)' : ''}',
+                      ),
                     const SizedBox(height: 12),
                     Row(
                       children: [

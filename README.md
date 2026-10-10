@@ -4,6 +4,8 @@ Fast, open-source PDF management for all platforms. View, convert, compress, mer
 
 **Flutter 3.10.7+ | Dart | 50+ formats | 6 platforms**
 
+🌐 **Web Demo**: [https://ahs-mobile-labs.github.io/openpdf_tools/](https://ahs-mobile-labs.github.io/openpdf_tools/)
+
 ## Features
 
 - 📄 **Viewer** - View & password-protected PDFs
@@ -45,9 +47,23 @@ flutter build linux --release
 flutter build windows --release
 flutter build macos --release
 
-# Web
+# Web (Local)
 flutter build web --release
+
+# Web (GitHub Pages release build)
+flutter build web --release --base-href "/openpdf_tools/"
+touch build/web/.nojekyll
+cp build/web/index.html build/web/404.html
 ```
+
+### GitHub Pages Deployment
+
+The web app is configured with automated CI/CD via GitHub Actions:
+- **Workflow**: Automated build and deployment on push to `main` via [.github/workflows/deploy-pages.yml](.github/workflows/deploy-pages.yml).
+- **SPA Routing**: Automatically includes `404.html` fallback and `.nojekyll` bypass.
+- **Fast Loader**: Lightweight CSS preloader in `web/index.html` with graceful handoff to Flutter.
+- **Manual Deployment Script**: `./scripts/deploy_gh_pages.sh`
+
 
 ## Star History
 

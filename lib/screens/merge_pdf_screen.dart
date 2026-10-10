@@ -1,9 +1,11 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:path/path.dart' as p;
 import '../services/pdf_manipulation_service.dart';
 import 'pdf_viewer_screen.dart';
@@ -20,12 +22,15 @@ class _PdfFileInfo {
   final int sizeInBytes;
   final int? pageCount;
   final DateTime addedAt;
+  final Uint8List? bytes;
+
   _PdfFileInfo({
     required this.path,
     required this.name,
     required this.sizeInBytes,
     this.pageCount,
     required this.addedAt,
+    this.bytes,
   });
 
   _PdfFileInfo copyWith({int? pageCount}) {
@@ -35,6 +40,7 @@ class _PdfFileInfo {
       sizeInBytes: sizeInBytes,
       pageCount: pageCount ?? this.pageCount,
       addedAt: addedAt,
+      bytes: bytes,
     );
   }
 
@@ -63,16 +69,28 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
 
   Future<void> _pickMultiplePdfs() async {
     try {
-      final files = await PlatformFileHandler.pickMultipleFiles(
+      final pickedFiles = await PlatformFileHandler.pickMultiplePlatformFiles(
         dialogTitle: 'Choose PDFs to merge',
       );
       if (!mounted) return;
-      if (files.isNotEmpty) {
+      if (pickedFiles.isNotEmpty) {
         int added = 0;
-        for (final file in files) {
+        for (final picked in pickedFiles) {
           if (!mounted) return;
-          if (_addPdfFile(file.path, showSnackBar: false)) {
-            added++;
+          if (kIsWeb) {
+            if (picked.bytes != null &&
+                _addPdfData(
+                  picked.name,
+                  picked.size,
+                  picked.bytes!,
+                  showSnackBar: false,
+                )) {
+              added++;
+            }
+          } else if (picked.path != null) {
+            if (_addPdfFile(picked.path!, showSnackBar: false)) {
+              added++;
+            }
           }
         }
         if (added > 0) {
@@ -89,6 +107,57 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       if (!mounted) return;
       _showErrorMessage('Error picking files: $e');
     }
+  }
+
+  bool _addPdfData(
+    String fileName,
+    int fileSize,
+    Uint8List bytes, {
+    bool showSnackBar = true,
+  }) {
+    if (fileSize > _maxFileSizeBytes) {
+      _showErrorMessage(
+        'File too large (${(fileSize / (1024 * 1024)).toStringAsFixed(1)} MB). Max: 100 MB',
+      );
+      return false;
+    }
+    final totalSize =
+        _selectedPdfs.fold<int>(0, (sum, pdf) => sum + pdf.sizeInBytes) +
+        fileSize;
+    if (totalSize > _maxTotalSizeBytes) {
+      _showErrorMessage('Total size would exceed 500 MB limit');
+      return false;
+    }
+    if (_selectedPdfs.any(
+      (pdf) => pdf.name == fileName && pdf.sizeInBytes == fileSize,
+    )) {
+      _showErrorMessage('File already added: $fileName');
+      return false;
+    }
+    final count = PdfManipulationService.getPageCountFromBytes(bytes);
+    setState(() {
+      _selectedPdfs.add(
+        _PdfFileInfo(
+          path: fileName,
+          name: fileName,
+          sizeInBytes: fileSize,
+          pageCount: count > 0 ? count : null,
+          addedAt: DateTime.now(),
+          bytes: bytes,
+        ),
+      );
+      _errorMessage = null;
+    });
+    if (showSnackBar) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        SnackBar(
+          content: Text('Added: $fileName'),
+          backgroundColor: Colors.green,
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    }
+    return true;
   }
 
   bool _addPdfFile(String filePath, {bool showSnackBar = true}) {
@@ -173,17 +242,40 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       _showErrorMessage('Please select at least 2 PDF files');
       return;
     }
-    if (kIsWeb) {
-      _showErrorMessage(
-        'PDF merging is not available on web. Please use the desktop or mobile app.',
-      );
-      return;
-    }
     setState(() {
       _isProcessing = true;
       _errorMessage = null;
     });
     try {
+      if (kIsWeb) {
+        final bytesList = <Uint8List>[];
+        for (final pdf in _selectedPdfs) {
+          if (pdf.bytes != null) {
+            bytesList.add(pdf.bytes!);
+          }
+        }
+        if (bytesList.length < 2) {
+          throw Exception('Could not read bytes for the selected PDFs');
+        }
+        final mergedBytes = await PdfManipulationService.mergePdfBytes(bytesList);
+        final fileName = 'merged_${DateTime.now().millisecondsSinceEpoch}.pdf';
+        await WebFileSaver.saveFile(bytes: mergedBytes, fileName: fileName);
+        if (!mounted) return;
+        setState(() {
+          _isProcessing = false;
+        });
+        _showSuccessDialog(
+          ExportedFile(
+            workingPath: fileName,
+            displayPath: fileName,
+            fileName: fileName,
+            isUserVisible: true,
+          ),
+          webBytes: mergedBytes,
+        );
+        return;
+      }
+
       final pdfPaths = <String>[for (final pdf in _selectedPdfs) pdf.path];
       final outputPath = await PdfManipulationService.mergePdfs(pdfPaths);
       final savedFile = await OutputPathHelper.exportGeneratedFile(
@@ -217,15 +309,19 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     }
   }
 
-  void _showSuccessDialog(ExportedFile savedFile) {
+  void _showSuccessDialog(ExportedFile savedFile, {Uint8List? webBytes}) {
     final isDark = Theme.of(context).brightness == Brightness.dark;
     int savedBytes = 0;
-    try {
-      final f = File(savedFile.workingPath);
-      if (f.existsSync()) {
-        savedBytes = f.lengthSync();
-      }
-    } catch (_) {}
+    if (webBytes != null) {
+      savedBytes = webBytes.length;
+    } else {
+      try {
+        final f = File(savedFile.workingPath);
+        if (f.existsSync()) {
+          savedBytes = f.lengthSync();
+        }
+      } catch (_) {}
+    }
     final sizeDisplay = savedBytes > 0
         ? PlatformFileHandler.getHumanReadableFileSize(savedBytes)
         : _getTotalSizeDisplay();
@@ -280,7 +376,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                   ),
                   const SizedBox(height: 4),
                   Text(
-                    'Saved to: ${savedFile.displayPath}',
+                    kIsWeb ? 'Downloaded to browser' : 'Saved to: ${savedFile.displayPath}',
                     style: TextStyle(
                       color: isDark
                           ? PremiumColors.darkTextSecondary
@@ -301,7 +397,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
           ElevatedButton.icon(
             onPressed: () {
               Navigator.pop(context);
-              _openMergedPdf(savedFile.workingPath);
+              _openMergedPdf(savedFile.workingPath, webBytes: webBytes);
             },
             icon: const Icon(Icons.visibility),
             label: const Text('View'),
@@ -311,8 +407,21 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
     );
   }
 
-  void _openMergedPdf(String outputPath) {
-    if (kIsWeb) return;
+  void _openMergedPdf(String outputPath, {Uint8List? webBytes}) {
+    if (kIsWeb) {
+      if (webBytes != null) {
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (_) => PdfViewerScreen(
+              externalBytes: webBytes,
+              externalFileName: outputPath,
+            ),
+          ),
+        );
+      }
+      return;
+    }
     Navigator.push(
       context,
       MaterialPageRoute(

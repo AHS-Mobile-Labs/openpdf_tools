@@ -7,6 +7,32 @@ import 'package:permission_handler/permission_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
 
+class PlatformPickedFile {
+  final String name;
+  final int size;
+  final Uint8List? bytes;
+  final String? path;
+  final File? ioFile;
+
+  const PlatformPickedFile({
+    required this.name,
+    required this.size,
+    this.bytes,
+    this.path,
+    this.ioFile,
+  });
+
+  bool get hasBytes => bytes != null && bytes!.isNotEmpty;
+
+  Future<Uint8List?> readBytes() async {
+    if (bytes != null && bytes!.isNotEmpty) return bytes;
+    if (ioFile != null && await ioFile!.exists()) {
+      return await ioFile!.readAsBytes();
+    }
+    return null;
+  }
+}
+
 class PlatformFileHandler {
   static int? get _androidSdkInt {
     if (!PlatformHelper.isAndroid) return null;
@@ -186,6 +212,108 @@ class PlatformFileHandler {
           final realPath = await resolveToRealPath(filePath);
           if (realPath.isNotEmpty) {
             files.add(File(realPath));
+          }
+        }
+        return files;
+      }
+    } on PlatformException catch (e) {
+      if (e.code != 'read_external_storage_denied') {}
+    } catch (_) {}
+    return [];
+  }
+
+  static Future<PlatformPickedFile?> pickPlatformFile({
+    String? dialogTitle,
+    List<String> allowedExtensions = const ['pdf'],
+  }) async {
+    try {
+      final hasPermission = await requestFilePermissions();
+      if (!hasPermission && PlatformHelper.isAndroid) {}
+      final result = await FilePicker.platform
+          .pickFiles(
+            type: FileType.custom,
+            allowedExtensions: allowedExtensions,
+            allowMultiple: false,
+            dialogTitle: dialogTitle,
+            withData: PlatformHelper.isWeb,
+            withReadStream: !PlatformHelper.isWeb,
+          )
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+      if (result != null && result.files.isNotEmpty) {
+        final picked = result.files.first;
+        if (PlatformHelper.isWeb) {
+          return PlatformPickedFile(
+            name: picked.name,
+            size: picked.size,
+            bytes: picked.bytes,
+          );
+        }
+        final filePath = picked.path;
+        if (filePath != null && filePath.isNotEmpty) {
+          final realPath = await resolveToRealPath(filePath);
+          final file = File(realPath);
+          if (await file.exists()) {
+            return PlatformPickedFile(
+              name: picked.name,
+              size: picked.size,
+              path: realPath,
+              ioFile: file,
+            );
+          }
+        }
+      }
+    } on PlatformException catch (e) {
+      if (e.code != 'read_external_storage_denied') {}
+    } catch (_) {}
+    return null;
+  }
+
+  static Future<List<PlatformPickedFile>> pickMultiplePlatformFiles({
+    String? dialogTitle,
+    List<String> allowedExtensions = const ['pdf'],
+  }) async {
+    try {
+      final hasPermission = await requestFilePermissions();
+      if (!hasPermission && PlatformHelper.isAndroid) {}
+      final result = await FilePicker.platform
+          .pickFiles(
+            type: FileType.custom,
+            allowedExtensions: allowedExtensions,
+            allowMultiple: true,
+            dialogTitle: dialogTitle,
+            withData: PlatformHelper.isWeb,
+            withReadStream: !PlatformHelper.isWeb,
+          )
+          .timeout(const Duration(seconds: 30), onTimeout: () => null);
+      if (result != null && result.files.isNotEmpty) {
+        if (PlatformHelper.isWeb) {
+          return result.files
+              .map(
+                (f) => PlatformPickedFile(
+                  name: f.name,
+                  size: f.size,
+                  bytes: f.bytes,
+                ),
+              )
+              .toList();
+        }
+        final files = <PlatformPickedFile>[];
+        for (final file in result.files) {
+          final filePath = file.path;
+          if (filePath == null || filePath.isEmpty) continue;
+          final realPath = await resolveToRealPath(filePath);
+          if (realPath.isNotEmpty) {
+            final ioFile = File(realPath);
+            if (await ioFile.exists()) {
+              files.add(
+                PlatformPickedFile(
+                  name: file.name,
+                  size: file.size,
+                  path: realPath,
+                  ioFile: ioFile,
+                ),
+              );
+            }
           }
         }
         return files;

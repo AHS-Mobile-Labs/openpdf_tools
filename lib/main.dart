@@ -447,13 +447,27 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
 
   Future<void> _handleGlobalOpenPdf() async {
     try {
-      final file = await PlatformFileHandler.pickFile(
+      final picked = await PlatformFileHandler.pickPlatformFile(
         dialogTitle: 'Select PDF Document',
       );
-      if (!mounted) return;
-      if (file != null) {
-        await FileHistoryService.addToHistory(file.path);
-        _openPdfFile(file.path);
+      if (!mounted || picked == null) return;
+      if (kIsWeb) {
+        if (picked.bytes != null) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PdfViewerScreen(
+                externalBytes: picked.bytes,
+                externalFileName: picked.name,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+      if (picked.ioFile != null) {
+        await FileHistoryService.addToHistory(picked.ioFile!.path);
+        _openPdfFile(picked.ioFile!.path);
       }
     } catch (e) {
       if (mounted) {

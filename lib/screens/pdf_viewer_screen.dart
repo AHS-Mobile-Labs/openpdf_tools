@@ -6,8 +6,6 @@ import 'package:flutter/foundation.dart' show debugPrint, kIsWeb;
 import 'package:file_picker/file_picker.dart';
 import 'package:openpdf_tools/config/premium_theme.dart';
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
-import 'package:openpdf_tools/widgets/web_pdf_viewer.dart'
-    if (dart.library.html) 'package:openpdf_tools/widgets/web_pdf_viewer_web.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
@@ -18,6 +16,7 @@ import 'package:path/path.dart' as p;
 import 'package:url_launcher/url_launcher.dart';
 import 'package:share_plus/share_plus.dart' as share_plus;
 import 'package:openpdf_tools/utils/output_path_helper.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'history_screen.dart';
 
 class PdfViewerScreen extends StatefulWidget {
@@ -770,12 +769,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     if (kIsWeb) {
       if (_pdfBytes == null) return;
       try {
+        final fileName = _webFileName ?? 'document.pdf';
+        await WebFileSaver.saveFile(
+          bytes: _pdfBytes!,
+          fileName: fileName,
+        );
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
-            content: Text(
-              'PDF ready to download: ${_webFileName ?? "document.pdf"}',
-            ),
+            content: Text('Downloaded: $fileName'),
+            backgroundColor: Colors.green,
           ),
         );
       } catch (e) {
@@ -1707,17 +1710,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   Widget _buildPdfContent(bool isDark) {
-    if (kIsWeb) {
-      if (_isLoadingBytes) {
-        return const Center(child: CircularProgressIndicator());
-      }
-      if (_pdfBytes != null) {
-        return WebPdfViewer(pdfBytes: _pdfBytes!, fileName: _webFileName);
-      }
-      return const Center(child: Text('Unable to load PDF'));
+    if (_isLoadingBytes) {
+      return const Center(child: CircularProgressIndicator());
     }
 
-    if (_pdfFile == null) {
+    if (_pdfBytes == null && _pdfFile == null) {
       return const Center(child: Text('Unable to load PDF'));
     }
 
@@ -1727,39 +1724,80 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
     final isMobile = MediaQuery.of(context).size.width < 600;
 
-    final viewer = SfPdfViewer.file(
-      _pdfFile!,
-      key: ValueKey('sf_pdf_${_pdfFile!.path}_${_password ?? ''}_$_pageLayoutMode'),
-      controller: _pdfViewerController,
-      password: _password,
-      pageLayoutMode: _pageLayoutMode,
-      scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
-          ? PdfScrollDirection.horizontal
-          : PdfScrollDirection.vertical,
-      initialZoomLevel: 1.0,
-      maxZoomLevel: _maxZoom,
-      enableDoubleTapZooming: true,
-      enableTextSelection: true,
-      interactionMode: PdfInteractionMode.pan,
-      canShowScrollHead: false,
-      canShowScrollStatus: false,
-      canShowPaginationDialog: false,
-      pageSpacing: isMobile ? 10.0 : 8.0,
-      onTap: (_) => setState(() => _showControls = !_showControls),
-      onPageChanged: (PdfPageChangedDetails details) {
-        if (details.newPageNumber > 0 &&
-            details.newPageNumber != _lastPageNumber) {
-          _lastPageNumber = details.newPageNumber;
-          _pageNumberNotifier.value = details.newPageNumber;
-        }
-      },
-      onHyperlinkClicked: _handleHyperlinkClicked,
-      onDocumentLoaded: _handleDocumentLoaded,
-      onDocumentLoadFailed: _handleDocumentLoadFailed,
-      onZoomLevelChanged: _handlePdfZoomLevelChanged,
-      currentSearchTextHighlightColor: Colors.amber,
-      otherSearchTextHighlightColor: Colors.yellowAccent,
-    );
+    final Widget viewer;
+    if (_pdfBytes != null) {
+      viewer = SfPdfViewer.memory(
+        _pdfBytes!,
+        key: ValueKey(
+          'sf_pdf_mem_${_webFileName ?? "doc"}_${_password ?? ''}_$_pageLayoutMode',
+        ),
+        controller: _pdfViewerController,
+        password: _password,
+        pageLayoutMode: _pageLayoutMode,
+        scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
+            ? PdfScrollDirection.horizontal
+            : PdfScrollDirection.vertical,
+        initialZoomLevel: 1.0,
+        maxZoomLevel: _maxZoom,
+        enableDoubleTapZooming: true,
+        enableTextSelection: true,
+        interactionMode: PdfInteractionMode.pan,
+        canShowScrollHead: false,
+        canShowScrollStatus: false,
+        canShowPaginationDialog: false,
+        pageSpacing: isMobile ? 10.0 : 8.0,
+        onTap: (_) => setState(() => _showControls = !_showControls),
+        onPageChanged: (PdfPageChangedDetails details) {
+          if (details.newPageNumber > 0 &&
+              details.newPageNumber != _lastPageNumber) {
+            _lastPageNumber = details.newPageNumber;
+            _pageNumberNotifier.value = details.newPageNumber;
+          }
+        },
+        onHyperlinkClicked: _handleHyperlinkClicked,
+        onDocumentLoaded: _handleDocumentLoaded,
+        onDocumentLoadFailed: _handleDocumentLoadFailed,
+        onZoomLevelChanged: _handlePdfZoomLevelChanged,
+        currentSearchTextHighlightColor: Colors.amber,
+        otherSearchTextHighlightColor: Colors.yellowAccent,
+      );
+    } else {
+      viewer = SfPdfViewer.file(
+        _pdfFile!,
+        key: ValueKey(
+          'sf_pdf_${_pdfFile!.path}_${_password ?? ''}_$_pageLayoutMode',
+        ),
+        controller: _pdfViewerController,
+        password: _password,
+        pageLayoutMode: _pageLayoutMode,
+        scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
+            ? PdfScrollDirection.horizontal
+            : PdfScrollDirection.vertical,
+        initialZoomLevel: 1.0,
+        maxZoomLevel: _maxZoom,
+        enableDoubleTapZooming: true,
+        enableTextSelection: true,
+        interactionMode: PdfInteractionMode.pan,
+        canShowScrollHead: false,
+        canShowScrollStatus: false,
+        canShowPaginationDialog: false,
+        pageSpacing: isMobile ? 10.0 : 8.0,
+        onTap: (_) => setState(() => _showControls = !_showControls),
+        onPageChanged: (PdfPageChangedDetails details) {
+          if (details.newPageNumber > 0 &&
+              details.newPageNumber != _lastPageNumber) {
+            _lastPageNumber = details.newPageNumber;
+            _pageNumberNotifier.value = details.newPageNumber;
+          }
+        },
+        onHyperlinkClicked: _handleHyperlinkClicked,
+        onDocumentLoaded: _handleDocumentLoaded,
+        onDocumentLoadFailed: _handleDocumentLoadFailed,
+        onZoomLevelChanged: _handlePdfZoomLevelChanged,
+        currentSearchTextHighlightColor: Colors.amber,
+        otherSearchTextHighlightColor: Colors.yellowAccent,
+      );
+    }
 
     return RepaintBoundary(
       child: SfPdfViewerTheme(

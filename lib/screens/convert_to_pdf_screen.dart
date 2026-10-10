@@ -10,6 +10,7 @@ import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/format_conversion_service.dart';
 import 'pdf_viewer_screen.dart';
@@ -188,14 +189,54 @@ class _ConvertToPdfScreenState extends State<ConvertToPdfScreen> {
         bytes: fileBytes,
         fileName: fileName,
       );
-      await Printing.sharePdf(
-        bytes: pdfBytes,
-        filename: '${fileName.replaceAll(RegExp(r'\.[^.]*$'), '')}.pdf',
-      );
-      if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('PDF created successfully')),
+      final pdfFileName =
+          '${fileName.replaceAll(RegExp(r'\.[^.]*$'), '')}.pdf';
+
+      if (kIsWeb) {
+        await WebFileSaver.saveFile(
+          bytes: pdfBytes,
+          fileName: pdfFileName,
         );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text('PDF downloaded: $pdfFileName'),
+              action: SnackBarAction(
+                label: 'View',
+                onPressed: () {
+                  Navigator.push(
+                    context,
+                    MaterialPageRoute(
+                      builder: (_) => PdfViewerScreen(
+                        externalBytes: pdfBytes,
+                        externalFileName: pdfFileName,
+                      ),
+                    ),
+                  );
+                },
+              ),
+            ),
+          );
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PdfViewerScreen(
+                externalBytes: pdfBytes,
+                externalFileName: pdfFileName,
+              ),
+            ),
+          );
+        }
+      } else {
+        await Printing.sharePdf(
+          bytes: pdfBytes,
+          filename: pdfFileName,
+        );
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            const SnackBar(content: Text('PDF created successfully')),
+          );
+        }
       }
     } catch (e) {
       if (mounted) {

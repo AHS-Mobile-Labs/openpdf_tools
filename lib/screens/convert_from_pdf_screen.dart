@@ -1,4 +1,6 @@
+import 'dart:convert';
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -6,6 +8,7 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:path/path.dart' as path_lib;
 import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
@@ -23,6 +26,8 @@ class ConvertFromPdfScreen extends StatefulWidget {
 class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   bool _isProcessing = false;
   String? _selectedPdfPath;
+  String? _selectedPdfName;
+  Uint8List? _pdfBytes;
   String? _selectedFormat;
   static const List<ConversionFormat> conversionFormats = [
     ConversionFormat(
@@ -182,8 +187,35 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     }
   }
 
+  bool get _hasSelectedPdf => _selectedPdfPath != null || _pdfBytes != null;
+  String get _selectedDisplayName =>
+      _selectedPdfName ??
+      (_selectedPdfPath != null ? path_lib.basename(_selectedPdfPath!) : '');
+
+  void _clearSelectedPdf() {
+    setState(() {
+      _selectedPdfPath = null;
+      _selectedPdfName = null;
+      _pdfBytes = null;
+    });
+  }
+
   Future<void> _pickPdf() async {
     try {
+      if (kIsWeb) {
+        final picked = await PlatformFileHandler.pickPlatformFile(
+          allowedExtensions: ['pdf'],
+        );
+        if (picked != null) {
+          setState(() {
+            _selectedPdfPath = null;
+            _selectedPdfName = picked.name;
+            _pdfBytes = picked.bytes;
+          });
+        }
+        return;
+      }
+
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -207,7 +239,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         if (pickedPath == null || pickedPath.isEmpty) return;
         final realPath = await resolveToRealPath(pickedPath);
         if (!mounted) return;
-        setState(() => _selectedPdfPath = realPath);
+        setState(() {
+          _selectedPdfPath = realPath;
+          _selectedPdfName = path_lib.basename(realPath);
+          _pdfBytes = null;
+        });
       }
     } catch (e) {
       if (!mounted) return;
@@ -241,7 +277,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           allowedExtensions: ['pdf'],
         );
         if (selected != null) {
-          setState(() => _selectedPdfPath = selected);
+          setState(() {
+            _selectedPdfPath = selected;
+            _selectedPdfName = path_lib.basename(selected);
+            _pdfBytes = null;
+          });
         }
       } else if (choice == 'enter') {
         _showPathDialog();
@@ -277,7 +317,11 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       if (path.isEmpty) return;
       final file = File(path);
       if (await file.exists()) {
-        setState(() => _selectedPdfPath = path);
+        setState(() {
+          _selectedPdfPath = path;
+          _selectedPdfName = path_lib.basename(path);
+          _pdfBytes = null;
+        });
       } else {
         if (!mounted) return;
         ScaffoldMessenger.of(
@@ -288,7 +332,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
   }
 
   Future<void> _convertPdf(ConversionFormat format) async {
-    if (_selectedPdfPath == null) {
+    if (!_hasSelectedPdf) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(content: Text('Please select a PDF file first')),
       );
@@ -299,16 +343,73 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       _selectedFormat = format.format;
     });
     try {
-      final fileName = OutputPathHelper.outputFileName(
-        sourcePath: _selectedPdfPath!,
-        suffix: 'converted',
-        extension: format.fileExtension,
+      final Uint8List pdfBytes =
+          _pdfBytes ?? await File(_selectedPdfPath!).readAsBytes();
+      final baseTitle = _selectedPdfName != null
+          ? path_lib.basenameWithoutExtension(_selectedPdfName!)
+          : (_selectedPdfPath != null
+              ? path_lib.basenameWithoutExtension(_selectedPdfPath!)
+              : 'document');
+      final fileName = '${baseTitle}_converted.${format.fileExtension}';
+
+      final outputBytes = await _generateConvertedBytes(
+        format,
+        pdfBytes,
+        baseTitle,
       );
+      final isPdfOutput = format.fileExtension == 'pdf';
+
+      if (kIsWeb) {
+        await WebFileSaver.saveFile(
+          bytes: outputBytes,
+          fileName: fileName,
+        );
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(
+            content: Text('Downloaded: $fileName'),
+            duration: const Duration(seconds: 3),
+            action: isPdfOutput
+                ? SnackBarAction(
+                    label: 'Open',
+                    onPressed: () {
+                      Navigator.push(
+                        context,
+                        MaterialPageRoute(
+                          builder: (_) => PdfViewerScreen(
+                            externalBytes: outputBytes,
+                            externalFileName: fileName,
+                          ),
+                        ),
+                      );
+                    },
+                  )
+                : null,
+          ),
+        );
+        if (isPdfOutput && mounted) {
+          Navigator.push(
+            context,
+            MaterialPageRoute(
+              builder: (_) => PdfViewerScreen(
+                externalBytes: outputBytes,
+                externalFileName: fileName,
+              ),
+            ),
+          );
+        }
+        return;
+      }
+
       final outputPath = await OutputPathHelper.createWorkingOutputPath(
         fileName: fileName,
         category: OutputCategory.exports,
       );
-      await _performConversion(format, outputPath);
+      final outFile = File(outputPath);
+      final outDir = outFile.parent;
+      if (!await outDir.exists()) await outDir.create(recursive: true);
+      await outFile.writeAsBytes(outputBytes);
+
       if (!mounted) return;
       if (!await File(outputPath).exists()) {
         throw Exception('Conversion did not create an output file.');
@@ -319,7 +420,6 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
         category: OutputCategory.exports,
       );
       if (!mounted) return;
-      final isPdfOutput = format.fileExtension == 'pdf';
       ScaffoldMessenger.of(context).showSnackBar(
         SnackBar(
           content: Text('Saved: ${savedFile.displayPath}'),
@@ -375,90 +475,76 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
     }
   }
 
-  Future<void> _performConversion(
+  Future<Uint8List> _generateConvertedBytes(
     ConversionFormat format,
-    String outputPath,
+    Uint8List pdfBytes,
+    String baseTitle,
   ) async {
-    final pdfBytes = await File(_selectedPdfPath!).readAsBytes();
-    final outFile = File(outputPath);
-    final outDir = outFile.parent;
-    if (!await outDir.exists()) await outDir.create(recursive: true);
-
     switch (format.format) {
       case 'Text':
         final text = FormatConversionService.extractFullText(pdfBytes);
-        await outFile.writeAsString(text.isNotEmpty ? text : 'No text content found in PDF.');
-        break;
+        return Uint8List.fromList(
+          utf8.encode(text.isNotEmpty ? text : 'No text content found in PDF.'),
+        );
 
       case 'Word':
       case 'DOCX':
-        final docxBytes = FormatConversionService.pdfToDocx(pdfBytes);
-        await outFile.writeAsBytes(docxBytes);
-        break;
+        return FormatConversionService.pdfToDocx(pdfBytes);
 
       case 'PowerPoint':
       case 'PPTX':
-        final pptxBytes = FormatConversionService.pdfToPptx(pdfBytes);
-        await outFile.writeAsBytes(pptxBytes);
-        break;
+        return FormatConversionService.pdfToPptx(pdfBytes);
 
       case 'Excel':
       case 'XLSX':
-        final xlsxBytes = FormatConversionService.pdfToXlsx(pdfBytes);
-        await outFile.writeAsBytes(xlsxBytes);
-        break;
+        return FormatConversionService.pdfToXlsx(pdfBytes);
 
       case 'ODT':
-        final odtBytes = FormatConversionService.pdfToOdt(pdfBytes);
-        await outFile.writeAsBytes(odtBytes);
-        break;
+        return FormatConversionService.pdfToOdt(pdfBytes);
 
       case 'ODS':
-        final odsBytes = FormatConversionService.pdfToOds(pdfBytes);
-        await outFile.writeAsBytes(odsBytes);
-        break;
+        return FormatConversionService.pdfToOds(pdfBytes);
 
       case 'ODP':
-        final odpBytes = FormatConversionService.pdfToOdp(pdfBytes);
-        await outFile.writeAsBytes(odpBytes);
-        break;
+        return FormatConversionService.pdfToOdp(pdfBytes);
 
       case 'HTML':
         final html = FormatConversionService.pdfToHtml(
           pdfBytes,
-          title: path_lib.basenameWithoutExtension(_selectedPdfPath!),
+          title: baseTitle,
         );
-        await outFile.writeAsString(html);
-        break;
+        return Uint8List.fromList(utf8.encode(html));
 
       case 'RTF':
         final rtf = FormatConversionService.pdfToRtf(pdfBytes);
-        await outFile.writeAsString(rtf);
-        break;
+        return Uint8List.fromList(utf8.encode(rtf));
 
       case 'EPUB':
-        final epubBytes = FormatConversionService.pdfToEpub(
+        return FormatConversionService.pdfToEpub(
           pdfBytes,
-          title: path_lib.basenameWithoutExtension(_selectedPdfPath!),
+          title: baseTitle,
         );
-        await outFile.writeAsBytes(epubBytes);
-        break;
 
       case 'SVG':
         final svg = FormatConversionService.pdfToSvg(pdfBytes);
-        await outFile.writeAsString(svg);
-        break;
+        return Uint8List.fromList(utf8.encode(svg));
 
       case 'Images':
-        final images = await FormatConversionService.renderPdfToImages(pdfBytes, format: 'png');
-        if (images.isEmpty) throw Exception('No images could be extracted from PDF');
+        final images = await FormatConversionService.renderPdfToImages(
+          pdfBytes,
+          format: 'png',
+        );
+        if (images.isEmpty) {
+          throw Exception('No images could be extracted from PDF');
+        }
         final archive = Archive();
         for (int i = 0; i < images.length; i++) {
-          archive.addFile(ArchiveFile('page_${i + 1}.png', images[i].length, images[i]));
+          archive.addFile(
+            ArchiveFile('page_${i + 1}.png', images[i].length, images[i]),
+          );
         }
         final zipBytes = ZipEncoder().encode(archive);
-        await outFile.writeAsBytes(zipBytes);
-        break;
+        return Uint8List.fromList(zipBytes);
 
       case 'JPG':
       case 'PNG':
@@ -466,19 +552,16 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
           pdfBytes,
           format: format.format.toLowerCase(),
         );
-        if (images.isEmpty) throw Exception('No images could be generated from PDF');
-        await outFile.writeAsBytes(images.first);
-        break;
+        if (images.isEmpty) {
+          throw Exception('No images could be generated from PDF');
+        }
+        return images.first;
 
       case 'SecurePDF':
-        final secBytes = FormatConversionService.encryptPdf(pdfBytes);
-        await outFile.writeAsBytes(secBytes);
-        break;
+        return FormatConversionService.encryptPdf(pdfBytes);
 
       case 'PDF/A':
-        final pdfABytes = FormatConversionService.createPdfA(pdfBytes);
-        await outFile.writeAsBytes(pdfABytes);
-        break;
+        return FormatConversionService.createPdfA(pdfBytes);
 
       default:
         throw Exception('Unsupported format: ${format.format}');
@@ -500,7 +583,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
       ),
       body: Column(
         children: [
-          if (_selectedPdfPath != null)
+          if (_hasSelectedPdf)
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(16),
@@ -528,7 +611,7 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                           ),
                         ),
                         Text(
-                          path_lib.basename(_selectedPdfPath!),
+                          _selectedDisplayName,
                           maxLines: 1,
                           overflow: TextOverflow.ellipsis,
                           style: const TextStyle(fontSize: 12),
@@ -537,14 +620,14 @@ class _ConvertFromPdfScreenState extends State<ConvertFromPdfScreen> {
                     ),
                   ),
                   TextButton(
-                    onPressed: () => setState(() => _selectedPdfPath = null),
+                    onPressed: _clearSelectedPdf,
                     child: const Text('Clear'),
                   ),
                 ],
               ),
             ),
           Expanded(
-            child: _selectedPdfPath == null
+            child: !_hasSelectedPdf
                 ? Center(
                     child: Column(
                       mainAxisAlignment: MainAxisAlignment.center,

@@ -3,9 +3,9 @@
     "short_name": "OpenPDF Tools",
     "start_url": ".",
     "display": "standalone",
-    "background_color": "#0175C2",
-    "theme_color": "#0175C2",
-    "description": "A collection of tools for working with PDF files, including merging, splitting, compressing, and converting PDFs.",
+    "background_color": "#0f172a",
+    "theme_color": "#2563eb",
+    "description": "OpenPDF Tools - High-performance offline and web PDF tools suite.",
     "orientation": "portrait-primary",
     "prefer_related_applications": false,
     "icons": [

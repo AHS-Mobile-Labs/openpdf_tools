@@ -1,6 +1,9 @@
 import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:openpdf_tools/utils/platform_file_handler.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import '../models/signing_models.dart';
 import '../services/certificate_service.dart';
 import '../services/secure_file_picker_service.dart';
@@ -18,7 +21,11 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
   static const int totalSteps = 5;
   int _currentStep = 0;
   File? _selectedPdfFile;
+  Uint8List? _pdfBytes;
+  String? _pdfFileName;
   File? _selectedCertificateFile;
+  Uint8List? _certificateBytes;
+  String? _certificateFileName;
   PdfMetadata? _pdfMetadata;
   CertificateInfo? _certificateInfo;
   final _nameController = TextEditingController();
@@ -203,9 +210,9 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               ),
               const SizedBox(height: 8),
               Text(
-                _selectedPdfFile == null
+                _selectedPdfFile == null && _pdfBytes == null
                     ? 'No PDF file selected'
-                    : _selectedPdfFile!.path.split('/').last,
+                    : (_pdfFileName ?? _selectedPdfFile!.path.split('/').last),
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -249,9 +256,10 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               ),
               const SizedBox(height: 8),
               Text(
-                _selectedCertificateFile == null
+                _selectedCertificateFile == null && _certificateBytes == null
                     ? 'No certificate selected'
-                    : _selectedCertificateFile!.path.split('/').last,
+                    : (_certificateFileName ??
+                        _selectedCertificateFile!.path.split('/').last),
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -443,7 +451,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               const SizedBox(height: 16),
               _buildReviewRow(
                 'PDF File:',
-                _selectedPdfFile?.path.split('/').last,
+                _pdfFileName ?? _selectedPdfFile?.path.split('/').last,
               ),
               _buildReviewRow('Signer Name:', _nameController.text),
               _buildReviewRow(
@@ -452,7 +460,8 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               ),
               _buildReviewRow(
                 'Certificate:',
-                _selectedCertificateFile?.path.split('/').last,
+                _certificateFileName ??
+                    _selectedCertificateFile?.path.split('/').last,
               ),
               if (_certificateInfo != null)
                 _buildReviewRow(
@@ -733,11 +742,37 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
 
   Future<void> _selectPdfFile() async {
     try {
+      if (kIsWeb) {
+        final picked = await PlatformFileHandler.pickPlatformFile(
+          allowedExtensions: ['pdf'],
+        );
+        if (picked != null) {
+          final metadata = PdfMetadata(
+            pageCount: 1,
+            title: picked.name.replaceAll('.pdf', ''),
+            fileSizeBytes: picked.size,
+            modifiedDate: DateTime.now(),
+            isEncrypted: false,
+            hasSignatures: false,
+          );
+          setState(() {
+            _selectedPdfFile = null;
+            _pdfBytes = picked.bytes;
+            _pdfFileName = picked.name;
+            _pdfMetadata = metadata;
+            _pdfValidated = true;
+            _errorMessage = null;
+          });
+        }
+        return;
+      }
       final file = await SecureFilePickerService.pickPdfFile();
       if (file != null) {
         final metadata = await SecureFilePickerService.getPdfMetadata(file);
         setState(() {
           _selectedPdfFile = file;
+          _pdfBytes = null;
+          _pdfFileName = file.path.split('/').last;
           _pdfMetadata = metadata;
           _pdfValidated = true;
           _errorMessage = null;
@@ -750,6 +785,33 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
 
   Future<void> _selectCertificate() async {
     try {
+      if (kIsWeb) {
+        final picked = await PlatformFileHandler.pickPlatformFile(
+          allowedExtensions: ['p12', 'pfx', 'pem'],
+        );
+        if (picked != null && picked.bytes != null) {
+          setState(() => _isProcessing = true);
+          _certificateValidation =
+              await CertificateService.validateCertificateBytes(
+            fileBytes: picked.bytes!,
+            fileName: picked.name,
+          );
+          if (_certificateValidation!.isValid) {
+            setState(() {
+              _selectedCertificateFile = null;
+              _certificateBytes = picked.bytes;
+              _certificateFileName = picked.name;
+              _certificateValidated = true;
+              _errorMessage = null;
+              _isProcessing = false;
+            });
+          } else {
+            setState(() => _isProcessing = false);
+            _showError(_certificateValidation!.errors.join('\n'));
+          }
+        }
+        return;
+      }
       final file = await SecureFilePickerService.pickCertificateFile();
       if (file != null) {
         setState(() => _isProcessing = true);
@@ -758,6 +820,8 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
         if (_certificateValidation!.isValid) {
           setState(() {
             _selectedCertificateFile = file;
+            _certificateBytes = null;
+            _certificateFileName = file.path.split('/').last;
             _certificateValidated = true;
             _errorMessage = null;
             _isProcessing = false;
@@ -774,16 +838,35 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
   }
 
   Future<void> _verifyPassword() async {
-    if (_passwordController.text.isEmpty || _selectedCertificateFile == null) {
+    if (_passwordController.text.isEmpty ||
+        (_selectedCertificateFile == null && _certificateBytes == null)) {
       _showError('Please enter password and select certificate');
       return;
     }
     try {
       setState(() => _isProcessing = true);
-      final isValid = await CertificateService.verifyCertificatePassword(
-        _selectedCertificateFile!,
-        _passwordController.text,
-      );
+      final bool isValid;
+      final CertificateInfo? certInfo;
+      if (_certificateBytes != null) {
+        isValid = await CertificateService.verifyCertificatePasswordFromBytes(
+          fileBytes: _certificateBytes!,
+          password: _passwordController.text,
+        );
+        certInfo = await CertificateService.parseCertificateFromBytes(
+          fileBytes: _certificateBytes!,
+          fileName: _certificateFileName ?? 'certificate.p12',
+          password: _passwordController.text,
+        );
+      } else {
+        isValid = await CertificateService.verifyCertificatePassword(
+          _selectedCertificateFile!,
+          _passwordController.text,
+        );
+        certInfo = await CertificateService.parseCertificate(
+          _selectedCertificateFile!,
+          _passwordController.text,
+        );
+      }
       setState(() => _isProcessing = false);
       if (isValid) {
         setState(() {
@@ -793,10 +876,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       } else {
         _showError('Invalid certificate password');
       }
-      _certificateInfo = await CertificateService.parseCertificate(
-        _selectedCertificateFile!,
-        _passwordController.text,
-      );
+      _certificateInfo = certInfo;
     } catch (e) {
       setState(() => _isProcessing = false);
       _showError('Password verification failed: $e');
@@ -832,6 +912,43 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
   Future<void> _performSigning() async {
     try {
       setState(() => _isProcessing = true);
+
+      if (kIsWeb) {
+        final pdfBytes = _pdfBytes!;
+        final signedPdfBytes = await ProductionPdfSigningService.signPdfBytes(
+          pdfBytes: pdfBytes,
+          nameOnSignature: _nameController.text,
+          reason: _reasonController.text.isEmpty
+              ? 'Approved'
+              : _reasonController.text,
+          email: _emailController.text.isEmpty ? null : _emailController.text,
+          certificate: _certificateInfo!,
+          certificatePassword: _passwordController.text,
+          visibleSignature: _useVisibleSignature,
+          location: _selectedLocation,
+        );
+        ProductionPdfSigningService.clearSensitiveData(
+          password: _passwordController.text,
+        );
+        CertificateService.clearSensitiveData(_passwordController.text);
+
+        final outputFileName = SecureFilePickerService.generateOutputFilename(
+          _pdfFileName ?? 'document.pdf',
+        );
+
+        await WebFileSaver.saveFile(
+          bytes: signedPdfBytes,
+          fileName: outputFileName,
+        );
+
+        setState(() => _isProcessing = false);
+        if (mounted) {
+          _showSuccess('PDF signed and downloaded successfully!');
+          _showSigningSuccessDialogWeb(signedPdfBytes, outputFileName);
+        }
+        return;
+      }
+
       final outputDir = await SecureFilePickerService.getOutputDirectory();
       final outputFileName = SecureFilePickerService.generateOutputFilename(
         _selectedPdfFile!.path.split('/').last,
@@ -873,6 +990,59 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
       setState(() => _isProcessing = false);
       _showError('Signing error: $e');
     }
+  }
+
+  void _showSigningSuccessDialogWeb(Uint8List bytes, String fileName) {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (ctx) => AlertDialog(
+        title: const Row(
+          children: [
+            Icon(Icons.check_circle, color: Colors.green),
+            SizedBox(width: 8),
+            Text('PDF Signed Successfully'),
+          ],
+        ),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Text('Signer: ${_nameController.text}'),
+            const SizedBox(height: 8),
+            Text('Reason: ${_reasonController.text}'),
+            const SizedBox(height: 8),
+            Text('File Size: ${bytes.length} bytes'),
+            const SizedBox(height: 8),
+            Text(
+              'Downloaded to browser as:\n$fileName',
+              style: const TextStyle(fontSize: 12, fontStyle: FontStyle.italic),
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(ctx).pop(),
+            child: const Text('Close'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(ctx).pop();
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => PdfViewerScreen(
+                    externalBytes: bytes,
+                    externalFileName: fileName,
+                  ),
+                ),
+              );
+            },
+            child: const Text('View PDF'),
+          ),
+        ],
+      ),
+    );
   }
 
   void _showSigningSuccessDialog(SigningResult result) {

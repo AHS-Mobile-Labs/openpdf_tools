@@ -1,3 +1,5 @@
+import 'dart:io';
+import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:file_picker/file_picker.dart';
@@ -5,10 +7,12 @@ import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/uri_to_file.dart';
+import 'package:openpdf_tools/utils/web_file_saver.dart';
 import 'package:share_plus/share_plus.dart' show XFile;
 import 'package:share_plus/share_plus.dart' as share_plus;
 import '../services/pdf_repair_service.dart';
 import '../config/app_config.dart';
+import 'pdf_viewer_screen.dart';
 
 class RepairPdfScreen extends StatefulWidget {
   const RepairPdfScreen({super.key});
@@ -19,11 +23,14 @@ class RepairPdfScreen extends StatefulWidget {
 class _RepairPdfScreenState extends State<RepairPdfScreen> {
   String? _selectedFilePath;
   String? _fileName;
+  Uint8List? _fileBytes;
   bool _isProcessing = false;
   bool _isAnalyzing = false;
   Map<String, dynamic>? _analysisResult;
   PDFIntegrityReport? _integrityReport;
   String _processingStatus = '';
+
+  bool get _hasSelectedFile => _selectedFilePath != null || _fileBytes != null;
   @override
   void dispose() {
     debugPrint('[RepairPdfScreen] Disposing screen');
@@ -38,6 +45,22 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
 
   Future<void> _pickPDFFile() async {
     try {
+      if (kIsWeb) {
+        final picked = await PlatformFileHandler.pickPlatformFile(
+          allowedExtensions: ['pdf'],
+        );
+        if (picked != null) {
+          _safeSetState(() {
+            _selectedFilePath = null;
+            _fileName = picked.name;
+            _fileBytes = picked.bytes;
+            _analysisResult = null;
+            _integrityReport = null;
+          });
+        }
+        return;
+      }
+
       if (PlatformHelper.isAndroid) {
         final hasPermission =
             await PlatformFileHandler.requestStoragePermission();
@@ -63,6 +86,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
         _safeSetState(() {
           _selectedFilePath = realPath;
           _fileName = fileName;
+          _fileBytes = null;
           _analysisResult = null;
           _integrityReport = null;
         });
@@ -74,7 +98,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
   }
 
   Future<void> _analyzePDF() async {
-    if (_selectedFilePath == null) {
+    if (!_hasSelectedFile) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
@@ -84,9 +108,18 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
     });
     try {
       debugPrint('[RepairPdfScreen] Starting PDF analysis');
-      final analysis = await PDFRepairService.analyzePDF(_selectedFilePath!);
+      final Uint8List bytes =
+          _fileBytes ?? await File(_selectedFilePath!).readAsBytes();
+      final effectiveName = _fileName ?? 'document.pdf';
+      final analysis = await PDFRepairService.analyzePDFBytes(
+        bytes: bytes,
+        fileName: effectiveName,
+      );
       if (!mounted) return;
-      final report = await PDFRepairService.checkIntegrity(_selectedFilePath!);
+      final report = await PDFRepairService.checkIntegrityFromBytes(
+        bytes: bytes,
+        fileName: effectiveName,
+      );
       if (!mounted) return;
       _safeSetState(() {
         _analysisResult = analysis;
@@ -106,7 +139,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
   }
 
   Future<void> _repairPDF() async {
-    if (_selectedFilePath == null) {
+    if (!_hasSelectedFile) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
@@ -116,25 +149,43 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
     });
     try {
       debugPrint('[RepairPdfScreen] Starting PDF repair');
+      final Uint8List bytes =
+          _fileBytes ?? await File(_selectedFilePath!).readAsBytes();
       final fileName = OutputPathHelper.outputFileName(
-        sourcePath: _fileName ?? _selectedFilePath!,
+        sourcePath: _fileName ?? _selectedFilePath ?? 'document.pdf',
         suffix: 'repaired',
         extension: 'pdf',
       );
-      final outputPath = await OutputPathHelper.createWorkingOutputPath(
+
+      final repairedBytes = await PDFRepairService.repairPDFBytes(
+        bytes: bytes,
         fileName: fileName,
-        category: OutputCategory.exports,
       );
-      final success = await PDFRepairService.repairPDF(
-        inputPath: _selectedFilePath!,
-        outputPath: outputPath,
-      );
+
       if (!mounted) return;
       _safeSetState(() {
         _isProcessing = false;
         _processingStatus = '';
       });
-      if (success) {
+
+      if (repairedBytes != null) {
+        if (kIsWeb) {
+          await WebFileSaver.saveFile(
+            bytes: repairedBytes,
+            fileName: fileName,
+          );
+          if (!mounted) return;
+          _showSuccessSnackBar('PDF repaired and downloaded successfully');
+          _showRepairedFileDialogWeb(repairedBytes, fileName);
+          return;
+        }
+
+        final outputPath = await OutputPathHelper.createWorkingOutputPath(
+          fileName: fileName,
+          category: OutputCategory.exports,
+        );
+        final outputFile = File(outputPath);
+        await outputFile.writeAsBytes(repairedBytes);
         final savedFile = await OutputPathHelper.exportGeneratedFile(
           sourcePath: outputPath,
           fileName: fileName,
@@ -163,7 +214,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
   }
 
   Future<void> _recoverText() async {
-    if (_selectedFilePath == null) {
+    if (!_hasSelectedFile) {
       _showErrorSnackBar('Please select a PDF file');
       return;
     }
@@ -173,9 +224,10 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
     });
     try {
       debugPrint('[RepairPdfScreen] Starting text recovery');
-      final recoveredTexts = await PDFRepairService.recoverText(
-        _selectedFilePath!,
-      );
+      final Uint8List bytes =
+          _fileBytes ?? await File(_selectedFilePath!).readAsBytes();
+      final recoveredTexts =
+          await PDFRepairService.recoverTextFromBytes(bytes);
       if (!mounted) return;
       _safeSetState(() {
         _isProcessing = false;
@@ -198,6 +250,50 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
       });
       _showErrorSnackBar('Error: $e');
     }
+  }
+
+  void _showRepairedFileDialogWeb(Uint8List bytes, String fileName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('PDF Repaired Successfully'),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            const Text('Your PDF has been repaired and downloaded to your browser.'),
+            const SizedBox(height: 16),
+            Text(
+              'File: $fileName',
+              style: const TextStyle(fontSize: 12, color: Colors.grey),
+              overflow: TextOverflow.ellipsis,
+            ),
+          ],
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context),
+            child: const Text('Close'),
+          ),
+          ElevatedButton.icon(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.push(
+                context,
+                MaterialPageRoute(
+                  builder: (ctx) => PdfViewerScreen(
+                    externalBytes: bytes,
+                    externalFileName: fileName,
+                  ),
+                ),
+              );
+            },
+            icon: const Icon(Icons.visibility),
+            label: const Text('View PDF'),
+          ),
+        ],
+      ),
+    );
   }
 
   Future<void> _handleShareFile(
@@ -443,19 +539,19 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                           ),
                           const SizedBox(height: 12),
                           Text(
-                            _selectedFilePath == null
+                            !_hasSelectedFile
                                 ? 'Tap to select PDF'
                                 : 'PDF Selected: $_fileName',
                             textAlign: TextAlign.center,
                             style: TextStyle(
                               fontSize: 14,
                               fontWeight: FontWeight.w500,
-                              color: _selectedFilePath == null
+                              color: !_hasSelectedFile
                                   ? Colors.grey
                                   : Colors.green,
                             ),
                           ),
-                          if (_selectedFilePath != null) ...[
+                          if (_hasSelectedFile) ...[
                             const SizedBox(height: 8),
                             Text(
                               'Tap to change file',
@@ -470,7 +566,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                   ),
                   const SizedBox(height: 24),
-                  if (_selectedFilePath != null) ...[
+                  if (_hasSelectedFile) ...[
                     const Text(
                       'Step 2: Analyze PDF',
                       style: TextStyle(
@@ -595,7 +691,7 @@ class _RepairPdfScreenState extends State<RepairPdfScreen> {
                     ),
                     const SizedBox(height: 24),
                   ],
-                  if (_selectedFilePath != null && _analysisResult != null) ...[
+                  if (_hasSelectedFile && _analysisResult != null) ...[
                     const Text(
                       'Step 3: Repair PDF',
                       style: TextStyle(

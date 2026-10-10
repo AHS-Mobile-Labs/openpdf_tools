@@ -6,6 +6,39 @@ import '../models/signing_models.dart';
 class ProductionPdfSigningService {
   static const int signatureFieldWidth = 200;
   static const int signatureFieldHeight = 50;
+
+  static Future<Uint8List> signPdfBytes({
+    required Uint8List pdfBytes,
+    required String nameOnSignature,
+    required String reason,
+    String? email,
+    required CertificateInfo certificate,
+    required String certificatePassword,
+    bool visibleSignature = true,
+    SignatureLocation location = SignatureLocation.bottomLeft,
+  }) async {
+    final signatureHash = await _generateSignatureHash(
+      pdfBytes,
+      nameOnSignature,
+      certificate,
+    );
+    final signingRequest = SigningRequest(
+      pdfFilePath: 'in-memory.pdf',
+      nameOnSignature: nameOnSignature,
+      reason: reason,
+      email: email,
+      certificate: certificate,
+      certificatePassword: certificatePassword,
+      outputPath: 'in-memory-signed.pdf',
+      visibleSignature: visibleSignature,
+      location: location,
+    );
+    return await _createSignedPdf(
+      pdfBytes,
+      signingRequest,
+      signatureHash,
+    );
+  }
   static Future<SigningResult> signPdf(SigningRequest request) async {
     try {
       final validationResult = request.validate();
