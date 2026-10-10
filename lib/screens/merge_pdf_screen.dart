@@ -623,6 +623,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
 
     return ReorderableListView.builder(
       shrinkWrap: true,
+      buildDefaultDragHandles: false,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _selectedPdfs.length,
       onReorder: _reorderPdfs,
@@ -695,6 +696,19 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
                 icon: const Icon(Icons.close),
                 tooltip: 'Remove',
                 onPressed: () => _removePdf(index),
+              ),
+              ReorderableDragStartListener(
+                index: index,
+                child: Padding(
+                  padding: const EdgeInsets.only(left: 4, right: 6),
+                  child: Icon(
+                    Icons.drag_handle_rounded,
+                    color: isDark
+                        ? PremiumColors.darkTextSecondary
+                        : PremiumColors.lightTextSecondary,
+                    size: 20,
+                  ),
+                ),
               ),
             ],
           ),

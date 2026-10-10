@@ -658,16 +658,18 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               _buildSpotlightSection(isDark, isCompact),
               const SizedBox(height: 28),
               _buildCategorizedToolsSection(isDark, isCompact),
-              const SizedBox(height: 28),
-              RecentFilesSection(
-                onOpenFile: _openPdfFile,
-                onViewAll: () {
-                  final historyTool = ToolItem.allTools.firstWhere(
-                    (t) => t.id == 'history',
-                  );
-                  _navigateToTool(historyTool);
-                },
-              ),
+              if (!kIsWeb) ...[
+                const SizedBox(height: 28),
+                RecentFilesSection(
+                  onOpenFile: _openPdfFile,
+                  onViewAll: () {
+                    final historyTool = ToolItem.allTools.firstWhere(
+                      (t) => t.id == 'history',
+                    );
+                    _navigateToTool(historyTool);
+                  },
+                ),
+              ],
               const SizedBox(height: 24),
               _buildSecurityBanner(isDark),
               const SizedBox(height: 24),

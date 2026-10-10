@@ -893,12 +893,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _setControllerZoom(double zoom) {
-    if (kIsWeb) return;
     final renderZoom = _normaliseZoom(zoom);
     if ((_pdfViewerController.zoomLevel - renderZoom).abs() <= 0.001) return;
     _isApplyingControllerZoom = true;
     try {
       _pdfViewerController.zoomLevel = renderZoom;
+    } catch (e) {
+      debugPrint('Error applying zoom: $e');
     } finally {
       _isApplyingControllerZoom = false;
     }
@@ -1597,20 +1598,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                       _pickPdf();
                     },
                   ),
-                  _ActionSheetTile(
-                    icon: Icons.history,
-                    title: 'History & Favorites',
-                    subtitle: 'Open recent files and starred documents.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      Navigator.push(
-                        rootContext,
-                        MaterialPageRoute(
-                          builder: (_) => const HistoryScreen(),
-                        ),
-                      );
-                    },
-                  ),
+                  if (!kIsWeb)
+                    _ActionSheetTile(
+                      icon: Icons.history,
+                      title: 'History & Favorites',
+                      subtitle: 'Open recent files and starred documents.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        Navigator.push(
+                          rootContext,
+                          MaterialPageRoute(
+                            builder: (_) => const HistoryScreen(),
+                          ),
+                        );
+                      },
+                    ),
                   _ActionSheetTile(
                     icon: Icons.drive_folder_upload_outlined,
                     title: 'Open Folder',
@@ -2106,7 +2108,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           icon: Icons.chevron_left_rounded,
                           label: 'Prev',
                           onPressed: currentPage > 1
-                              ? () => _pdfViewerController.previousPage()
+                              ? () {
+                                  if (kIsWeb) {
+                                    _pdfViewerController.jumpToPage(currentPage - 1);
+                                  } else {
+                                    _pdfViewerController.previousPage();
+                                  }
+                                }
                               : null,
                           isMobile: isMobile,
                         ),
@@ -2135,7 +2143,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           icon: Icons.chevron_right_rounded,
                           label: 'Next',
                           onPressed: currentPage < pageCount
-                              ? () => _pdfViewerController.nextPage()
+                              ? () {
+                                  if (kIsWeb) {
+                                    _pdfViewerController.jumpToPage(currentPage + 1);
+                                  } else {
+                                    _pdfViewerController.nextPage();
+                                  }
+                                }
                               : null,
                           isMobile: isMobile,
                         ),
@@ -2616,13 +2630,21 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             if (event.logicalKey == LogicalKeyboardKey.arrowLeft ||
                 event.logicalKey == LogicalKeyboardKey.pageUp) {
               if (_pageNumberNotifier.value > 1) {
-                _pdfViewerController.previousPage();
+                if (kIsWeb) {
+                  _pdfViewerController.jumpToPage(_pageNumberNotifier.value - 1);
+                } else {
+                  _pdfViewerController.previousPage();
+                }
                 return KeyEventResult.handled;
               }
             } else if (event.logicalKey == LogicalKeyboardKey.arrowRight ||
                 event.logicalKey == LogicalKeyboardKey.pageDown) {
               if (_pageNumberNotifier.value < _pageCountNotifier.value) {
-                _pdfViewerController.nextPage();
+                if (kIsWeb) {
+                  _pdfViewerController.jumpToPage(_pageNumberNotifier.value + 1);
+                } else {
+                  _pdfViewerController.nextPage();
+                }
                 return KeyEventResult.handled;
               }
             } else if (event.logicalKey == LogicalKeyboardKey.equal ||

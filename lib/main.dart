@@ -235,17 +235,19 @@ class _SplashAndHomeWrapper extends StatefulWidget {
 }
 
 class _SplashAndHomeWrapperState extends State<_SplashAndHomeWrapper> {
-  bool _showSplash = true;
+  bool _showSplash = !kIsWeb;
   @override
   void initState() {
     super.initState();
-    Future.delayed(const Duration(milliseconds: 1200), () {
-      if (mounted) {
-        setState(() {
-          _showSplash = false;
-        });
-      }
-    });
+    if (!kIsWeb) {
+      Future.delayed(const Duration(milliseconds: 1200), () {
+        if (mounted) {
+          setState(() {
+            _showSplash = false;
+          });
+        }
+      });
+    }
   }
 
   @override
@@ -287,8 +289,8 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       'images_to_pdf': 9,
       'sign': 10,
       'repair': 11,
-      'history': 12,
-      'settings': 13,
+      if (!kIsWeb) 'history': 12,
+      'settings': kIsWeb ? 12 : 13,
     };
 
     _mobileNavItems = [
@@ -310,11 +312,12 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         label: 'Convert',
         screen: const ConvertToPdfScreen(),
       ),
-      ModernNavigationItem(
-        icon: Icons.history_rounded,
-        label: 'History',
-        screen: const HistoryScreen(),
-      ),
+      if (!kIsWeb)
+        ModernNavigationItem(
+          icon: Icons.history_rounded,
+          label: 'History',
+          screen: const HistoryScreen(),
+        ),
       ModernNavigationItem(
         icon: Icons.settings_rounded,
         label: 'Settings',
@@ -400,12 +403,13 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         section: 'Document Tools',
         screen: const RepairPdfScreen(),
       ),
-      ModernNavigationItem(
-        icon: Icons.history_rounded,
-        label: 'Recent & History',
-        section: 'Library',
-        screen: const HistoryScreen(),
-      ),
+      if (!kIsWeb)
+        ModernNavigationItem(
+          icon: Icons.history_rounded,
+          label: 'Recent & History',
+          section: 'Library',
+          screen: const HistoryScreen(),
+        ),
       ModernNavigationItem(
         icon: Icons.settings_rounded,
         label: 'Settings',
@@ -596,7 +600,7 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       ),
       child: Row(
         children: [
-          const AppBrandLogo(size: 28, showText: true),
+          AppBrandLogo(size: 28, showText: true, isDark: isDark),
           const SizedBox(width: 16),
           Container(
             height: 20,

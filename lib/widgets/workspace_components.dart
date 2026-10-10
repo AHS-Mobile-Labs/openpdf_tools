@@ -158,16 +158,17 @@ class ToolItem {
       accentColor: const Color(0xFFE65100),
       screenBuilder: () => const PdfFromImagesScreen(),
     ),
-    ToolItem(
-      id: 'history',
-      title: 'History & Favorites',
-      shortTitle: 'Recent',
-      category: ToolCategory.all,
-      description: 'Quickly access recent documents, bookmarks, and favorite files',
-      icon: Icons.history_rounded,
-      accentColor: const Color(0xFF6B5B95),
-      screenBuilder: () => const HistoryScreen(),
-    ),
+    if (!kIsWeb)
+      ToolItem(
+        id: 'history',
+        title: 'History & Favorites',
+        shortTitle: 'Recent',
+        category: ToolCategory.all,
+        description: 'Quickly access recent documents, bookmarks, and favorite files',
+        icon: Icons.history_rounded,
+        accentColor: const Color(0xFF6B5B95),
+        screenBuilder: () => const HistoryScreen(),
+      ),
   ];
 
   static List<ToolItem> get spotlightTools => [
@@ -183,17 +184,18 @@ class ToolItem {
 class AppBrandLogo extends StatelessWidget {
   final double size;
   final bool showText;
-  final bool isDark;
+  final bool? isDark;
 
   const AppBrandLogo({
     super.key,
     this.size = 32,
     this.showText = true,
-    this.isDark = false,
+    this.isDark,
   });
 
   @override
   Widget build(BuildContext context) {
+    final effectiveDark = isDark ?? Theme.of(context).brightness == Brightness.dark;
     return Row(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.center,
@@ -234,7 +236,7 @@ class AppBrandLogo extends StatelessWidget {
                   fontSize: 16,
                   fontWeight: FontWeight.w800,
                   letterSpacing: -0.3,
-                  color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                  color: effectiveDark ? Colors.white : const Color(0xFF1E1E1E),
                 ),
               ),
               Text(
