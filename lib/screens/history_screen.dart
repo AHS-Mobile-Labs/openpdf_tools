@@ -2,6 +2,7 @@ import 'dart:io';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
+import 'package:path/path.dart' as p;
 import 'package:openpdf_tools/config/app_config.dart';
 import 'package:openpdf_tools/services/file_history_service.dart';
 import 'pdf_viewer_screen.dart';
@@ -194,7 +195,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
           itemBuilder: (context, index) {
             final filePath = favorites[index];
             final exists = kIsWeb ? false : File(filePath).existsSync();
-            final fileName = filePath.split('/').last;
+            final fileName = p.basename(filePath);
             return ListTile(
               leading: Icon(
                 Icons.description,

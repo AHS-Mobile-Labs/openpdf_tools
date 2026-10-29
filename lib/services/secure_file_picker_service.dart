@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
 import 'package:file_picker/file_picker.dart';
+import 'package:path/path.dart' as p;
 import 'package:path_provider/path_provider.dart';
 import '../models/signing_models.dart';
 import '../utils/uri_to_file.dart';
@@ -252,7 +253,7 @@ class SecureFilePickerService {
         return null;
       }
       final fileSize = await pdfFile.length();
-      final fileName = pdfFile.path.split('/').last;
+      final fileName = p.basename(pdfFile.path);
       final lastModified = await pdfFile.lastModified();
       return PdfMetadata(
         pageCount: 1,
@@ -273,7 +274,7 @@ class SecureFilePickerService {
       final tempDir = await getTemporaryDirectory();
       final timestamp = DateTime.now().millisecondsSinceEpoch;
       final tempPath =
-          '${tempDir.path}/temp_${timestamp}_${sourceFile.path.split('/').last}';
+          '${tempDir.path}/temp_${timestamp}_${p.basename(sourceFile.path)}';
       final tempFile = File(tempPath);
       final bytes = await sourceFile.readAsBytes();
       await tempFile.writeAsBytes(bytes);

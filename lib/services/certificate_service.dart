@@ -1,5 +1,6 @@
 import 'dart:io';
 import 'package:flutter/foundation.dart';
+import 'package:path/path.dart' as p;
 import '../models/signing_models.dart';
 
 class CertificateService {
@@ -65,7 +66,7 @@ class CertificateService {
       );
     }
     final fileBytes = await certificateFile.readAsBytes();
-    final fileName = certificateFile.path.split('/').last;
+    final fileName = p.basename(certificateFile.path);
     return validateCertificateBytes(fileBytes: fileBytes, fileName: fileName);
   }
 
@@ -111,7 +112,7 @@ class CertificateService {
   ) async {
     if (!certificateFile.existsSync()) return null;
     final fileBytes = await certificateFile.readAsBytes();
-    final fileName = certificateFile.path.split('/').last;
+    final fileName = p.basename(certificateFile.path);
     return parseCertificateFromBytes(
       fileBytes: fileBytes,
       fileName: fileName,

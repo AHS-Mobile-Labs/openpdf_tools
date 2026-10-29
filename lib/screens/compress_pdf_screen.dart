@@ -316,24 +316,27 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
 
   Future<void> _compressPdfDesktop(String outputPath) async {
     try {
+      final targetDpi = (72 + (_quality * 1.5)).round().clamp(72, 300);
+      final pdfSettings = _quality < 40
+          ? '/screen'
+          : (_quality < 75 ? '/ebook' : '/printer');
       final result = await Process.run('gs', [
         '-sDEVICE=pdfwrite',
         '-dCompatibilityLevel=1.4',
-        '-dPDFSETTINGS=/ebook',
+        '-dPDFSETTINGS=$pdfSettings',
         '-dNOPAUSE',
         '-dQUIET',
         '-dBATCH',
         '-dDetectDuplicateImages',
-        '-r${72 + (_quality - 20) ~/ 2}',
         '-dCompressFonts=true',
-        '-r150x150',
+        '-r$targetDpi',
         '-dDownsampleColorImages=true',
         '-dColorImageDownsampleType=/Bicubic',
-        '-dColorImageResolution=150',
+        '-dColorImageResolution=$targetDpi',
         '-dGrayImageDownsampleType=/Bicubic',
-        '-dGrayImageResolution=150',
+        '-dGrayImageResolution=$targetDpi',
         '-dMonoImageDownsampleType=/Bicubic',
-        '-dMonoImageResolution=150',
+        '-dMonoImageResolution=$targetDpi',
         '-sOutputFile=$outputPath',
         _pdfPath!,
       ]);
@@ -405,7 +408,7 @@ class _CompressPdfScreenState extends State<CompressPdfScreen> {
                     const SizedBox(height: 12),
                     if (_pdfPath != null)
                       Text(
-                        'Selected: ${_pdfName ?? _pdfPath!.split('/').last}${_pdfSize != null ? ' (${(_pdfSize! / 1024).toStringAsFixed(1)} KB)' : ''}',
+                        'Selected: ${_pdfName ?? p.basename(_pdfPath!)}${_pdfSize != null ? ' (${(_pdfSize! / 1024).toStringAsFixed(1)} KB)' : ''}',
                       ),
                     const SizedBox(height: 12),
                     Row(

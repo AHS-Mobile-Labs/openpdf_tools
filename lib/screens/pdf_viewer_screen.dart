@@ -824,7 +824,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       );
       return;
     }
-    final currentName = _pdfFile!.path.split('/').last.replaceAll('.pdf', '');
+    final currentName = p.basenameWithoutExtension(_pdfFile!.path);
     final controller = TextEditingController(text: currentName);
     final newName = await showDialog<String>(
       context: context,

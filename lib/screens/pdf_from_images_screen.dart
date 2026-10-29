@@ -10,6 +10,7 @@ import 'package:openpdf_tools/widgets/in_app_file_picker.dart';
 import 'package:openpdf_tools/utils/output_path_helper.dart';
 import 'package:openpdf_tools/utils/platform_helper.dart';
 import 'package:openpdf_tools/utils/web_file_saver.dart';
+import 'package:path/path.dart' as path_util;
 
 class PdfFromImagesScreen extends StatefulWidget {
   const PdfFromImagesScreen({super.key});
@@ -66,11 +67,11 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
         }
         return;
       }
-      for (final p in selected) {
-        final bytes = await File(p).readAsBytes();
+      for (final imgPath in selected) {
+        final bytes = await File(imgPath).readAsBytes();
         setState(() {
           _imageBytesList.add(bytes);
-          _imageNames.add(p.split('/').last);
+          _imageNames.add(path_util.basename(imgPath));
         });
       }
     } catch (e) {

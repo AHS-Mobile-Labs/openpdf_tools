@@ -2,6 +2,7 @@ import 'dart:io';
 import 'dart:typed_data';
 import 'package:flutter/foundation.dart' show kIsWeb;
 import 'package:flutter/material.dart';
+import 'package:path/path.dart' as p;
 import 'package:openpdf_tools/utils/platform_file_handler.dart';
 import 'package:openpdf_tools/utils/web_file_saver.dart';
 import '../models/signing_models.dart';
@@ -212,7 +213,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               Text(
                 _selectedPdfFile == null && _pdfBytes == null
                     ? 'No PDF file selected'
-                    : (_pdfFileName ?? _selectedPdfFile!.path.split('/').last),
+                    : (_pdfFileName ?? p.basename(_selectedPdfFile!.path)),
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -259,7 +260,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
                 _selectedCertificateFile == null && _certificateBytes == null
                     ? 'No certificate selected'
                     : (_certificateFileName ??
-                        _selectedCertificateFile!.path.split('/').last),
+                        p.basename(_selectedCertificateFile!.path)),
                 style: Theme.of(context).textTheme.bodySmall,
                 textAlign: TextAlign.center,
               ),
@@ -451,7 +452,10 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               const SizedBox(height: 16),
               _buildReviewRow(
                 'PDF File:',
-                _pdfFileName ?? _selectedPdfFile?.path.split('/').last,
+                _pdfFileName ??
+                    (_selectedPdfFile != null
+                        ? p.basename(_selectedPdfFile!.path)
+                        : null),
               ),
               _buildReviewRow('Signer Name:', _nameController.text),
               _buildReviewRow(
@@ -461,7 +465,9 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
               _buildReviewRow(
                 'Certificate:',
                 _certificateFileName ??
-                    _selectedCertificateFile?.path.split('/').last,
+                    (_selectedCertificateFile != null
+                        ? p.basename(_selectedCertificateFile!.path)
+                        : null),
               ),
               if (_certificateInfo != null)
                 _buildReviewRow(
@@ -772,7 +778,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
         setState(() {
           _selectedPdfFile = file;
           _pdfBytes = null;
-          _pdfFileName = file.path.split('/').last;
+          _pdfFileName = p.basename(file.path);
           _pdfMetadata = metadata;
           _pdfValidated = true;
           _errorMessage = null;
@@ -821,7 +827,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
           setState(() {
             _selectedCertificateFile = file;
             _certificateBytes = null;
-            _certificateFileName = file.path.split('/').last;
+            _certificateFileName = p.basename(file.path);
             _certificateValidated = true;
             _errorMessage = null;
             _isProcessing = false;
@@ -951,7 +957,7 @@ class _SignPdfScreenRefactoredState extends State<SignPdfScreenRefactored> {
 
       final outputDir = await SecureFilePickerService.getOutputDirectory();
       final outputFileName = SecureFilePickerService.generateOutputFilename(
-        _selectedPdfFile!.path.split('/').last,
+        p.basename(_selectedPdfFile!.path),
       );
       final outputPath = '$outputDir/$outputFileName';
       if (!await SecureFilePickerService.validateOutputPath(outputPath)) {

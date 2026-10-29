@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'dart:developer' as developer;
 import 'package:flutter/foundation.dart' show kIsWeb;
+import 'package:path/path.dart' as p;
 import 'package:shared_preferences/shared_preferences.dart';
 
 class FileHistoryService {
@@ -154,7 +155,10 @@ class HistoryItem {
   final String filePath;
   final int timestamp;
   HistoryItem({required this.filePath, required this.timestamp});
-  String get fileName => filePath.split('/').last;
+  String get fileName {
+    final cleanPath = filePath.replaceAll(r'\', '/');
+    return p.basename(cleanPath);
+  }
   DateTime get date => DateTime.fromMillisecondsSinceEpoch(timestamp);
   bool get fileExists => kIsWeb ? true : File(filePath).existsSync();
 }

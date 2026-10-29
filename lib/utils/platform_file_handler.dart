@@ -50,8 +50,8 @@ class PlatformFileHandler {
       if (sdkInt != null && sdkInt >= 33) {
         // FilePicker uses SAF on modern Android, so this is only a narrow
         // media permission request for image-based flows.
-        await Permission.photos.request();
-        return true;
+        final photos = await Permission.photos.request();
+        return photos.isGranted || photos.isLimited;
       }
 
       if (sdkInt == null) {
@@ -91,7 +91,7 @@ class PlatformFileHandler {
     if (!PlatformHelper.isAndroid) return false;
     try {
       final storageStatus = await Permission.storage.status;
-      return storageStatus.isDenied;
+      return storageStatus.isPermanentlyDenied;
     } catch (e) {
       return false;
     }

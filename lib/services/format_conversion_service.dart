@@ -1812,7 +1812,58 @@ $tableBuf
 
   /// PDF to ODP (OpenDocument Presentation)
   static Uint8List pdfToOdp(Uint8List pdfBytes) {
-    return pdfToOdt(pdfBytes);
+    final pagesText = extractPagesText(pdfBytes);
+    final archive = Archive();
+
+    archive.addFile(
+      ArchiveFile.string('mimetype', 'application/vnd.oasis.opendocument.presentation'),
+    );
+    archive.addFile(
+      ArchiveFile.string('META-INF/manifest.xml', '''<?xml version="1.0" encoding="UTF-8"?>
+<manifest:manifest xmlns:manifest="urn:oasis:names:tc:opendocument:xmlns:manifest:1.0">
+  <manifest:file-entry manifest:full-path="/" manifest:media-type="application/vnd.oasis.opendocument.presentation"/>
+  <manifest:file-entry manifest:full-path="content.xml" manifest:media-type="text/xml"/>
+</manifest:manifest>'''),
+    );
+
+    final slidesBuf = StringBuffer();
+    for (int p = 0; p < pagesText.length; p++) {
+      slidesBuf.writeln('<draw:page draw:name="page${p + 1}">');
+      slidesBuf.writeln(
+        '<draw:frame draw:name="title${p + 1}" svg:x="1cm" svg:y="1cm" svg:width="25cm" svg:height="2cm">',
+      );
+      slidesBuf.writeln(
+        '<draw:text-box><text:h text:outline-level="1">Page ${p + 1}</text:h></draw:text-box>',
+      );
+      slidesBuf.writeln('</draw:frame>');
+      slidesBuf.writeln(
+        '<draw:frame draw:name="body${p + 1}" svg:x="1cm" svg:y="3.5cm" svg:width="25cm" svg:height="15cm">',
+      );
+      slidesBuf.writeln('<draw:text-box>');
+      for (final line in pagesText[p].split('\n')) {
+        final c = _escapeXml(line.trim());
+        if (c.isNotEmpty) {
+          slidesBuf.writeln('<text:p>$c</text:p>');
+        }
+      }
+      slidesBuf.writeln('</draw:text-box>');
+      slidesBuf.writeln('</draw:frame>');
+      slidesBuf.writeln('</draw:page>');
+    }
+
+    archive.addFile(
+      ArchiveFile.string('content.xml', '''<?xml version="1.0" encoding="UTF-8"?>
+<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:draw="urn:oasis:names:tc:opendocument:xmlns:drawing:1.0" xmlns:svg="urn:oasis:names:tc:opendocument:xmlns:svg-compatible:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0">
+  <office:body>
+    <office:presentation>
+$slidesBuf
+    </office:presentation>
+  </office:body>
+</office:document-content>'''),
+    );
+
+    final zipData = ZipEncoder().encode(archive);
+    return Uint8List.fromList(zipData);
   }
 
   /// PDF to HTML
