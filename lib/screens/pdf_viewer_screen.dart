@@ -252,12 +252,15 @@ class _ReaderStatusChip extends StatelessWidget {
           SizedBox(width: isCompact ? 4 : 5),
           Text(
             label,
-            style: (isCompact
-                    ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
-                    : PremiumTypography.labelSmall)
-                .copyWith(
-              color: isDark ? PremiumColors.darkText : PremiumColors.lightText,
-            ),
+            style:
+                (isCompact
+                        ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
+                        : PremiumTypography.labelSmall)
+                    .copyWith(
+                      color: isDark
+                          ? PremiumColors.darkText
+                          : PremiumColors.lightText,
+                    ),
           ),
         ],
       ),
@@ -303,12 +306,11 @@ class _ReaderToolButton extends StatelessWidget {
               label,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: (isMobile
-                      ? PremiumTypography.labelSmall.copyWith(fontSize: 10)
-                      : PremiumTypography.labelSmall)
-                  .copyWith(
-                color: Colors.white70,
-              ),
+              style:
+                  (isMobile
+                          ? PremiumTypography.labelSmall.copyWith(fontSize: 10)
+                          : PremiumTypography.labelSmall)
+                      .copyWith(color: Colors.white70),
             ),
           ],
         ),
@@ -321,11 +323,7 @@ class _ZoomReadout extends StatelessWidget {
   final String label;
   final VoidCallback? onTap;
   final bool isMobile;
-  const _ZoomReadout({
-    required this.label,
-    this.onTap,
-    this.isMobile = false,
-  });
+  const _ZoomReadout({required this.label, this.onTap, this.isMobile = false});
 
   @override
   Widget build(BuildContext context) {
@@ -341,10 +339,11 @@ class _ZoomReadout extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: (isMobile
-                ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
-                : PremiumTypography.labelSmall)
-            .copyWith(color: Colors.white),
+        style:
+            (isMobile
+                    ? PremiumTypography.labelSmall.copyWith(fontSize: 11)
+                    : PremiumTypography.labelSmall)
+                .copyWith(color: Colors.white),
       ),
     );
     if (onTap == null) {
@@ -433,8 +432,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   double _brightness = 1.0;
   bool _isNightMode = false;
   int _rotationAngle = 0;
-  String _viewMode = 'fit';
-  PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.single;
+  String _viewMode = 'continuous';
+  PdfPageLayoutMode _pageLayoutMode = PdfPageLayoutMode.continuous;
   bool _isPasswordProtected = false;
   bool _isDocumentLoaded = false;
   String? _webFileName;
@@ -564,8 +563,8 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     _rotationAngle = 0;
     _brightness = 1.0;
     _isNightMode = false;
-    _viewMode = 'fit';
-    _pageLayoutMode = PdfPageLayoutMode.single;
+    _viewMode = 'continuous';
+    _pageLayoutMode = PdfPageLayoutMode.continuous;
     _isPasswordProtected = false;
     _isDocumentLoaded = false;
     _password = null;
@@ -770,10 +769,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       if (_pdfBytes == null) return;
       try {
         final fileName = _webFileName ?? 'document.pdf';
-        await WebFileSaver.saveFile(
-          bytes: _pdfBytes!,
-          fileName: fileName,
-        );
+        await WebFileSaver.saveFile(bytes: _pdfBytes!, fileName: fileName);
         if (!mounted) return;
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
@@ -1028,8 +1024,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     if (!mounted) return;
     final pageCount = details.document.pages.count;
     _pageCountNotifier.value = pageCount;
-    _pageNumberNotifier.value =
-        _pdfViewerController.pageNumber > 0 ? _pdfViewerController.pageNumber : 1;
+    _pageNumberNotifier.value = _pdfViewerController.pageNumber > 0
+        ? _pdfViewerController.pageNumber
+        : 1;
     setState(() {
       _viewerError = null;
       _isPasswordProtected = false;
@@ -1046,10 +1043,12 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
     debugPrint('[PdfViewer] Document load failed: ${details.error} $message');
     if (!mounted) return;
 
-    final isPasswordError = details.error.toLowerCase().contains('password') ||
+    final isPasswordError =
+        details.error.toLowerCase().contains('password') ||
         details.description.toLowerCase().contains('password');
     if (isPasswordError) {
-      final isInvalid = details.error.toLowerCase().contains('invalid') ||
+      final isInvalid =
+          details.error.toLowerCase().contains('invalid') ||
           details.description.toLowerCase().contains('invalid');
       setState(() {
         _isPasswordProtected = true;
@@ -1089,14 +1088,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
   }
 
   void _setViewMode(String mode) {
-    if (mode == 'fit') {
-      setState(() {
-        _pageLayoutMode = PdfPageLayoutMode.single;
-        _viewMode = 'fit';
-      });
-      _setZoom(1.0, viewMode: 'fit');
-      return;
-    } else if (mode == 'continuous') {
+    if (mode == 'fit' || mode == 'continuous') {
       setState(() {
         _pageLayoutMode = PdfPageLayoutMode.continuous;
         _viewMode = 'continuous';
@@ -1110,9 +1102,16 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       });
       _setZoom(1.0, viewMode: 'width');
       return;
-    } else if (mode == 'height') {
+    } else if (mode == 'single') {
       setState(() {
         _pageLayoutMode = PdfPageLayoutMode.single;
+        _viewMode = 'single';
+      });
+      _setZoom(1.0, viewMode: 'single');
+      return;
+    } else if (mode == 'height') {
+      setState(() {
+        _pageLayoutMode = PdfPageLayoutMode.continuous;
         _viewMode = 'height';
       });
       _setZoom(1.0, viewMode: 'height');
@@ -1217,20 +1216,13 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
               const SizedBox(height: 10),
               _ViewModeTile(
-                icon: Icons.fit_screen,
-                title: 'Fit Page (Single)',
-                subtitle: 'Show one full page fitted to screen with no scrolling required.',
-                selected: _pageLayoutMode == PdfPageLayoutMode.single,
-                onTap: () {
-                  Navigator.pop(context);
-                  _setViewMode('fit');
-                },
-              ),
-              _ViewModeTile(
                 icon: Icons.view_stream_outlined,
-                title: 'Continuous Scroll',
-                subtitle: 'Scroll continuously vertically across all pages.',
-                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode != 'width',
+                title: 'Continuous Scroll (Default)',
+                subtitle:
+                    'Scroll continuously vertically across all pages like a desktop reader.',
+                selected:
+                    _pageLayoutMode == PdfPageLayoutMode.continuous &&
+                    _viewMode != 'width',
                 onTap: () {
                   Navigator.pop(context);
                   _setViewMode('continuous');
@@ -1240,10 +1232,22 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 icon: Icons.aspect_ratio,
                 title: 'Fit Width',
                 subtitle: 'Expand document width to fill the reading viewport.',
-                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode == 'width',
+                selected:
+                    _pageLayoutMode == PdfPageLayoutMode.continuous &&
+                    _viewMode == 'width',
                 onTap: () {
                   Navigator.pop(context);
                   _setViewMode('width');
+                },
+              ),
+              _ViewModeTile(
+                icon: Icons.fit_screen,
+                title: 'Single Page',
+                subtitle: 'Show one full page at a time.',
+                selected: _pageLayoutMode == PdfPageLayoutMode.single,
+                onTap: () {
+                  Navigator.pop(context);
+                  _setViewMode('single');
                 },
               ),
             ],
@@ -1329,7 +1333,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 builder: (context, currentZoom, _) {
                   return Text(
                     '${(currentZoom * 100).round()}%',
-                    style: PremiumTypography.labelLarge.copyWith(color: textColor),
+                    style: PremiumTypography.labelLarge.copyWith(
+                      color: textColor,
+                    ),
                   );
                 },
               ),
@@ -1364,16 +1370,10 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
             runSpacing: 8,
             children: [
               ChoiceChip(
-                label: const Text('Fit Page'),
-                selected: _pageLayoutMode == PdfPageLayoutMode.single,
-                onSelected: (_) {
-                  _setViewMode('fit');
-                  setSheetState(() {});
-                },
-              ),
-              ChoiceChip(
                 label: const Text('Continuous'),
-                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode != 'width',
+                selected:
+                    _pageLayoutMode == PdfPageLayoutMode.continuous &&
+                    _viewMode != 'width',
                 onSelected: (_) {
                   _setViewMode('continuous');
                   setSheetState(() {});
@@ -1381,9 +1381,19 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               ),
               ChoiceChip(
                 label: const Text('Fit Width'),
-                selected: _pageLayoutMode == PdfPageLayoutMode.continuous && _viewMode == 'width',
+                selected:
+                    _pageLayoutMode == PdfPageLayoutMode.continuous &&
+                    _viewMode == 'width',
                 onSelected: (_) {
                   _setViewMode('width');
+                  setSheetState(() {});
+                },
+              ),
+              ChoiceChip(
+                label: const Text('Single Page'),
+                selected: _pageLayoutMode == PdfPageLayoutMode.single,
+                onSelected: (_) {
+                  _setViewMode('single');
                   setSheetState(() {});
                 },
               ),
@@ -1497,157 +1507,163 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 child: Column(
                   mainAxisSize: MainAxisSize.min,
                   children: [
-                  _SheetHeader(
-                    title: 'Advanced Tools',
-                    subtitle:
-                        'Open only when you need search, layout, or document actions.',
-                    isDark: isDark,
-                  ),
-                  _buildAdvancedZoomPanel(isDark, setSheetState, sheetContext),
-                  _buildSheetSectionTitle('Reading', isDark),
-                  _buildAdvancedBrightnessPanel(isDark, setSheetState),
-                  _ActionSheetTile(
-                    icon: Icons.search,
-                    title: 'Search PDF',
-                    subtitle: 'Find text in the current document.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _showSearchDialog();
-                    },
-                  ),
-                  if (_searchResult.hasResult) ...[
-                    _ActionSheetTile(
-                      icon: Icons.keyboard_arrow_up,
-                      title: 'Previous Result',
-                      subtitle: 'Move to the previous search match.',
-                      onTap: _searchResult.previousInstance,
+                    _SheetHeader(
+                      title: 'Advanced Tools',
+                      subtitle:
+                          'Open only when you need search, layout, or document actions.',
+                      isDark: isDark,
                     ),
-                    _ActionSheetTile(
-                      icon: Icons.keyboard_arrow_down,
-                      title: 'Next Result',
-                      subtitle: 'Move to the next search match.',
-                      onTap: _searchResult.nextInstance,
+                    _buildAdvancedZoomPanel(
+                      isDark,
+                      setSheetState,
+                      sheetContext,
                     ),
+                    _buildSheetSectionTitle('Reading', isDark),
+                    _buildAdvancedBrightnessPanel(isDark, setSheetState),
                     _ActionSheetTile(
-                      icon: Icons.close,
-                      title: 'Clear Search',
-                      subtitle: 'Remove search highlights.',
+                      icon: Icons.search,
+                      title: 'Search PDF',
+                      subtitle: 'Find text in the current document.',
                       onTap: () {
-                        _clearSearch();
+                        Navigator.pop(sheetContext);
+                        _showSearchDialog();
+                      },
+                    ),
+                    if (_searchResult.hasResult) ...[
+                      _ActionSheetTile(
+                        icon: Icons.keyboard_arrow_up,
+                        title: 'Previous Result',
+                        subtitle: 'Move to the previous search match.',
+                        onTap: _searchResult.previousInstance,
+                      ),
+                      _ActionSheetTile(
+                        icon: Icons.keyboard_arrow_down,
+                        title: 'Next Result',
+                        subtitle: 'Move to the next search match.',
+                        onTap: _searchResult.nextInstance,
+                      ),
+                      _ActionSheetTile(
+                        icon: Icons.close,
+                        title: 'Clear Search',
+                        subtitle: 'Remove search highlights.',
+                        onTap: () {
+                          _clearSearch();
+                          setSheetState(() {});
+                        },
+                      ),
+                    ],
+                    _ActionSheetTile(
+                      icon: Icons.find_in_page_outlined,
+                      title: 'Jump to Page',
+                      subtitle: 'Go directly to a page number.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _jumpToPage();
+                      },
+                    ),
+                    _ActionSheetTile(
+                      icon: _isNightMode
+                          ? Icons.light_mode
+                          : Icons.dark_mode_outlined,
+                      title: _isNightMode ? 'Day Mode' : 'Night Mode',
+                      subtitle: 'Switch the reader color treatment.',
+                      onTap: () {
+                        _toggleNightMode();
                         setSheetState(() {});
                       },
                     ),
-                  ],
-                  _ActionSheetTile(
-                    icon: Icons.find_in_page_outlined,
-                    title: 'Jump to Page',
-                    subtitle: 'Go directly to a page number.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _jumpToPage();
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: _isNightMode
-                        ? Icons.light_mode
-                        : Icons.dark_mode_outlined,
-                    title: _isNightMode ? 'Day Mode' : 'Night Mode',
-                    subtitle: 'Switch the reader color treatment.',
-                    onTap: () {
-                      _toggleNightMode();
-                      setSheetState(() {});
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: Icons.rotate_right,
-                    title: 'Rotate Clockwise',
-                    subtitle: _rotationAngle == 0
-                        ? 'Rotate the document view.'
-                        : 'Current rotation: $_rotationAngle degrees.',
-                    onTap: () {
-                      _rotateClockwise();
-                      setSheetState(() {});
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: Icons.refresh,
-                    title: 'Reset View',
-                    subtitle:
-                        'Restore fit page, rotation, brightness, and mode.',
-                    onTap: () {
-                      _resetZoom();
-                      setSheetState(() {});
-                    },
-                  ),
-                  _buildSheetSectionTitle('Document', isDark),
-                  _ActionSheetTile(
-                    icon: _isFavorite ? Icons.star : Icons.star_outline,
-                    title: _isFavorite ? 'Remove Favorite' : 'Add to Favorites',
-                    subtitle: 'Keep this file easy to find later.',
-                    onTap: () async {
-                      await _toggleFavorite();
-                      setSheetState(() {});
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: Icons.folder_open,
-                    title: 'Open PDF',
-                    subtitle: 'Choose a different document.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _pickPdf();
-                    },
-                  ),
-                  if (!kIsWeb)
                     _ActionSheetTile(
-                      icon: Icons.history,
-                      title: 'History & Favorites',
-                      subtitle: 'Open recent files and starred documents.',
+                      icon: Icons.rotate_right,
+                      title: 'Rotate Clockwise',
+                      subtitle: _rotationAngle == 0
+                          ? 'Rotate the document view.'
+                          : 'Current rotation: $_rotationAngle degrees.',
                       onTap: () {
-                        Navigator.pop(sheetContext);
-                        Navigator.push(
-                          rootContext,
-                          MaterialPageRoute(
-                            builder: (_) => const HistoryScreen(),
-                          ),
-                        );
+                        _rotateClockwise();
+                        setSheetState(() {});
                       },
                     ),
-                  _ActionSheetTile(
-                    icon: Icons.drive_folder_upload_outlined,
-                    title: 'Open Folder',
-                    subtitle: 'Reveal the file location on this device.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _sharePdf();
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: Icons.download,
-                    title: 'Save a Copy',
-                    subtitle: 'Export this PDF into the downloads location.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _downloadPdf();
-                    },
-                  ),
-                  _ActionSheetTile(
-                    icon: Icons.drive_file_rename_outline,
-                    title: 'Rename',
-                    subtitle: 'Update the file name and history record.',
-                    onTap: () {
-                      Navigator.pop(sheetContext);
-                      _renamePdf();
-                    },
-                  ),
-                ],
+                    _ActionSheetTile(
+                      icon: Icons.refresh,
+                      title: 'Reset View',
+                      subtitle:
+                          'Restore fit page, rotation, brightness, and mode.',
+                      onTap: () {
+                        _resetZoom();
+                        setSheetState(() {});
+                      },
+                    ),
+                    _buildSheetSectionTitle('Document', isDark),
+                    _ActionSheetTile(
+                      icon: _isFavorite ? Icons.star : Icons.star_outline,
+                      title: _isFavorite
+                          ? 'Remove Favorite'
+                          : 'Add to Favorites',
+                      subtitle: 'Keep this file easy to find later.',
+                      onTap: () async {
+                        await _toggleFavorite();
+                        setSheetState(() {});
+                      },
+                    ),
+                    _ActionSheetTile(
+                      icon: Icons.folder_open,
+                      title: 'Open PDF',
+                      subtitle: 'Choose a different document.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _pickPdf();
+                      },
+                    ),
+                    if (!kIsWeb)
+                      _ActionSheetTile(
+                        icon: Icons.history,
+                        title: 'History & Favorites',
+                        subtitle: 'Open recent files and starred documents.',
+                        onTap: () {
+                          Navigator.pop(sheetContext);
+                          Navigator.push(
+                            rootContext,
+                            MaterialPageRoute(
+                              builder: (_) => const HistoryScreen(),
+                            ),
+                          );
+                        },
+                      ),
+                    _ActionSheetTile(
+                      icon: Icons.drive_folder_upload_outlined,
+                      title: 'Open Folder',
+                      subtitle: 'Reveal the file location on this device.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _sharePdf();
+                      },
+                    ),
+                    _ActionSheetTile(
+                      icon: Icons.download,
+                      title: 'Save a Copy',
+                      subtitle: 'Export this PDF into the downloads location.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _downloadPdf();
+                      },
+                    ),
+                    _ActionSheetTile(
+                      icon: Icons.drive_file_rename_outline,
+                      title: 'Rename',
+                      subtitle: 'Update the file name and history record.',
+                      onTap: () {
+                        Navigator.pop(sheetContext);
+                        _renamePdf();
+                      },
+                    ),
+                  ],
+                ),
               ),
             ),
           ),
         ),
       ),
-    ),
-  );
+    );
   }
 
   Future<Uint8List?> _getFileBytes() async {
@@ -1678,12 +1694,14 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
   String get _viewModeLabel {
     if (_pageLayoutMode == PdfPageLayoutMode.single) {
-      return 'Fit page';
+      return 'Single page';
     }
     switch (_viewMode) {
       case 'width':
         return 'Fit width';
       case 'continuous':
+        return 'Continuous';
+      case 'fit':
         return 'Continuous';
       case 'height':
         return 'Fit height';
@@ -1736,9 +1754,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         controller: _pdfViewerController,
         password: _password,
         pageLayoutMode: _pageLayoutMode,
-        scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
-            ? PdfScrollDirection.horizontal
-            : PdfScrollDirection.vertical,
+        scrollDirection: PdfScrollDirection.vertical,
         initialZoomLevel: 1.0,
         maxZoomLevel: _maxZoom,
         enableDoubleTapZooming: true,
@@ -1772,9 +1788,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
         controller: _pdfViewerController,
         password: _password,
         pageLayoutMode: _pageLayoutMode,
-        scrollDirection: _pageLayoutMode == PdfPageLayoutMode.single
-            ? PdfScrollDirection.horizontal
-            : PdfScrollDirection.vertical,
+        scrollDirection: PdfScrollDirection.vertical,
         initialZoomLevel: 1.0,
         maxZoomLevel: _maxZoom,
         enableDoubleTapZooming: true,
@@ -1803,9 +1817,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
 
     return RepaintBoundary(
       child: SfPdfViewerTheme(
-        data: SfPdfViewerThemeData(
-          backgroundColor: surfaceColor,
-        ),
+        data: SfPdfViewerThemeData(backgroundColor: surfaceColor),
         child: viewer,
       ),
     );
@@ -1825,20 +1837,52 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
       final b = _brightness;
       content = ColorFiltered(
         colorFilter: ColorFilter.matrix(<double>[
-          -0.85 * b, 0, 0, 0, 235 * b,
-          0, -0.85 * b, 0, 0, 235 * b,
-          0, 0, -0.85 * b, 0, 235 * b,
-          0, 0, 0, 1, 0,
+          -0.85 * b,
+          0,
+          0,
+          0,
+          235 * b,
+          0,
+          -0.85 * b,
+          0,
+          0,
+          235 * b,
+          0,
+          0,
+          -0.85 * b,
+          0,
+          235 * b,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]),
         child: content,
       );
     } else if ((_brightness - 1.0).abs() >= 0.01) {
       content = ColorFiltered(
         colorFilter: ColorFilter.matrix(<double>[
-          _brightness, 0, 0, 0, 0,
-          0, _brightness, 0, 0, 0,
-          0, 0, _brightness, 0, 0,
-          0, 0, 0, 1, 0,
+          _brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          _brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          _brightness,
+          0,
+          0,
+          0,
+          0,
+          0,
+          1,
+          0,
         ]),
         child: content,
       );
@@ -1911,9 +1955,7 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
               child: AnimatedOpacity(
                 duration: const Duration(milliseconds: 200),
                 opacity: _showControls ? 1.0 : 0.0,
-                child: RepaintBoundary(
-                  child: _buildReaderControls(isDark),
-                ),
+                child: RepaintBoundary(child: _buildReaderControls(isDark)),
               ),
             ),
           ],
@@ -1985,12 +2027,11 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                     fileName,
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
-                    style: (isMobile
-                            ? PremiumTypography.labelMedium
-                            : PremiumTypography.labelLarge)
-                        .copyWith(
-                      color: textColor,
-                    ),
+                    style:
+                        (isMobile
+                                ? PremiumTypography.labelMedium
+                                : PremiumTypography.labelLarge)
+                            .copyWith(color: textColor),
                   ),
                   const SizedBox(height: 2),
                   Text(
@@ -2110,7 +2151,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           onPressed: currentPage > 1
                               ? () {
                                   if (kIsWeb) {
-                                    _pdfViewerController.jumpToPage(currentPage - 1);
+                                    _pdfViewerController.jumpToPage(
+                                      currentPage - 1,
+                                    );
                                   } else {
                                     _pdfViewerController.previousPage();
                                   }
@@ -2145,7 +2188,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                           onPressed: currentPage < pageCount
                               ? () {
                                   if (kIsWeb) {
-                                    _pdfViewerController.jumpToPage(currentPage + 1);
+                                    _pdfViewerController.jumpToPage(
+                                      currentPage + 1,
+                                    );
                                   } else {
                                     _pdfViewerController.nextPage();
                                   }
@@ -2631,7 +2676,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 event.logicalKey == LogicalKeyboardKey.pageUp) {
               if (_pageNumberNotifier.value > 1) {
                 if (kIsWeb) {
-                  _pdfViewerController.jumpToPage(_pageNumberNotifier.value - 1);
+                  _pdfViewerController.jumpToPage(
+                    _pageNumberNotifier.value - 1,
+                  );
                 } else {
                   _pdfViewerController.previousPage();
                 }
@@ -2641,7 +2688,9 @@ class _PdfViewerScreenState extends State<PdfViewerScreen> {
                 event.logicalKey == LogicalKeyboardKey.pageDown) {
               if (_pageNumberNotifier.value < _pageCountNotifier.value) {
                 if (kIsWeb) {
-                  _pdfViewerController.jumpToPage(_pageNumberNotifier.value + 1);
+                  _pdfViewerController.jumpToPage(
+                    _pageNumberNotifier.value + 1,
+                  );
                 } else {
                   _pdfViewerController.nextPage();
                 }

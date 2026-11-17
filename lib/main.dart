@@ -22,6 +22,7 @@ import 'screens/split_pdf_screen.dart';
 import 'screens/sign_pdf_screen_refactored.dart';
 import 'screens/all_tools_screen.dart';
 import 'screens/settings_screen.dart';
+import 'screens/downloads_screen.dart';
 import 'widgets/modern_navigation.dart';
 import 'widgets/workspace_components.dart';
 import 'config/app_config.dart';
@@ -289,8 +290,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       'images_to_pdf': 9,
       'sign': 10,
       'repair': 11,
-      if (!kIsWeb) 'history': 12,
-      'settings': kIsWeb ? 12 : 13,
+      'downloads': 12,
+      if (!kIsWeb) 'history': 13,
+      'settings': kIsWeb ? 13 : 14,
     };
 
     _mobileNavItems = [
@@ -308,9 +310,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         screen: const PdfViewerScreen(),
       ),
       ModernNavigationItem(
-        icon: Icons.swap_horiz_rounded,
-        label: 'Convert',
-        screen: const ConvertToPdfScreen(),
+        icon: Icons.download_rounded,
+        label: 'Downloads',
+        screen: const DownloadsScreen(),
       ),
       if (!kIsWeb)
         ModernNavigationItem(
@@ -403,6 +405,13 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
         section: 'Document Tools',
         screen: const RepairPdfScreen(),
       ),
+      ModernNavigationItem(
+        icon: Icons.download_rounded,
+        label: 'Downloads',
+        section: 'System',
+        badge: 'Get App',
+        screen: const DownloadsScreen(),
+      ),
       if (!kIsWeb)
         ModernNavigationItem(
           icon: Icons.history_rounded,
@@ -438,14 +447,12 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
     if (kIsWeb || file.existsSync()) {
       Navigator.push(
         context,
-        MaterialPageRoute(
-          builder: (_) => PdfViewerScreen(externalFile: file),
-        ),
+        MaterialPageRoute(builder: (_) => PdfViewerScreen(externalFile: file)),
       );
     } else {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('File does not exist')),
-      );
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('File does not exist')));
     }
   }
 
@@ -475,9 +482,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error selecting PDF: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error selecting PDF: $e')));
       }
     }
   }
@@ -492,9 +499,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open GitHub: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open GitHub: $e')));
       }
     }
   }
@@ -502,9 +509,7 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
   void _openToolSearch() {
     showDialog(
       context: context,
-      builder: (ctx) => ToolSearchDialog(
-        onSelectTool: _handleToolSelected,
-      ),
+      builder: (ctx) => ToolSearchDialog(onSelectTool: _handleToolSelected),
     );
   }
 
@@ -557,7 +562,8 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
               children: [
                 ModernNavigationRail(
                   selectedIndex: effectiveIndex,
-                  onIndexChanged: (index) => setState(() => _selectedIndex = index),
+                  onIndexChanged: (index) =>
+                      setState(() => _selectedIndex = index),
                   items: _navigationItems,
                   isExpanded: _isSidebarExpanded,
                   onToggleExpanded: () {
@@ -567,8 +573,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
                 Expanded(
                   child: IndexedStack(
                     index: effectiveIndex,
-                    children:
-                        _navigationItems.map((item) => item.screen).toList(),
+                    children: _navigationItems
+                        .map((item) => item.screen)
+                        .toList(),
                   ),
                 ),
               ],
@@ -681,7 +688,9 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
                     Icon(
                       Icons.search_rounded,
                       size: 16,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade500,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade500,
                     ),
                     const SizedBox(width: 8),
                     Expanded(
@@ -733,14 +742,47 @@ class _ResponsiveHomeScreenState extends State<ResponsiveHomeScreen> {
             ),
           const SizedBox(width: 12),
           ElevatedButton.icon(
-            onPressed: _handleGlobalOpenPdf,
-            icon: const Icon(Icons.folder_open_rounded, size: 16),
-            label: const Text('Open PDF'),
+            onPressed: () {
+              final downloadsIdx = _toolIdToIndex['downloads'];
+              if (downloadsIdx != null) {
+                setState(() => _selectedIndex = downloadsIdx);
+              } else {
+                Navigator.push(
+                  context,
+                  MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+                );
+              }
+            },
+            icon: const Icon(Icons.download_rounded, size: 16),
+            label: const Text('Download OpenPDF Tools'),
             style: ElevatedButton.styleFrom(
               backgroundColor: PremiumColors.brandRed,
               foregroundColor: Colors.white,
               elevation: 0,
               padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+              minimumSize: const Size(0, 34),
+              shape: RoundedRectangleBorder(
+                borderRadius: BorderRadius.circular(7),
+              ),
+              textStyle: const TextStyle(
+                fontSize: 12.5,
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          OutlinedButton.icon(
+            onPressed: _handleGlobalOpenPdf,
+            icon: const Icon(Icons.folder_open_rounded, size: 16),
+            label: const Text('Open PDF'),
+            style: OutlinedButton.styleFrom(
+              foregroundColor: isDark ? Colors.white : const Color(0xFF1E1E1E),
+              side: BorderSide(
+                color: isDark
+                    ? PremiumColors.darkDivider
+                    : PremiumColors.lightDivider,
+              ),
+              padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
               minimumSize: const Size(0, 34),
               shape: RoundedRectangleBorder(
                 borderRadius: BorderRadius.circular(7),

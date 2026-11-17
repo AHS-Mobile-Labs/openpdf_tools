@@ -16,6 +16,7 @@ dependencies:
   # Web support
   html: ^0.15.0
   archive: ^4.0.0
+  http: ^1.2.0
 
   # PDF generation and manipulation
   pdf: ^3.10.0
@@ -80,6 +81,7 @@ flutter:
   uses-material-design: true
   assets:
     - asset/app_img/OpenPDF Tools.png
+    - asset/releases.json
 
 flutter_launcher_icons:
   image_path: "asset/app_img/OpenPDF Tools.png"

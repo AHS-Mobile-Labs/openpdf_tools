@@ -130,7 +130,7 @@ Future<List<int>?> _attemptContentRecovery(List<int> bytes) async {
         ),
       ),
     );
-    return pdf.save();
+    return await pdf.save();
   } catch (e) {
     debugPrint('[ContentRecovery] Failed: $e');
     return null;

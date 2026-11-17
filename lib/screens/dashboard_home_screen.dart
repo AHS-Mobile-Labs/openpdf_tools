@@ -19,16 +19,13 @@ import 'merge_pdf_screen.dart';
 import 'split_pdf_screen.dart';
 import 'sign_pdf_screen_refactored.dart';
 import 'repair_pdf_screen.dart';
+import 'downloads_screen.dart';
 
 class DashboardHomeScreen extends StatefulWidget {
   final Function(ToolItem tool)? onSelectTool;
   final Function(String path)? onOpenPdfPath;
 
-  const DashboardHomeScreen({
-    super.key,
-    this.onSelectTool,
-    this.onOpenPdfPath,
-  });
+  const DashboardHomeScreen({super.key, this.onSelectTool, this.onOpenPdfPath});
 
   @override
   State<DashboardHomeScreen> createState() => _DashboardHomeScreenState();
@@ -45,11 +42,18 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Could not open GitHub: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Could not open GitHub: $e')));
       }
     }
+  }
+
+  void _openDownloadsScreen() {
+    Navigator.push(
+      context,
+      MaterialPageRoute(builder: (_) => const DownloadsScreen()),
+    );
   }
 
   Future<void> _handlePickPdf() async {
@@ -78,9 +82,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('Error opening file: $e')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text('Error opening file: $e')));
       }
     }
   }
@@ -98,9 +102,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           ),
         );
       } else {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('File does not exist')),
-        );
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(const SnackBar(content: Text('File does not exist')));
       }
     }
   }
@@ -135,7 +139,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
 
   Widget _buildClassicMobileDashboard(BuildContext context, bool isDark) {
     return Scaffold(
-      backgroundColor: isDark ? const Color(0xFF0F0F0F) : const Color(0xFFFAFAFA),
+      backgroundColor: isDark
+          ? const Color(0xFF0F0F0F)
+          : const Color(0xFFFAFAFA),
       body: SafeArea(
         child: SingleChildScrollView(
           physics: const BouncingScrollPhysics(),
@@ -146,6 +152,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Column(
                   children: [
+                    _buildClassicDownloadBanner(context, isDark),
                     const SizedBox(height: 16),
                     _buildClassicQuickActions(context, isDark),
                     const SizedBox(height: 20),
@@ -160,6 +167,69 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               ),
             ],
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildClassicDownloadBanner(BuildContext context, bool isDark) {
+    return InkWell(
+      onTap: _openDownloadsScreen,
+      borderRadius: BorderRadius.circular(12),
+      child: Container(
+        margin: const EdgeInsets.only(top: 14),
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+        decoration: BoxDecoration(
+          color: PremiumColors.brandRed.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(
+            color: PremiumColors.brandRed.withValues(alpha: 0.3),
+          ),
+        ),
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(8),
+              decoration: BoxDecoration(
+                color: PremiumColors.brandRed,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: const Icon(
+                Icons.download_rounded,
+                color: Colors.white,
+                size: 20,
+              ),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  const Text(
+                    'Download OpenPDF Tools',
+                    style: TextStyle(
+                      fontSize: 13.5,
+                      fontWeight: FontWeight.w700,
+                      color: PremiumColors.brandRed,
+                    ),
+                  ),
+                  Text(
+                    'Android APK, Windows, Linux & macOS builds',
+                    style: TextStyle(
+                      fontSize: 11,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const Icon(
+              Icons.chevron_right_rounded,
+              color: PremiumColors.brandRed,
+            ),
+          ],
         ),
       ),
     );
@@ -266,7 +336,10 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                     ),
                     const SizedBox(width: 8),
                     Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: 7,
+                        vertical: 2,
+                      ),
                       decoration: BoxDecoration(
                         color: Colors.white.withValues(alpha: 0.18),
                         borderRadius: BorderRadius.circular(20),
@@ -709,18 +782,25 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                             fontSize: isCompact ? 18 : 22,
                             fontWeight: FontWeight.w800,
                             letterSpacing: -0.4,
-                            color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                            color: isDark
+                                ? Colors.white
+                                : const Color(0xFF1E1E1E),
                           ),
                         ),
                       ),
                       const SizedBox(width: 8),
                       Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 7,
+                          vertical: 2,
+                        ),
                         decoration: BoxDecoration(
                           color: PremiumColors.brandRed.withValues(alpha: 0.12),
                           borderRadius: BorderRadius.circular(4),
                           border: Border.all(
-                            color: PremiumColors.brandRed.withValues(alpha: 0.3),
+                            color: PremiumColors.brandRed.withValues(
+                              alpha: 0.3,
+                            ),
                             width: 0.8,
                           ),
                         ),
@@ -742,14 +822,67 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                     overflow: TextOverflow.ellipsis,
                     style: TextStyle(
                       fontSize: isCompact ? 11.5 : 13,
-                      color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                      color: isDark
+                          ? Colors.grey.shade400
+                          : Colors.grey.shade600,
                     ),
                   ),
                 ],
               ),
             ),
+            if (!isCompact) ...[
+              const SizedBox(width: 16),
+              ElevatedButton.icon(
+                onPressed: _openDownloadsScreen,
+                icon: const Icon(Icons.download_rounded, size: 16),
+                label: const Text('Download OpenPDF Tools'),
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: PremiumColors.brandRed,
+                  foregroundColor: Colors.white,
+                  elevation: 0,
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: 16,
+                    vertical: 12,
+                  ),
+                  shape: RoundedRectangleBorder(
+                    borderRadius: BorderRadius.circular(8),
+                  ),
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
+        if (isCompact) ...[
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: ElevatedButton.icon(
+              onPressed: _openDownloadsScreen,
+              icon: const Icon(Icons.download_rounded, size: 16),
+              label: const Text('Download OpenPDF Tools'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: PremiumColors.brandRed,
+                foregroundColor: Colors.white,
+                elevation: 0,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 14,
+                  vertical: 10,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(8),
+                ),
+                textStyle: const TextStyle(
+                  fontSize: 12.5,
+                  fontWeight: FontWeight.w700,
+                ),
+              ),
+            ),
+          ),
+        ],
       ],
     );
   }
@@ -817,10 +950,7 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
           ),
           itemBuilder: (context, index) {
             final tool = spotlight[index];
-            return ToolCard(
-              tool: tool,
-              onTap: () => _navigateToTool(tool),
-            );
+            return ToolCard(tool: tool, onTap: () => _navigateToTool(tool));
           },
         ),
       ],
@@ -886,7 +1016,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
     required bool isDark,
     required bool isMobile,
   }) {
-    final tools = ToolItem.allTools.where((t) => t.category == category).toList();
+    final tools = ToolItem.allTools
+        .where((t) => t.category == category)
+        .toList();
     final width = MediaQuery.of(context).size.width;
 
     int cols = 1;
@@ -929,7 +1061,10 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
               ),
               const SizedBox(width: 8),
               Container(
-                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1.5),
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 6,
+                  vertical: 1.5,
+                ),
                 decoration: BoxDecoration(
                   color: category.color.withValues(alpha: 0.12),
                   borderRadius: BorderRadius.circular(4),
@@ -1013,14 +1148,19 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                             style: TextStyle(
                               fontSize: 13,
                               fontWeight: FontWeight.w700,
-                              color: isDark ? Colors.white : const Color(0xFF1E1E1E),
+                              color: isDark
+                                  ? Colors.white
+                                  : const Color(0xFF1E1E1E),
                             ),
                           ),
                         ),
                         if (tool.badge != null) ...[
                           const SizedBox(width: 6),
                           Container(
-                            padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1.5),
+                            padding: const EdgeInsets.symmetric(
+                              horizontal: 5,
+                              vertical: 1.5,
+                            ),
                             decoration: BoxDecoration(
                               color: tool.accentColor.withValues(alpha: 0.15),
                               borderRadius: BorderRadius.circular(3),
@@ -1044,7 +1184,9 @@ class _DashboardHomeScreenState extends State<DashboardHomeScreen> {
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
                         fontSize: 10.5,
-                        color: isDark ? Colors.grey.shade400 : Colors.grey.shade600,
+                        color: isDark
+                            ? Colors.grey.shade400
+                            : Colors.grey.shade600,
                       ),
                     ),
                   ],

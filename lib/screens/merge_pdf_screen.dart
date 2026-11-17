@@ -626,6 +626,7 @@ class _MergePdfScreenState extends State<MergePdfScreen> {
       buildDefaultDragHandles: false,
       physics: const NeverScrollableScrollPhysics(),
       itemCount: _selectedPdfs.length,
+      // ignore: deprecated_member_use
       onReorder: _reorderPdfs,
       itemBuilder: (context, index) {
         final pdf = _selectedPdfs[index];

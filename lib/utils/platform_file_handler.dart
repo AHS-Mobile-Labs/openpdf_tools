@@ -361,7 +361,7 @@ class PlatformFileHandler {
     try {
       final source = File(sourcePath);
       if (!await source.exists()) return null;
-      return source.copy(destinationPath);
+      return await source.copy(destinationPath);
     } catch (_) {}
     return null;
   }

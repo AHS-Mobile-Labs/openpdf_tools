@@ -23,13 +23,34 @@ android {
         multiDexEnabled = true
     }
 
+    val keystorePropertiesFile = rootProject.file("key.properties")
+    val keystoreProperties = java.util.Properties()
+    if (keystorePropertiesFile.exists()) {
+        keystoreProperties.load(java.io.FileInputStream(keystorePropertiesFile))
+    }
+
+    signingConfigs {
+        create("release") {
+            val keyFile = keystoreProperties.getProperty("storeFile")
+            if (keyFile != null && file(keyFile).exists()) {
+                storeFile = file(keyFile)
+                storePassword = keystoreProperties.getProperty("storePassword")
+                keyAlias = keystoreProperties.getProperty("keyAlias")
+                keyPassword = keystoreProperties.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         debug {
             isDebuggable = true
             isMinifyEnabled = false
         }
         release {
-            signingConfig = signingConfigs.getByName("debug")
+            val hasReleaseKey = keystorePropertiesFile.exists() &&
+                keystoreProperties.getProperty("storeFile") != null &&
+                file(keystoreProperties.getProperty("storeFile")).exists()
+            signingConfig = if (hasReleaseKey) signingConfigs.getByName("release") else signingConfigs.getByName("debug")
             isMinifyEnabled = true
             isShrinkResources = true
             proguardFiles(

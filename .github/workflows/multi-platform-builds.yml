@@ -1,0 +1,445 @@
+name: Multi-Platform Builds & Release
+
+on:
+  push:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'asset/github-img/**'
+      - '.gitignore'
+      - 'LICENSE'
+  pull_request:
+    branches:
+      - main
+    paths-ignore:
+      - '**.md'
+      - 'asset/github-img/**'
+      - '.gitignore'
+      - 'LICENSE'
+  release:
+    types: [published]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Release version override (e.g. 1.0.0 or v1.0.0)'
+        required: false
+        type: string
+      force_release:
+        description: 'Force publish GitHub release assets'
+        required: false
+        default: false
+        type: boolean
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # 1. VERSION EVALUATION & METADATA PREPARATION
+  # ---------------------------------------------------------------------------
+  prepare:
+    name: Prepare Version & Release Context
+    runs-on: ubuntu-latest
+    outputs:
+      is_release: ${{ steps.version_eval.outputs.is_release }}
+      version: ${{ steps.version_eval.outputs.version }}
+      tag: ${{ steps.version_eval.outputs.tag }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Parse & Validate Version
+        id: version_eval
+        run: |
+          set -e
+          INPUT_TEXT=""
+
+          # Determine candidate text from inputs, release tag, or commit message
+          if [ -n "${{ github.event.inputs.version }}" ]; then
+            INPUT_TEXT="${{ github.event.inputs.version }}"
+          elif [ "${{ github.event_name }}" = "release" ]; then
+            INPUT_TEXT="${{ github.event.release.tag_name }}"
+          else
+            # Extract commit message from HEAD
+            INPUT_TEXT="$(git log -1 --pretty=%B)"
+          fi
+
+          echo "Evaluating input text: $INPUT_TEXT"
+          python3 scripts/parse_version.py "$INPUT_TEXT" > version_info.txt
+          cat version_info.txt
+
+          IS_RELEASE=$(grep "^IS_RELEASE=" version_info.txt | cut -d'=' -f2)
+          VERSION=$(grep "^VERSION=" version_info.txt | cut -d'=' -f2)
+          TAG=$(grep "^TAG=" version_info.txt | cut -d'=' -f2)
+
+          # Allow manual force_release override if version is provided
+          if [ "${{ github.event.inputs.force_release }}" = "true" ] && [ -n "$VERSION" ]; then
+            IS_RELEASE="true"
+          fi
+
+          # Non-release pull requests or regular commits
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            IS_RELEASE="false"
+          fi
+
+          # Fallback version for artifact naming if non-release
+          if [ -z "$VERSION" ]; then
+            VERSION="1.0.0"
+            TAG="v1.0.0"
+          fi
+
+          echo "is_release=$IS_RELEASE" >> "$GITHUB_OUTPUT"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+          echo "### Build Evaluation Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Event**: \`${{ github.event_name }}\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Is Release Build**: \`$IS_RELEASE\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Extracted Version**: \`$VERSION\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "- **Release Tag**: \`$TAG\`" >> "$GITHUB_STEP_SUMMARY"
+
+  # ---------------------------------------------------------------------------
+  # 2. ANDROID BUILD (APK & AAB)
+  # ---------------------------------------------------------------------------
+  build-android:
+    name: Build Android (APK & AAB)
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Java 17
+        uses: actions/setup-java@v5
+        with:
+          distribution: 'temurin'
+          java-version: '17'
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Configure Android Release Signing
+        env:
+          KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          if [ -n "$KEYSTORE_BASE64" ] && [ -n "$KEYSTORE_PASSWORD" ] && [ -n "$KEY_ALIAS" ]; then
+            echo "$KEYSTORE_BASE64" | base64 -d > android/app/release-upload.jks
+            cat <<EOF > android/key.properties
+          storeFile=release-upload.jks
+          storePassword=$KEYSTORE_PASSWORD
+          keyAlias=$KEY_ALIAS
+          keyPassword=$KEY_PASSWORD
+          EOF
+            echo "ANDROID_SIGNED=true" >> "$GITHUB_ENV"
+          else
+            echo "ANDROID_SIGNED=false" >> "$GITHUB_ENV"
+            echo "Android signing secrets not provided. Using fallback build."
+          fi
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Android APK
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build apk --release --build-name="$VERSION" --build-number="${{ github.run_number }}"
+          mkdir -p output
+          cp build/app/outputs/flutter-apk/app-release.apk "output/OpenPDF-Tools-v${VERSION}-Android.apk"
+
+      - name: Build Android AAB
+        if: needs.prepare.outputs.is_release == 'true'
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build appbundle --release --build-name="$VERSION" --build-number="${{ github.run_number }}"
+          cp build/app/outputs/bundle/release/app-release.aab "output/OpenPDF-Tools-v${VERSION}-Android.aab"
+
+      - name: Upload Android Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-Android
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 3. WINDOWS BUILD (ZIP PORTABLE)
+  # ---------------------------------------------------------------------------
+  build-windows:
+    name: Build Windows (x64)
+    needs: prepare
+    runs-on: windows-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Windows Application
+        shell: pwsh
+        run: |
+          $ver = "${{ needs.prepare.outputs.version }}"
+          flutter build windows --release --build-name="$ver" --build-number="${{ github.run_number }}"
+
+      - name: Verify & Package Windows Distribution
+        shell: pwsh
+        run: |
+          $ver = "${{ needs.prepare.outputs.version }}"
+          $runnerDir = "build\windows\x64\runner\Release"
+          $exePath = "$runnerDir\openpdf_tools.exe"
+          if (!(Test-Path $exePath)) {
+            Write-Error "Windows executable not found at $exePath"
+            exit 1
+          }
+          New-Item -ItemType Directory -Force -Path output
+          $archiveName = "output\OpenPDF-Tools-v$ver-Windows.zip"
+          Compress-Archive -Path "$runnerDir\*" -DestinationPath $archiveName -Force
+          Write-Host "Created packaged Windows distribution at $archiveName"
+
+      - name: Upload Windows Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-Windows
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 4. LINUX BUILD (TAR.GZ)
+  # ---------------------------------------------------------------------------
+  build-linux:
+    name: Build Linux (x86_64)
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Install Linux Build Dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libstdc++-12-dev
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Linux Application
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build linux --release --build-name="$VERSION" --build-number="${{ github.run_number }}"
+
+      - name: Package Linux Distribution
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p output
+          tar -czf "output/OpenPDF-Tools-v${VERSION}-Linux.tar.gz" -C build/linux/x64/release/bundle .
+
+      - name: Upload Linux Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-Linux
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 5. MACOS BUILD (ZIP)
+  # ---------------------------------------------------------------------------
+  build-macos:
+    name: Build macOS (Universal)
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build macOS Application
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build macos --release --build-name="$VERSION" --build-number="${{ github.run_number }}"
+
+      - name: Package macOS App Bundle
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p output
+          APP_PATH="build/macos/Build/Products/Release/OpenPDF Tools.app"
+          if [ ! -d "$APP_PATH" ]; then
+            APP_PATH=$(find build/macos/Build/Products/Release -name "*.app" -maxdepth 1 | head -n 1)
+          fi
+          ditto -c -k --sequesterRsrc --keepParent "$APP_PATH" "output/OpenPDF-Tools-v${VERSION}-macOS.zip"
+
+      - name: Upload macOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-macOS
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 6. IOS BUILD (UNSIGNED ARCHIVE)
+  # ---------------------------------------------------------------------------
+  build-ios:
+    name: Build iOS (Unsigned)
+    needs: prepare
+    runs-on: macos-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build iOS Application (No Code Signing)
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build ios --release --no-codesign --build-name="$VERSION" --build-number="${{ github.run_number }}"
+
+      - name: Package iOS Bundle
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          mkdir -p output
+          cd build/ios/iphoneos
+          zip -r "../../../output/OpenPDF-Tools-v${VERSION}-iOS-unsigned.zip" Runner.app
+          cd ../../..
+
+      - name: Upload iOS Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-iOS
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 7. WEB BUILD (ZIP ARCHIVE)
+  # ---------------------------------------------------------------------------
+  build-web:
+    name: Build Web (Release)
+    needs: prepare
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Flutter
+        uses: subosito/flutter-action@v2
+        with:
+          channel: 'stable'
+          cache: true
+
+      - name: Install dependencies
+        run: flutter pub get
+
+      - name: Build Web Application
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          flutter build web --release --base-href "/openpdf_tools/" --build-name="$VERSION"
+          touch build/web/.nojekyll
+          cp build/web/index.html build/web/404.html
+          mkdir -p output
+          cd build/web
+          zip -r "../../output/OpenPDF-Tools-v${VERSION}-Web.zip" .
+          cd ../..
+
+      - name: Upload Web Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: OpenPDF-Tools-Web
+          path: output/*
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # 8. PUBLISH VERSIONED RELEASE & ASSETS
+  # ---------------------------------------------------------------------------
+  publish-release:
+    name: Publish GitHub Release
+    needs:
+      - prepare
+      - build-android
+      - build-windows
+      - build-linux
+      - build-macos
+      - build-ios
+      - build-web
+    if: always() && needs.prepare.outputs.is_release == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all_artifacts
+          merge-multiple: true
+
+      - name: Consolidate & Inspect Artifacts
+        run: |
+          mkdir -p release_assets
+          cp all_artifacts/* release_assets/ || true
+          ls -la release_assets/
+
+      - name: Generate Release Notes
+        id: notes
+        run: |
+          VERSION="${{ needs.prepare.outputs.version }}"
+          python3 scripts/generate_release_notes.py "$VERSION" release_assets > release_notes.md
+          cat release_notes.md >> "$GITHUB_STEP_SUMMARY"
+
+      - name: Publish or Update GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.prepare.outputs.tag }}
+          name: OpenPDF Tools ${{ needs.prepare.outputs.tag }}
+          body_path: release_notes.md
+          draft: false
+          prerelease: false
+          files: release_assets/*
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -195,6 +195,7 @@ class _PdfFromImagesScreenState extends State<PdfFromImagesScreen> {
             child: _imageBytesList.isEmpty
                 ? const Center(child: Text('No images selected'))
                 : ReorderableListView(
+                    // ignore: deprecated_member_use
                     onReorder: (oldIndex, newIndex) {
                       setState(() {
                         if (newIndex > oldIndex) newIndex -= 1;

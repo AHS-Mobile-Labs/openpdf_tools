@@ -15,6 +15,7 @@ import '../screens/pdf_from_images_screen.dart';
 import '../screens/sign_pdf_screen_refactored.dart';
 import '../screens/repair_pdf_screen.dart';
 import '../screens/history_screen.dart';
+import '../screens/downloads_screen.dart';
 
 enum ToolCategory {
   all('All Tools', Icons.grid_view_rounded, Color(0xFFE1251B)),
@@ -157,6 +158,17 @@ class ToolItem {
       icon: Icons.photo_library_rounded,
       accentColor: const Color(0xFFE65100),
       screenBuilder: () => const PdfFromImagesScreen(),
+    ),
+    ToolItem(
+      id: 'downloads',
+      title: 'Download OpenPDF Tools',
+      shortTitle: 'Downloads',
+      category: ToolCategory.viewAnnotate,
+      description: 'Get native builds for Android, Windows, Linux, macOS, iOS & Web',
+      icon: Icons.download_rounded,
+      accentColor: const Color(0xFFC6302C),
+      badge: 'Builds',
+      screenBuilder: () => const DownloadsScreen(),
     ),
     if (!kIsWeb)
       ToolItem(

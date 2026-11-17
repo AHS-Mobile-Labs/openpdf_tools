@@ -55,7 +55,7 @@ class PDFRepairService {
         };
       }
       final bytes = await file.readAsBytes();
-      return analyzePDFBytes(bytes: bytes, fileName: pdfPath);
+      return await analyzePDFBytes(bytes: bytes, fileName: pdfPath);
     } catch (e) {
       debugPrint('[PDFRepairService] Error analyzing PDF: $e');
       return {
@@ -149,7 +149,7 @@ class PDFRepairService {
         return ['Error: File not found'];
       }
       final bytes = await file.readAsBytes();
-      return recoverTextFromBytes(bytes);
+      return await recoverTextFromBytes(bytes);
     } catch (e) {
       debugPrint('[PDFRepairService] Error recovering text: $e');
       return ['Error during recovery: $e'];
@@ -200,7 +200,7 @@ class PDFRepairService {
         );
       }
       final bytes = await file.readAsBytes();
-      return checkIntegrityFromBytes(bytes: bytes, fileName: pdfPath);
+      return await checkIntegrityFromBytes(bytes: bytes, fileName: pdfPath);
     } catch (e) {
       debugPrint('[PDFRepairService] Error checking integrity: $e');
       return PDFIntegrityReport(
